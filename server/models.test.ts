@@ -37,7 +37,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const grading = Boolean(params.outputSchema?.properties?.feedback);
     const prompt = params.input?.[0]?.text ?? '';
     const test = prompt.includes('Create a complete test');
-    const text = params.outputSchema ? JSON.stringify(grading ? {score:1,total:1,feedback:[{questionId:'q-one',score:1,maxScore:1,feedback:'Correct.',needsReview:false}]} : test ? {title:'Timed test',content:'',questions:[{responseType:'short_response',choices:[],prompt:'Solve $2x=8$.',answer:'$x=4$.',explanation:'Divide by 2.',marks:1}]} : {title:'Selected model notes',content:'Study equations.',questions:[]}) : 'Fixture response';
+    const text = params.outputSchema?.properties?.response ? JSON.stringify({response:{kind:'message',content:'Fixture response'}}) : params.outputSchema ? JSON.stringify(grading ? {score:1,total:1,feedback:[{questionId:'q-one',score:1,maxScore:1,feedback:'Correct.',needsReview:false}]} : test ? {title:'Timed test',content:'',questions:[{responseType:'short_response',choices:[],prompt:'Solve $2x=8$.',answer:'$x=4$.',explanation:'Divide by 2.',marks:1}]} : {title:'Selected model notes',content:'Study equations.',questions:[]}) : 'Fixture response';
     const complete = () => {
       send({method:'item/completed',params:{threadId:params.threadId,item:{id:'answer',type:'agentMessage',phase:'final_answer',text}}});
       send({method:'turn/completed',params:{threadId:params.threadId,turn:{status:'completed'}}});
