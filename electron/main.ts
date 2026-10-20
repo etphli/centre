@@ -63,6 +63,10 @@ async function createWindow() {
     },
   });
   mainWindow = window;
+  const syncWindowChrome = () => window.webContents.send('centre:window-chrome', process.platform === 'darwin' && !window.isFullScreen());
+  window.webContents.on('dom-ready', syncWindowChrome);
+  window.on('enter-full-screen', syncWindowChrome);
+  window.on('leave-full-screen', syncWindowChrome);
   window.webContents.setWindowOpenHandler(({ url }) => {
     try { void shell.openExternal(validateExternalUrl(url)).catch(() => {}); } catch { /* The renderer cannot open unsupported protocols. */ }
     return { action: 'deny' };

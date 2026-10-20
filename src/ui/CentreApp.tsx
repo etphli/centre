@@ -341,43 +341,43 @@ export default function CentreApp() {
       <div className={`app${collapsed ? ' app--collapsed' : ''}`}>
         {!collapsed ? <Sidebar onCollapse={() => setCollapsed(true)} /> : null}
         <main className="main">
-          <header className="topbar">
-            {collapsed ? (
-              <button type="button" className="icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={() => setCollapsed(false)}>
-                <PanelLeft size={17} />
-              </button>
-            ) : null}
-            <div className="topbar__history">
-              <button type="button" className="icon-button icon-button--small" aria-label="Back" title="Back" disabled={history.index === 0} onClick={() => go(-1)}>
-                <ArrowLeft size={15} />
-              </button>
-              <button type="button" className="icon-button icon-button--small" aria-label="Forward" title="Forward" disabled={history.index >= history.stack.length - 1} onClick={() => go(1)}>
-                <ArrowRight size={15} />
-              </button>
-            </div>
-            <Crumbs route={route} state={actions.state} navigate={navigate} />
-            <div className="topbar__end">
-              {generating.length ? (
-                <span className="topbar__jobs" role="status">
-                  <span className="spinner spinner--small" aria-hidden /> Making {generating.length === 1 ? `a ${generating[0]!.label}` : `${generating.length} resources`}
-                </span>
-              ) : null}
-              {collapsed ? (
-                <button type="button" className="icon-button" aria-label="Search" title="Search (⌘K)" onClick={openSearch}>
-                  <Search size={16} />
-                </button>
-              ) : null}
-            </div>
-          </header>
-          {error ? (
-            <div className="banner" role="alert">
-              Lost contact with the Centre service: {error} Showing the last data Centre loaded.
-              <button type="button" className="link-button" onClick={() => void quietRefresh()}>Retry</button>
-            </div>
-          ) : null}
           {/* The page keeps the same parents whether or not the side chat is open, so its state (typed quiz answers, scroll) survives. */}
           <div className={`main__body${sideOpen ? ' main__body--side' : ''}`}>
             <div className="main__column">
+              <header className="topbar">
+                {collapsed ? (
+                  <button type="button" className="icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={() => setCollapsed(false)}>
+                    <PanelLeft size={17} />
+                  </button>
+                ) : null}
+                <div className="topbar__history">
+                  <button type="button" className="icon-button icon-button--small" aria-label="Back" title="Back" disabled={history.index === 0} onClick={() => go(-1)}>
+                    <ArrowLeft size={15} />
+                  </button>
+                  <button type="button" className="icon-button icon-button--small" aria-label="Forward" title="Forward" disabled={history.index >= history.stack.length - 1} onClick={() => go(1)}>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+                <Crumbs route={route} state={actions.state} navigate={navigate} />
+                <div className="topbar__end">
+                  {generating.length ? (
+                    <span className="topbar__jobs" role="status">
+                      <span className="spinner spinner--small" aria-hidden /> Making {generating.length === 1 ? `a ${generating[0]!.label}` : `${generating.length} resources`}
+                    </span>
+                  ) : null}
+                  {collapsed ? (
+                    <button type="button" className="icon-button" aria-label="Search" title="Search (⌘K)" onClick={openSearch}>
+                      <Search size={16} />
+                    </button>
+                  ) : null}
+                </div>
+              </header>
+              {error ? (
+                <div className="banner" role="alert">
+                  Lost contact with the Centre service: {error} Showing the last data Centre loaded.
+                  <button type="button" className="link-button" onClick={() => void quietRefresh()}>Retry</button>
+                </div>
+              ) : null}
               <div className={`main__content${docked ? ' main__content--docked' : ''}`} ref={main}>
                 <Page key={route.kind === 'home' ? `home-${homeVisit}` : route.kind} route={route} />
               </div>
