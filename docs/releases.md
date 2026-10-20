@@ -1,28 +1,48 @@
 # Release Centre for macOS
 
-## Build a local copy
+## Download and share Centre
 
-Run `npm run package:mac` on macOS. Before building, provide both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or save Google's installed-app OAuth JSON as `.runtime/google-oauth-source.json`. The build validates the config and packages it with the app. Do not commit the JSON file or the OAuth values.
+Every push to `main` runs the **macOS release** workflow. After checks pass, it publishes a GitHub release with two installers:
 
-The app, DMG, and ZIP appear in `release/`. Local builds are unsigned and do not install automatic updates.
+- `Centre-<version>-arm64.dmg` for Apple Silicon Macs.
+- `Centre-<version>-x64.dmg` for Intel Macs.
 
-## Publish a signed release
+Download installers from [Releases](https://github.com/etphli/centre/releases/latest). Send the DMG directly to friends. The repository is private, so friends need repository access to use its download links. Sharing a DMG does not require sharing repository access or a GitHub token.
 
-Add the Apple signing and notarization secrets to the repository's `release` environment:
+Open the DMG and drag Centre into Applications. Builds are unsigned until Apple credentials are configured. macOS may require approval in **System Settings > Privacy & Security > Open Anyway** after the first launch attempt. Replace unsigned installations by downloading a newer DMG.
+
+Each person keeps their own study data and credentials on their Mac. AI features require the Codex CLI and their own login. Organato sync requires their own Organato API key. Google sign-in uses the app's bundled Desktop OAuth client and remains subject to that client's Google consent-screen audience.
+
+## Automatic releases
+
+The workflow checks types, runs tests, builds the renderer and Electron process, and verifies text-size controls in the running app before packaging both architectures. It publishes a release immediately, rather than leaving a draft.
+
+Versions use the major and minor from `package.json`, with its patch plus the GitHub workflow run number. For example, base `0.1.0` and run 12 produce `0.1.12`. The workflow changes the version only in its build checkout. Rerunning a workflow replaces assets on that same release. Keep the base version stable within a release series; increase its major or minor for a new series.
+
+The workflow also supports **Run workflow** on `main`. Release jobs run serially so an older build cannot replace a newer release as latest.
+
+Required repository secrets:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
+The build validates these and packages the app-owned Desktop OAuth config. Never commit the OAuth values or source JSON.
+
+## Enable signed releases
+
+Add all five Apple credentials as repository secrets:
 
 - `CSC_LINK` and `CSC_KEY_PASSWORD` for the Developer ID Application certificate.
 - `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` for notarization.
 
-Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` as repository secrets. The desktop checks and release workflow use them to build the app-owned Desktop OAuth config.
+The workflow automatically signs and notarizes when all five exist. Partial configuration fails rather than silently publishing an unsigned build. Without Apple credentials it publishes unsigned DMGs. Signed releases also include ZIPs and update metadata. Keep the signing identity consistent between releases.
 
-The **Signed macOS release** workflow stops if any required secret is missing. Set a new version in `package.json` and update the lockfile, then run the workflow. It checks types, runs tests, builds the renderer and Electron process, signs and notarizes the app, and uploads a draft release to `etphli/centre`.
+Automatic updates require a signed app. In Settings, save a GitHub token with read access to the private repository, then click **Check for updates**. Centre stores the token in macOS Keychain. Each user supplies their own token; Centre does not bundle one. After downloading, click **Restart and install**.
 
-The release includes a DMG, ZIP, and update metadata. Automatic updates require a signed release and its ZIP metadata. Keep the application's signing identity consistent between releases.
+Signing, notarization, and automatic installation need Apple credentials and a signed release before they can be verified.
 
-## Download private releases
+## Build locally
 
-In the installed app's Settings, save a GitHub token with read access to the private repository. Centre stores the token in macOS Keychain. Each user supplies their own token; the app does not include one.
+Run `npm run package:mac` on macOS. Provide both Google OAuth environment variables or save Google's installed-app OAuth JSON as `.runtime/google-oauth-source.json`. The app, DMG, and ZIP appear in `release/`. Local builds do not publish releases.
 
-Click **Check for updates**. After a download completes, click **Restart and install**. Settings reports a missing token, missing signed release, or download failure.
-
-Apple signing credentials and a first signed release must exist before automatic installation can be verified. An unsigned local build cannot verify that flow.
+To verify text sizing after building the renderer and Electron process, run `node scripts/verify-text-size.mjs`. It clicks each size, checks computed font sizes in settings, navigation, messages, Markdown and the composer, restores Default, then verifies Large persists after reload. Screenshots appear in `.runtime/text-size-*.png`.

@@ -65,7 +65,7 @@ Provide the Google Desktop OAuth config described above, then run:
 npm run package:mac
 ```
 
-The app, DMG, and ZIP appear in `release/`. Local builds are unsigned. To distribute a signed app with automatic updates, follow [the release guide](docs/releases.md).
+The app, DMG, and ZIP appear in `release/`. Every push to `main` also publishes Apple Silicon and Intel DMGs in [Releases](https://github.com/etphli/centre/releases/latest). Download a DMG to share with friends. See [the release guide](docs/releases.md) for installation, signing, and automatic updates.
 
 ## Verify changes
 
