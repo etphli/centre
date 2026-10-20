@@ -509,16 +509,18 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
 
   return (
     <aside className="sidebar" aria-label="Sidebar">
-      <div className="sidebar__titlebar">
-        <button type="button" className="icon-button" aria-label="Hide sidebar" title="Hide sidebar" onClick={onCollapse}>
-          <PanelLeft size={16} />
+      <div className="sidebar__header">
+        <div className="sidebar__titlebar">
+          <button type="button" className="icon-button" aria-label="Hide sidebar" title="Hide sidebar" onClick={onCollapse}>
+            <PanelLeft size={16} />
+          </button>
+        </div>
+        <button type="button" className="sidebar__search" onClick={openSearch}>
+          <Search size={14} aria-hidden />
+          <span>Search</span>
+          <kbd>&#8984;K</kbd>
         </button>
       </div>
-      <button type="button" className="sidebar__search" onClick={openSearch}>
-        <Search size={14} aria-hidden />
-        <span>Search</span>
-        <kbd>&#8984;K</kbd>
-      </button>
       <nav className="sidebar__nav" aria-label="Main">
         <NavItem icon={<Plus size={15} />} label="New chat" active={route.kind === 'home'} onClick={() => navigate({ kind: 'home' })} />
         <NavItem icon={<Library size={15} />} label="Resources" active={resourceRoutes.includes(route.kind)} onClick={() => navigate({ kind: 'resources' })} />

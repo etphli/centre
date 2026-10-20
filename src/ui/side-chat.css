@@ -1,4 +1,4 @@
-/* Side chat: a panel beside docked pages. The page column and the panel share one row below the top bar. */
+/* Side chat and page each own a header in the same full-height row. */
 
 .main__body {
   flex: 1;
@@ -41,9 +41,14 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  height: 44px;
+  height: var(--topbar-h);
   padding: 0 8px 0 16px;
   border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+}
+
+.side-chat__header button {
+  -webkit-app-region: no-drag;
 }
 
 .side-chat__title {

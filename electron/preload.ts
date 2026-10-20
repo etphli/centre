@@ -1,5 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+let nativeTitlebar = process.platform === 'darwin';
+function syncWindowChrome() {
+  if (document.documentElement) document.documentElement.dataset.nativeTitlebar = String(nativeTitlebar);
+}
+window.addEventListener('DOMContentLoaded', syncWindowChrome);
+ipcRenderer.on('centre:window-chrome', (_event, value: unknown) => {
+  if (typeof value !== 'boolean') return;
+  nativeTitlebar = value;
+  syncWindowChrome();
+});
+
 contextBridge.exposeInMainWorld('centre', {
   request: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('centre:request', method, path, body),
   chooseFiles: () => ipcRenderer.invoke('centre:choose-files'),
