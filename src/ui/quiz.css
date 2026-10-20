@@ -11,7 +11,7 @@
 
 .quiz__count {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
@@ -88,7 +88,7 @@
 }
 
 .question--single .question__prompt {
-  font-size: 15.5px;
+  font-size: 0.96875rem;
 }
 
 .question--single .question__answer {
@@ -99,7 +99,7 @@
   padding: 10px 12px;
   border-radius: var(--radius);
   background: var(--sidebar);
-  font-size: 14px;
+  font-size: 0.875rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -109,19 +109,19 @@
 }
 
 .quiz__label {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
 .quiz__model {
   margin-top: 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .quiz__model summary {
   cursor: pointer;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .quiz__missing {
@@ -130,7 +130,7 @@
   align-items: baseline;
   gap: 4px 10px;
   margin-top: 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-2);
 }
 
@@ -158,11 +158,11 @@
   }
 }
 .quiz-choices{display:grid;gap:7px;margin-top:20px}
-.quiz-choice{position:relative;display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:7px;padding:11px 13px;cursor:pointer;font-size:13px;color:var(--text-2)}
+.quiz-choice{position:relative;display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:7px;padding:11px 13px;cursor:pointer;font-size:0.8125rem;color:var(--text-2)}
 .quiz-choice:hover{background:var(--surface)}
 .quiz-choice.is-selected{border-color:var(--text-3);background:var(--surface-3);color:var(--text)}
 .quiz-choice input{width:14px;height:14px;accent-color:#8ea6e8;margin:0}
-.quiz-choice__letter{font-size:11px;color:var(--text-3)}
+.quiz-choice__letter{font-size:0.6875rem;color:var(--text-3)}
 .quiz-choice .markdown{min-width:0}.quiz-choice .markdown p{margin:0}
 .paper .paper__choices{list-style-type:upper-alpha;padding-left:23px;display:grid;gap:6px;margin:13px 0 0}
 .paper .paper__choices>li{margin:0;padding:0;min-height:0}.paper .paper__choices p{margin:0}

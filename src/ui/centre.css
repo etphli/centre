@@ -1,6 +1,7 @@
 /* Centre interface. Dark, quiet, close to Claude Desktop. */
 
 :root {
+  font-size: 16px;
   color-scheme: dark;
 
   --bg: #1b1b1a;
@@ -49,7 +50,7 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 var(--font-sans);
+  font: 0.875rem/1.5 var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -92,7 +93,7 @@ button:disabled {
 }
 
 kbd {
-  font: 11px/1 var(--font-sans);
+  font: 0.6875rem/1 var(--font-sans);
   color: var(--text-3);
   border: 1px solid var(--line-strong);
   border-radius: 4px;
@@ -172,7 +173,7 @@ kbd {
 .button--small {
   height: 28px;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .button:disabled {
@@ -201,7 +202,7 @@ kbd {
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .chip:hover,
@@ -269,7 +270,7 @@ kbd {
 }
 
 .boot__error h1 {
-  font: 400 24px/1.3 var(--font-serif);
+  font: 400 1.5rem/1.3 var(--font-serif);
   margin: 0 0 8px;
 }
 
@@ -297,7 +298,7 @@ kbd {
   background: var(--sidebar);
   border-right: 1px solid var(--line);
   padding: 0 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .sidebar__header {
@@ -408,7 +409,7 @@ kbd {
   border-radius: 999px;
   background: color-mix(in oklab, var(--accent) 22%, transparent);
   color: var(--accent);
-  font-size: 10.5px;
+  font-size: 0.65625rem;
   font-weight: 600;
   line-height: 16px;
   text-align: center;
@@ -424,7 +425,7 @@ kbd {
 
 .sidebar__heading {
   margin: 0 8px 4px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 500;
   color: var(--text-3);
 }
@@ -432,7 +433,7 @@ kbd {
 .sidebar__empty {
   margin: 32px 8px 0;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: 0.75rem;
   text-align: center;
 }
 
@@ -504,7 +505,7 @@ kbd {
   border-radius: 50%;
   background: var(--surface-3);
   color: var(--text-2);
-  font-size: 10.5px;
+  font-size: 0.65625rem;
   font-weight: 600;
   flex: none;
   object-fit: cover;
@@ -513,7 +514,7 @@ kbd {
 .avatar--large {
   width: 44px;
   height: 44px;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .account__text {
@@ -529,7 +530,7 @@ kbd {
 }
 
 .account__status {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--text-3);
 }
 
@@ -571,7 +572,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-2);
 }
 
@@ -622,7 +623,7 @@ kbd {
   border-radius: var(--radius);
   background: color-mix(in oklab, var(--danger) 12%, var(--surface));
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.8125rem;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -660,7 +661,7 @@ kbd {
 
 .page__title {
   margin: 0;
-  font: 400 30px/1.2 var(--font-serif);
+  font: 400 1.875rem/1.2 var(--font-serif);
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
@@ -691,7 +692,7 @@ kbd {
 
 .inspector__heading {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text);
 }
@@ -709,13 +710,13 @@ kbd {
 }
 
 .inspector__heading-row .link-button {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .inspector__empty {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .create-list {
@@ -768,11 +769,11 @@ kbd {
 }
 
 .upcoming__title {
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .upcoming__detail {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -787,7 +788,7 @@ kbd {
 
 .empty-page h1 {
   margin: 0;
-  font: 400 22px/1.3 var(--font-serif);
+  font: 400 1.375rem/1.3 var(--font-serif);
   color: var(--text);
 }
 
@@ -861,18 +862,18 @@ kbd {
 }
 
 .subject-tile__name {
-  font: 400 20px/1.25 var(--font-serif);
+  font: 400 1.25rem/1.25 var(--font-serif);
   color: var(--text);
 }
 
 .subject-tile__meta {
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .subject-tile__due {
   color: color-mix(in oklab, var(--tint) 55%, var(--text-2));
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .invite {
@@ -902,7 +903,7 @@ kbd {
 
 .invite__title {
   margin: 4px 0 0;
-  font: 400 21px/1.3 var(--font-serif);
+  font: 400 1.3125rem/1.3 var(--font-serif);
 }
 
 .invite__body {
@@ -921,7 +922,7 @@ kbd {
 
 .section-bar__title {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-2);
 }
@@ -959,12 +960,12 @@ kbd {
 }
 
 .topic-row__name {
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .topic-row__description {
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -974,7 +975,7 @@ kbd {
   display: grid;
   justify-items: end;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
@@ -1008,7 +1009,7 @@ kbd {
   align-items: center;
   gap: 8px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin: 0 0 14px;
 }
 
@@ -1055,7 +1056,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -1121,7 +1122,7 @@ kbd {
 }
 
 .resource-card__title {
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1130,7 +1131,7 @@ kbd {
 }
 
 .resource-card__meta {
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   color: var(--text-3);
   margin-top: -4px;
 }
@@ -1144,7 +1145,7 @@ kbd {
   background: var(--bg);
   border: 1px solid var(--line);
   color: var(--text-2);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.45;
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
   mask-image: linear-gradient(to bottom, #000 62%, transparent);
@@ -1166,7 +1167,7 @@ kbd {
 .card-preview .markdown h3,
 .card-preview .markdown h4 {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-family: var(--font-sans);
   font-weight: 600;
   color: var(--text);
@@ -1184,7 +1185,7 @@ kbd {
 .card-preview__label {
   display: block;
   margin-bottom: 2px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text-3);
@@ -1227,7 +1228,7 @@ kbd {
   text-align: center;
   background: var(--surface-2);
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   box-shadow: 3px 3px 0 -1px var(--surface-3);
   -webkit-mask-image: none;
   mask-image: none;
@@ -1268,7 +1269,7 @@ kbd {
   height: 100%;
   margin: 0;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: 0.71875rem;
 }
 
 /* Quick preview dialog */
@@ -1284,7 +1285,7 @@ kbd {
 .paper--preview .paper__header h3 {
   margin: 0;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 
 .preview-questions {
@@ -1313,7 +1314,7 @@ kbd {
 .preview-cards__front,
 .preview-cards__back {
   padding: 10px 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .preview-cards__back {
@@ -1360,7 +1361,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-3);
   margin-bottom: 10px;
 }
@@ -1383,7 +1384,7 @@ kbd {
   align-items: center;
   gap: 6px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .resource-header__actions {
@@ -1400,7 +1401,7 @@ kbd {
   border-radius: 999px;
   background: color-mix(in oklab, var(--ok) 15%, transparent);
   color: var(--ok);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .parse-problem {
@@ -1417,7 +1418,7 @@ kbd {
 .parse-problem summary {
   cursor: pointer;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .source {
@@ -1428,7 +1429,7 @@ kbd {
   border-radius: var(--radius);
   background: var(--sidebar);
   border: 1px solid var(--line);
-  font: 12.5px/1.55 var(--font-mono);
+  font: 0.78125rem/1.55 var(--font-mono);
   color: var(--text-2);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1491,7 +1492,7 @@ kbd {
 
 .question__marks {
   flex: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -1505,13 +1506,13 @@ kbd {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .question__score {
   margin: 0;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .is-right .question__score {
@@ -1529,7 +1530,7 @@ kbd {
 .question__feedback summary {
   cursor: pointer;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .quiz__submit {
@@ -1562,13 +1563,13 @@ kbd {
 }
 
 .score__number {
-  font: 400 34px/1 var(--font-serif);
+  font: 400 2.125rem/1 var(--font-serif);
   font-variant-numeric: tabular-nums;
 }
 
 .score__total {
   color: var(--text-3);
-  font-size: 22px;
+  font-size: 1.375rem;
 }
 
 .score__text {
@@ -1589,7 +1590,7 @@ kbd {
   background: #f3f1ec;
   color: #1d1c1a;
   font-family: var(--font-serif);
-  font-size: 15px;
+  font-size: 0.9375rem;
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 40px -20px rgb(0 0 0 / 0.6);
 }
 
@@ -1603,13 +1604,13 @@ kbd {
 .paper__header h2 {
   margin: 0;
   font-weight: 600;
-  font-size: 20px;
+  font-size: 1.25rem;
 }
 
 .paper__header p {
   margin: 4px 0 0;
   color: #5b5850;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .paper__questions {
@@ -1650,7 +1651,7 @@ kbd {
 .cards__hint {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .flashcard {
@@ -1683,14 +1684,14 @@ kbd {
   border: 1px solid var(--line-strong);
   background: var(--surface);
   backface-visibility: hidden;
-  font-size: 18px;
+  font-size: 1.125rem;
   text-align: center;
   overflow: auto;
 }
 
 .flashcard__face--front {
   font-family: var(--font-serif);
-  font-size: 22px;
+  font-size: 1.375rem;
 }
 
 .flashcard__face--back {
@@ -1730,7 +1731,7 @@ kbd {
 }
 
 .notes {
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 /* Markdown */
@@ -1767,15 +1768,15 @@ kbd {
 }
 
 .markdown h1 {
-  font: 400 24px/1.25 var(--font-serif);
+  font: 400 1.5rem/1.25 var(--font-serif);
 }
 
 .markdown h2 {
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 
 .markdown h3 {
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .markdown ul,
@@ -1810,7 +1811,7 @@ kbd {
 .markdown pre code {
   padding: 0;
   background: none;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
 }
 
 .markdown blockquote {
@@ -1831,7 +1832,7 @@ kbd {
 
 .markdown table {
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
 }
 
 .markdown th,
@@ -1867,7 +1868,7 @@ kbd {
 
 .home__greeting {
   margin: 0 0 6px;
-  font: 400 34px/1.2 var(--font-serif);
+  font: 400 2.125rem/1.2 var(--font-serif);
   text-align: center;
   letter-spacing: -0.01em;
   color: var(--text);
@@ -1909,12 +1910,12 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 22px;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .thread--compact {
   gap: 14px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .message--user {
@@ -1944,7 +1945,7 @@ kbd {
   align-items: center;
   gap: 10px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .working__time {
@@ -1961,7 +1962,7 @@ kbd {
   border-radius: var(--radius);
   background: color-mix(in oklab, var(--danger) 10%, var(--surface));
   border: 1px solid color-mix(in oklab, var(--danger) 25%, var(--line));
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .thread-error p {
@@ -1971,7 +1972,7 @@ kbd {
 .thread-note {
   margin: 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* Composer */
@@ -1982,7 +1983,7 @@ kbd {
 }
 
 .composer__notice {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--warn);
   padding: 0 4px;
 }
@@ -2017,7 +2018,7 @@ kbd {
 
 .composer--hero .composer__input {
   align-self: stretch;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .composer__plus {
@@ -2037,7 +2038,7 @@ kbd {
   background: transparent;
   resize: none;
   line-height: 1.5;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .composer__input::placeholder {
@@ -2077,7 +2078,7 @@ kbd {
   justify-content: space-between;
   gap: 12px;
   padding: 0 6px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--text-3);
 }
 
@@ -2139,7 +2140,7 @@ kbd {
 }
 
 .slash-menu__description {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-3);
 }
 
@@ -2184,7 +2185,7 @@ kbd {
 .dock__title {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2206,7 +2207,7 @@ kbd {
   align-items: center;
   gap: 6px;
   margin: 0 0 6px 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-2);
 }
 
@@ -2266,13 +2267,13 @@ kbd {
 
 .dialog__title {
   margin: 0;
-  font: 400 21px/1.3 var(--font-serif);
+  font: 400 1.3125rem/1.3 var(--font-serif);
 }
 
 .dialog__description {
   margin: 4px 20px 0;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .dialog__kind {
@@ -2304,7 +2305,7 @@ kbd {
   align-items: center;
   gap: 8px;
   margin-right: auto;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-2);
 }
 
@@ -2332,7 +2333,7 @@ kbd {
   border: 0;
   outline: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text);
 }
 
@@ -2350,7 +2351,7 @@ kbd {
 
 .palette__group {
   padding: 10px 10px 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -2380,7 +2381,7 @@ kbd {
 .palette__detail {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
@@ -2416,7 +2417,7 @@ kbd {
 .form__error {
   margin: 0;
   color: var(--danger);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .field {
@@ -2429,7 +2430,7 @@ kbd {
 }
 
 .field__label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-2);
   padding: 0;
 }
@@ -2504,7 +2505,7 @@ input[type='checkbox'] {
   height: 28px;
   border-radius: var(--radius-s);
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
   cursor: pointer;
 }
 
@@ -2552,7 +2553,7 @@ input[type='checkbox'] {
 }
 
 .check__text {
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   color: var(--text-2);
 }
 
@@ -2595,7 +2596,7 @@ input[type='checkbox'] {
 .toast__message {
   flex: 1;
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* Calendar */
@@ -2617,7 +2618,7 @@ input[type='checkbox'] {
 .calendar-note {
   margin: -6px 0 14px;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .month {
@@ -2641,7 +2642,7 @@ input[type='checkbox'] {
 
 .month__weekday {
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -2683,7 +2684,7 @@ input[type='checkbox'] {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   font-variant-numeric: tabular-nums;
   color: var(--text-2);
 }
@@ -2705,7 +2706,7 @@ input[type='checkbox'] {
   display: block;
   padding: 1px 6px;
   border-radius: 4px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   line-height: 1.5;
   white-space: nowrap;
   overflow: hidden;
@@ -2725,7 +2726,7 @@ input[type='checkbox'] {
 }
 
 .month__more {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--text-3);
   padding-left: 6px;
 }
@@ -2775,11 +2776,11 @@ input[type='checkbox'] {
 }
 
 .todo__title {
-  font-size: 13.5px;
+  font-size: 0.84375rem;
 }
 
 .todo__detail {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -2793,7 +2794,7 @@ input[type='checkbox'] {
 }
 
 .todo-day__label {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
   margin: 0 0 2px 4px;
 }
@@ -2813,7 +2814,7 @@ input[type='checkbox'] {
   align-items: center;
   gap: 10px;
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -2846,7 +2847,7 @@ input[type='checkbox'] {
 
 .weak__where {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -2856,18 +2857,18 @@ input[type='checkbox'] {
 
 .weak__question {
   margin: 4px 0 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .weak__note {
   margin: 6px 0 0;
   color: var(--text-2);
-  font-size: 13.5px;
+  font-size: 0.84375rem;
 }
 
 .weak__when {
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -2887,7 +2888,7 @@ input[type='checkbox'] {
   padding: 0;
   display: grid;
   gap: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .resolved-list li {
@@ -2913,14 +2914,14 @@ input[type='checkbox'] {
 
 .settings-section__title {
   margin: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
 }
 
 .settings-section__description {
   margin: 6px 0 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .settings-section__body {
@@ -2936,7 +2937,7 @@ input[type='checkbox'] {
 
 .settings-section__body > .link-button {
   width: auto;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .settings-row {
@@ -2961,7 +2962,7 @@ input[type='checkbox'] {
 
 .form--settings .muted {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .status {
@@ -2969,7 +2970,7 @@ input[type='checkbox'] {
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
 }
 
 .status__dot {
@@ -2994,7 +2995,7 @@ input[type='checkbox'] {
 
 .settings-detail {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-2);
   white-space: pre-wrap;
 }
@@ -3003,7 +3004,7 @@ input[type='checkbox'] {
   margin: 0;
   display: grid;
   gap: 4px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .facts div {
@@ -3034,7 +3035,7 @@ input[type='checkbox'] {
 }
 
 .account-card__name {
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .settings-foot {
@@ -3042,7 +3043,7 @@ input[type='checkbox'] {
   padding-top: 20px;
   border-top: 1px solid var(--line);
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* Smaller windows */
@@ -3147,7 +3148,7 @@ textarea.composer__input {
   margin: 0;
   padding: 40px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .check--confident {
@@ -3169,12 +3170,12 @@ textarea:disabled {
 
 .review-empty{max-width:425px;margin:clamp(60px,13vh,135px) auto 32px;text-align:center}
 .review-empty>svg{color:var(--text-3);margin-bottom:18px}
-.review-empty h2{font:400 30px/1.2 var(--font-serif);margin:0 0 12px;letter-spacing:-.3px}
-.review-empty>p{font-size:13px;line-height:1.65;color:var(--text-2);margin:0 auto;max-width:42ch;text-wrap:pretty}
+.review-empty h2{font:400 1.875rem/1.2 var(--font-serif);margin:0 0 12px;letter-spacing:-.3px}
+.review-empty>p{font-size:0.8125rem;line-height:1.65;color:var(--text-2);margin:0 auto;max-width:42ch;text-wrap:pretty}
 .review-empty__actions{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:24px}
-.review-resolved>button{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3)}
+.review-resolved>button{display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-3)}
 .review-resolved>button svg{transition:transform .15s}.review-resolved>button svg.is-open{transform:rotate(180deg)}
 .page--review-empty .review-resolved{text-align:center;max-width:500px;margin:0 auto}
 .page--review-empty .resolved-list{text-align:left;margin-top:20px}
 
-.personal-resources{margin-top:32px}.personal-resources>h2{font-size:18px;font-weight:500;margin:0 0 6px}.personal-resources>.muted{margin:0 0 18px}
+.personal-resources{margin-top:32px}.personal-resources>h2{font-size:1.125rem;font-weight:500;margin:0 0 6px}.personal-resources>.muted{margin:0 0 18px}
