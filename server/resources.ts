@@ -71,7 +71,7 @@ export class Resources {
     const thread = await this.codex.thread(model, null, false,effort);
     const appliedSkills = await loadApplicableSkills({ text:`${input.title ?? ''}\n${input.instructions}`,kind:input.kind });
     const {nickname,responseStyle,studentYearLevel} = this.store.state.settings;
-    const learner = {nickname,responseStyle,curriculum:await getCurriculumContext(subject.name,studentYearLevel)};
+    const learner = {nickname,responseStyle,assistantMemories:this.store.state.assistantMemories,curriculum:await getCurriculumContext(subject.name,studentYearLevel)};
     const assessmentRequirements = (() => {
       switch (input.kind) {
         case 'test': return input.testLength.mode === 'time'
@@ -106,7 +106,7 @@ export class Resources {
     const appliedSkills = await loadApplicableSkills({ text:'' });
     const {nickname,responseStyle,studentYearLevel} = this.store.state.settings;
     const subject = this.store.state.subjects.find(value => value.id === resource.subjectId);
-    const learner = {nickname,responseStyle,curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel)};
+    const learner = {nickname,responseStyle,assistantMemories:this.store.state.assistantMemories,curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel)};
     const { gradingModel:model,gradingReasoningEffort:effort } = this.store.state.settings;
     await this.codex.validateSelection(model,effort);
     const thread = await this.codex.thread(model, null, false,effort);
