@@ -1,6 +1,6 @@
 # Centre performance measurements
 
-Measured on 20 October 2026 with production Electron 44.9.1 on an Apple M1 Mac. The baseline is `main` at `489650f`; the optimized build contains this branch's performance changes. Both use the same synthetic fixture of 80 chats and 1,920 messages. AI is disabled and user data is untouched.
+Measured on 20 October 2026 with production Electron 44.9.1 on an Apple M1 Mac. The measured baseline is `489650f`; the measured optimized revision is `4d46851`. Both use the same synthetic fixture of 80 chats and 1,920 messages. AI is disabled and user data is untouched.
 
 The table reports medians from three separate app launches per build. Each idle measurement lasts 11 seconds and includes exactly two polls. The benchmark disables Chromium's background throttling and forces the page to report foreground visibility so both builds do the same work.
 
@@ -43,11 +43,13 @@ Reports and optional screenshots go under `.runtime/performance/`. The benchmark
 
 ## Verification
 
-- `npm run check`: passed, including all 55 tests, TypeScript, and the production renderer build.
+- `npm run check`: passed after merging current `main`, including all 60 tests, TypeScript, and the production renderer build.
 - `npm run build:electron`: passed.
 - Hover and keyboard-focus preload checks: passed in the production Electron app. No early navigation, one module load, and rendered maths after opening the chat.
 - `git diff --check` and `node --check scripts/benchmark-performance.mjs`: passed.
-- `node scripts/verify-flows.mjs`: stopped at the existing diagram-height assertion. The same failure was reproduced before the performance changes; later steps remain unverified.
+- `node scripts/verify-flows.mjs`: all 37 desktop checks passed after merging the diagram-sizing correction from `main`.
+- `node scripts/verify-interactions.mjs`: all 21 desktop interaction checks passed.
+- Hover and focus checks also passed again on the combined code.
 - The production web UI was also checked for empty unchanged-state responses, fresh data after writes, skipping hidden polls, refreshing on return, and a settings save while an older poll was paused.
 
 ## UI evidence

@@ -16,12 +16,13 @@ function latestModels(models: z.infer<typeof modelSchema>[]) {
     return versions.slice(0,1);
   });
 }
-export function ModelMenu({ target = 'chat' }: { target?:'chat'|'grading' }) {
-  const { state, act } = useApp();
-  const modelId = target === 'grading' ? state.settings.gradingModel : state.settings.chatModel;
-  const savedEffort = target === 'grading' ? state.settings.gradingReasoningEffort : state.settings.reasoningEffort;
+export function ModelMenu({ target = 'chat',chatId = null }: { target?:'chat'|'grading'|'default';chatId?:string|null }) {
+  const { state, act,draftModelSelection,selectModel } = useApp();
+  const conversation = state.chats.find(chat => chat.id === chatId)?.modelSelection ?? (chatId ? null : draftModelSelection);
+  const modelId = target === 'grading' ? state.settings.gradingModel : target === 'chat' ? conversation?.model ?? state.settings.chatModel : state.settings.chatModel;
+  const savedEffort = target === 'grading' ? state.settings.gradingReasoningEffort : target === 'chat' ? conversation?.effort ?? state.settings.reasoningEffort : state.settings.reasoningEffort;
   const sliderId = useId();
-  const save = (model: string,effort: typeof state.settings.reasoningEffort) => api.saveSettings(target === 'grading' ? { gradingModel:model,gradingReasoningEffort:effort } : { chatModel:model,reasoningEffort:effort });
+  const save = (model: string,effort: typeof state.settings.reasoningEffort) => target === 'chat' ? selectModel(chatId,{model,effort}) : api.saveSettings(target === 'grading' ? { gradingModel:model,gradingReasoningEffort:effort } : { chatModel:model,reasoningEffort:effort });
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<z.infer<typeof modelSchema>[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,7 +68,7 @@ export function ModelMenu({ target = 'chat' }: { target?:'chat'|'grading' }) {
       {modelLabel(modelId)}<span className="composer__effort">{savedEffort === 'xhigh' ? 'Extra high' : savedEffort}</span><ChevronDown size={11} />
     </button>
     {open ? <div className="model-picker__panel" aria-label="Model and reasoning">
-      <div className="model-picker__heading">Model {loading ? <span className="spinner spinner--small" /> : null}</div>
+      <div className="model-picker__heading">{target === 'chat' ? 'This chat' : target === 'default' ? 'Default for new chats' : 'Marking model'} {loading ? <span className="spinner spinner--small" /> : null}</div>
       <div className="model-picker__models" role="menu" aria-label="Available models">
         {choices.map(model => <button type="button" role="menuitemradio" aria-checked={model.id === modelId} className="model-picker__model" key={model.id} disabled={saving} onClick={() => void select(model)}><span>{modelLabel(model.id)}</span>{model.id === modelId ? <Check size={13} /> : null}</button>)}
       </div>

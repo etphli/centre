@@ -300,17 +300,40 @@ kbd {
   font-size: 13px;
 }
 
-.sidebar__titlebar {
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   height: var(--topbar-h);
+  flex: none;
+}
+
+.sidebar__titlebar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-left: 76px;
+  order: 1;
   -webkit-app-region: drag;
   flex: none;
 }
 
+:root[data-native-titlebar='true'] .sidebar__header {
+  display: block;
+  height: auto;
+}
+
+:root[data-native-titlebar='true'] .sidebar__titlebar {
+  height: var(--topbar-h);
+  padding-left: 76px;
+}
+
+:root[data-native-titlebar='true'] .sidebar__search {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
 .sidebar__titlebar button,
+.sidebar__search,
 .topbar button,
 .topbar nav {
   -webkit-app-region: no-drag;
@@ -318,11 +341,13 @@ kbd {
 
 .sidebar__search {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 7px;
   height: 28px;
   padding: 0 8px;
-  margin-bottom: 6px;
+  margin: 0;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-s);
   background: var(--surface);
@@ -526,7 +551,7 @@ kbd {
   -webkit-app-region: drag;
 }
 
-.app--collapsed .topbar {
+:root[data-native-titlebar='true'] .app--collapsed .topbar {
   padding-left: 80px;
 }
 
@@ -3151,3 +3176,5 @@ textarea:disabled {
 .review-resolved>button svg{transition:transform .15s}.review-resolved>button svg.is-open{transform:rotate(180deg)}
 .page--review-empty .review-resolved{text-align:center;max-width:500px;margin:0 auto}
 .page--review-empty .resolved-list{text-align:left;margin-top:20px}
+
+.personal-resources{margin-top:32px}.personal-resources>h2{font-size:18px;font-weight:500;margin:0 0 6px}.personal-resources>.muted{margin:0 0 18px}

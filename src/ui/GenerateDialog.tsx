@@ -18,6 +18,7 @@ const difficulties: { value: Difficulty; label: string }[] = [
   { value: 'challenging', label: 'Challenging' },
 ];
 const NEW_TOPIC = '__new__';
+const PERSONAL = '__personal__';
 
 const prompts: Record<GenerateRequest['kind'], { label: string; example: string }> = {
   quiz: { label: 'What should the quiz cover?', example: 'Factorising, exam-style wording' },
@@ -41,8 +42,9 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
   const countable = kind === 'quiz' || kind === 'flashcards';
   const assessment = kind === 'quiz' || kind === 'test';
   const context = routeContext(route, state);
-  const fallbackSubject = request.subjectId ?? context.subjectId ?? state.subjects[0]?.id ?? '';
+  const fallbackSubject = request.subjectId === null ? PERSONAL : request.subjectId ?? context.subjectId ?? state.subjects[0]?.id ?? (isPlan ? '' : PERSONAL);
   const [subjectId, setSubjectId] = useState(fallbackSubject);
+  const personal = subjectId === PERSONAL;
   const topics = useMemo(() => state.topics.filter((topic) => topic.subjectId === subjectId), [state.topics, subjectId]);
   const preferredTopic = request.topicId ?? (fallbackSubject === context.subjectId ? context.topicId : undefined);
   const initialTopic = preferredTopic && topics.some((topic) => topic.id === preferredTopic) ? preferredTopic : topics[0]?.id ?? (isPlan ? '' : NEW_TOPIC);
@@ -87,6 +89,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
   }
 
   async function resolveTopic(): Promise<string | null> {
+    if (personal) return null;
     if (topicId !== NEW_TOPIC) return topicId;
     const name = newTopic.trim();
     if (!name) {
@@ -123,7 +126,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
     } finally {
       setBusy(false);
     }
-    if (resolvedTopic === null) return;
+    if (resolvedTopic === null && !personal) return;
     const topic = state.topics.find((item) => item.id === resolvedTopic);
     const topicName = topic?.name ?? (topicId === NEW_TOPIC ? newTopic.trim() : undefined);
     const subjectName = subject?.name ?? 'this subject';
@@ -136,7 +139,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
           notes ? `Notes: ${notes}` : '',
         ].filter(Boolean).join('\n')
       : [
-          `Make me a ${noun} for ${subjectName}, topic "${topicName ?? 'this topic'}".`,
+          `Make me a ${noun} ${personal ? "for personal learning outside my subjects. Save without a subject or topic" : `for ${subjectName}, topic "${topicName ?? 'this topic'}"`}.`,
           [
             countable ? `${kind === 'flashcards' ? 'Cards' : 'Questions'}: ${count}` : null,
             kind === 'test' ? testMode === 'time' ? `Duration: ${duration} minutes. Choose enough questions to fit this time.` : `Questions: exactly ${count}.` : null,
@@ -147,13 +150,13 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
           notes ? `Focus: ${notes}` : '',
           `Create and save the full ${noun}.`,
         ].filter(Boolean).join('\n\n');
-    const chatContext = { ...routeContext(route, state), subjectId, ...(resolvedTopic ? { topicId: resolvedTopic } : {}) };
+    const chatContext = personal ? {page:'personal-learning'} : { ...routeContext(route, state), subjectId, ...(resolvedTopic ? { topicId: resolvedTopic } : {}) };
     onClose();
     // Stays on the current page: the request goes to the open chat, the side chat, or a new chat from home.
     askHere(message, chatContext,request.attachmentIds);
   }
 
-  if (state.subjects.length === 0) {
+  if (isPlan && state.subjects.length === 0) {
     return (
       <Dialog title={`New ${noun}`} onClose={dismiss} size="sm" className="gen-dialog">
         <p className="muted">Centre makes resources inside your subjects, and your subjects come from Organato. Connect Organato to bring them in.</p>
@@ -183,11 +186,11 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
         <fieldset className="gen__fields" disabled={busy}>
           <div className="gen__context">
             <Icon size={15} aria-hidden className="gen__icon" />
-            <Select compact value={subjectId} onChange={changeSubject} label="Subject" options={state.subjects.map(item => ({ value:item.id,label:item.name }))} />
-            <span className="gen__sep" aria-hidden>/</span>
-            <Select compact value={topicId} onChange={setTopicId} label="Topic" options={[...(isPlan ? [{ value:'',label:'Whole subject' }] : []),...topics.map(topic => ({ value:topic.id,label:topic.name })),{ value:NEW_TOPIC,label:'New topic…' }]} />
+            <Select compact value={subjectId} onChange={changeSubject} label="Subject" options={[...state.subjects.map(item => ({ value:item.id,label:item.name })),...(!isPlan ? [{value:PERSONAL,label:'Personal learning'}] : [])]} />
+            {!personal ? <><span className="gen__sep" aria-hidden>/</span>
+            <Select compact value={topicId} onChange={setTopicId} label="Topic" options={[...(isPlan ? [{ value:'',label:'Whole subject' }] : []),...topics.map(topic => ({ value:topic.id,label:topic.name })),{ value:NEW_TOPIC,label:'New topic…' }]} /></> : null}
           </div>
-          {topicId === NEW_TOPIC ? (
+          {!personal && topicId === NEW_TOPIC ? (
             <input
               ref={newTopicRef}
               className="gen__new-topic"

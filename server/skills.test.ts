@@ -9,7 +9,7 @@ const fixtureSkill = { id: 'sample', name: 'Sample', description: 'A study skill
 
 test('bundled skill catalog loads actual named instructions and supporting references', async () => {
   const skills = await listSkills();
-  assert.equal(skills.length, 18);
+  assert.equal(skills.length, 19);
   for (const id of ['unslop', 'poteto-mode', 'how', 'why', 'teach', 'research', 'exam-prep', 'active-recall']) assert.ok(skills.some(skill => skill.id === id), id);
   for (const skill of skills) {
     const instruction = await readSkillInstruction(skill.id);
@@ -26,14 +26,16 @@ test('bundled skill catalog loads actual named instructions and supporting refer
 
 test('automatic skill selection uses registered IDs for chat and each resource kind', async () => {
   const ids = async (text: string, kind?: Parameters<typeof loadApplicableSkills>[0]['kind']) => (await loadApplicableSkills({ text, kind })).map(skill => skill.id);
-  assert.deepEqual(await ids('Hello'), ['unslop']);
-  assert.deepEqual(await ids('Why and how? Teach me.'), ['unslop', 'how', 'why', 'teach']);
+  assert.deepEqual(await ids('Hello'), ['unslop', 'ask-questions']);
+  assert.deepEqual(await ids('Why and how? Teach me.'), ['unslop', 'ask-questions', 'how', 'why', 'teach']);
+  assert.deepEqual(await ids('Make something interactive about circuits'), ['unslop', 'ask-questions', 'study-diagrams']);
+  assert.deepEqual(await ids('/diagram circuits'), ['unslop', 'ask-questions', 'study-diagrams']);
   assert.deepEqual(await ids('Draw a diagram', 'diagram'), ['unslop', 'study-diagrams']);
   assert.deepEqual(await ids('A practice paper', 'test'), ['unslop', 'exam-prep']);
   assert.deepEqual(await ids('Questions', 'quiz'), ['unslop', 'active-recall']);
   assert.deepEqual(await ids('Cards', 'flashcards'), ['unslop', 'active-recall']);
-  assert.deepEqual(await ids('/poteto-mode, use bro'), ['unslop', 'poteto-mode', 'bro']);
-  assert.deepEqual(await ids('A technique somehow involves examiners'), ['unslop']);
+  assert.deepEqual(await ids('/poteto-mode, use bro'), ['unslop', 'ask-questions', 'poteto-mode', 'bro']);
+  assert.deepEqual(await ids('A technique somehow involves examiners'), ['unslop', 'ask-questions']);
 });
 
 test('skill loader accepts only catalog IDs and bounded files inside its configured root', async t => {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
+import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
 
 export interface ExportedFile { filename: string; content: string; mimeType: string }
 export interface AttachmentUploadInput { name:string; mimeType:string; data:string }
@@ -45,11 +45,13 @@ export const api = {
   state: () => request('GET', '/state', snapshotSchema),
   pollState: () => request('GET', '/state/poll', snapshotSchema.nullable()),
   models: () => request('GET', '/models', z.object({ models: z.array(modelSchema) })),
-  createChat: () => request('POST', '/chats', chatSchema, {}),
+  createChat: (modelSelection:ModelSelection|null = null) => request('POST', '/chats', chatSchema, {modelSelection}),
+  selectChatModel: (id:string,selection:ModelSelection) => request('PATCH',`/chats/${encodeURIComponent(id)}/model`,chatSchema,modelSelectionSchema.parse(selection)),
   organizeChat: (chatId: string, input: { pinned?: boolean; folderId?: string | null; beforeChatId?: string | null }) => request('PATCH', `/chats/${encodeURIComponent(chatId)}/organize`, chatSchema, input),
   sendMessage: (chatId: string, content: string, context: PageContext, attachmentIds: string[] = []) => request('POST', `/chats/${encodeURIComponent(chatId)}/messages`, chatSchema, { content, context, attachmentIds }),
   uploadAttachment: (file: AttachmentUploadInput): Promise<Attachment> => request('POST','/attachments',attachmentSchema,file),
   getAttachment: (id: string): Promise<Attachment> => request('GET',`/attachments/${encodeURIComponent(id)}`,attachmentSchema),
+  answerQuestion: (id:string,answers:Record<string,string>) => request('POST',`/questions/${encodeURIComponent(id)}/answer`,okSchema,{answers}),
   cancelChat: (chatId: string) => request('POST', `/chats/${encodeURIComponent(chatId)}/cancel`, okSchema, {}),
   archiveChat: (chatId: string) => request('POST', `/chats/${encodeURIComponent(chatId)}/archive`, okSchema, {}),
   restoreChat: (chatId: string) => request('POST', `/chats/${encodeURIComponent(chatId)}/restore`, chatSchema, {}),
@@ -58,7 +60,9 @@ export const api = {
   deleteChatFolder: (folderId: string) => request('POST', `/chat-folders/${encodeURIComponent(folderId)}/remove`, okSchema, {}),
   createTopic: (subjectId: string, name: string) => request('POST', '/topics', topicSchema, { subjectId, name }),
   generateResource: (input: CreateResource) => request('POST', '/resources/generate', resourceSchema, input),
-  moveResource: (id:string,location:{subjectId:string;topicId:string}) => request('PATCH',`/resources/${encodeURIComponent(id)}/location`,resourceSchema,location),
+  deleteResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/archive`,okSchema,{}),
+  restoreResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/restore`,okSchema,{}),
+  moveResource: (id:string,location:{subjectId:string|null;topicId:string|null}) => request('PATCH',`/resources/${encodeURIComponent(id)}/location`,resourceSchema,location),
   exportResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/export`, exportSchema),
   previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, z.object({ url: z.string().url() })),
   saveFeedback: (id: string, notes: string, questionIds: string[] = [], confident = false) => request('POST', `/resources/${encodeURIComponent(id)}/feedback`, okSchema, { notes, questionIds, confident }),

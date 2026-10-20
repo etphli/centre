@@ -2,12 +2,13 @@ import { ArrowLeft, ArrowRight, PanelLeft, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../data/client';
 import { useCentre } from '../data/useCentre';
-import type { CreateResource, PageContext, Resource, Snapshot } from '../../shared/schema';
+import type { ModelSelection, CreateResource, PageContext, Resource, Snapshot } from '../../shared/schema';
 import { CalendarPage } from './Calendar';
 import { ChatDock, ChatPage, HomeView, SideChat } from './Chat';
 import { CentreContext, type CentreActions, type SideChatState, type Turn } from './context';
 import { EventDialog, FeedbackDialog } from './Dialogs';
 import { errorMessage } from './format';
+import { QuestionDialog } from './QuestionDialog';
 import { GenerateDialog } from './GenerateDialog';
 import { kindLabels } from './icons';
 import { ResourceView } from './ResourceView';
@@ -57,7 +58,8 @@ function Crumbs({ route, state, navigate }: { route: Route; state: Snapshot; nav
       const resource = state.resources.find((item) => item.id === route.resourceId);
       const topic = state.topics.find((item) => item.id === resource?.topicId);
       crumbs.push({ label: 'Resources', to: { kind: 'resources' } });
-      if (resource) crumbs.push({ label: subjectName(resource.subjectId), to: { kind: 'subject', subjectId: resource.subjectId } });
+      if (resource?.subjectId) crumbs.push({ label: subjectName(resource.subjectId), to: { kind: 'subject', subjectId: resource.subjectId } });
+      else if (resource) crumbs.push({label:'Personal learning'});
       if (topic) crumbs.push({ label: topic.name, to: { kind: 'topic', subjectId: topic.subjectId, topicId: topic.id } });
       crumbs.push({ label: resource?.title ?? 'Resource' });
       break;
@@ -127,6 +129,11 @@ export default function CentreApp() {
   const [collapsed, setCollapsed] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [modal, setModal] = useState<Modal>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [draftModelSelection,setDraftModelSelection] = useState<ModelSelection|null>(null);
+  const selectModel = useCallback(async (chatId:string|null,selection:ModelSelection) => {
+    if (chatId) return api.selectChatModel(chatId,selection);
+    setDraftModelSelection(selection); return selection;
+  },[]);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [generating, setGenerating] = useState<{ id: number; label: string }[]>([]);
   const [sideChat, setSideChat] = useState<SideChatState>({ open: false, chatId: null });
@@ -179,7 +186,8 @@ export default function CentreApp() {
     let target = chatId;
     try {
       if (!target) {
-        const chat = await api.createChat();
+        const chat = await api.createChat(draftModelSelection);
+        setDraftModelSelection(null);
         target = chat.id;
         update({ chatId: target });
         await quietRefresh();
@@ -196,7 +204,14 @@ export default function CentreApp() {
       stopped.current.delete(id);
     }
     return target;
-  }, [quietRefresh]);
+  }, [quietRefresh,draftModelSelection]);
+
+  const hasActiveTurn = turns.some(turn => turn.status !== 'error');
+  useEffect(() => {
+    if (!hasActiveTurn) return;
+    const timer = setInterval(() => { void quietRefresh(); },1000);
+    return () => clearInterval(timer);
+  },[hasActiveTurn,quietRefresh]);
 
   const cancel = useCallback(async (chatId: string) => {
     const turn = turns.find((item) => item.chatId === chatId && item.status === 'working');
@@ -295,9 +310,9 @@ export default function CentreApp() {
   const actions = useMemo<CentreActions | null>(
     () =>
       state
-        ? { state, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating }
+        ? { state,draftModelSelection,selectModel, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating }
         : null,
-    [state, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating],
+    [state,draftModelSelection,selectModel, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating],
   );
 
   if (!actions) {
@@ -326,43 +341,43 @@ export default function CentreApp() {
       <div className={`app${collapsed ? ' app--collapsed' : ''}`}>
         {!collapsed ? <Sidebar onCollapse={() => setCollapsed(true)} /> : null}
         <main className="main">
-          <header className="topbar">
-            {collapsed ? (
-              <button type="button" className="icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={() => setCollapsed(false)}>
-                <PanelLeft size={17} />
-              </button>
-            ) : null}
-            <div className="topbar__history">
-              <button type="button" className="icon-button icon-button--small" aria-label="Back" title="Back" disabled={history.index === 0} onClick={() => go(-1)}>
-                <ArrowLeft size={15} />
-              </button>
-              <button type="button" className="icon-button icon-button--small" aria-label="Forward" title="Forward" disabled={history.index >= history.stack.length - 1} onClick={() => go(1)}>
-                <ArrowRight size={15} />
-              </button>
-            </div>
-            <Crumbs route={route} state={actions.state} navigate={navigate} />
-            <div className="topbar__end">
-              {generating.length ? (
-                <span className="topbar__jobs" role="status">
-                  <span className="spinner spinner--small" aria-hidden /> Making {generating.length === 1 ? `a ${generating[0]!.label}` : `${generating.length} resources`}
-                </span>
-              ) : null}
-              {collapsed ? (
-                <button type="button" className="icon-button" aria-label="Search" title="Search (⌘K)" onClick={openSearch}>
-                  <Search size={16} />
-                </button>
-              ) : null}
-            </div>
-          </header>
-          {error ? (
-            <div className="banner" role="alert">
-              Lost contact with the Centre service: {error} Showing the last data Centre loaded.
-              <button type="button" className="link-button" onClick={() => void quietRefresh()}>Retry</button>
-            </div>
-          ) : null}
           {/* The page keeps the same parents whether or not the side chat is open, so its state (typed quiz answers, scroll) survives. */}
           <div className={`main__body${sideOpen ? ' main__body--side' : ''}`}>
             <div className="main__column">
+              <header className="topbar">
+                {collapsed ? (
+                  <button type="button" className="icon-button" aria-label="Show sidebar" title="Show sidebar" onClick={() => setCollapsed(false)}>
+                    <PanelLeft size={17} />
+                  </button>
+                ) : null}
+                <div className="topbar__history">
+                  <button type="button" className="icon-button icon-button--small" aria-label="Back" title="Back" disabled={history.index === 0} onClick={() => go(-1)}>
+                    <ArrowLeft size={15} />
+                  </button>
+                  <button type="button" className="icon-button icon-button--small" aria-label="Forward" title="Forward" disabled={history.index >= history.stack.length - 1} onClick={() => go(1)}>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+                <Crumbs route={route} state={actions.state} navigate={navigate} />
+                <div className="topbar__end">
+                  {generating.length ? (
+                    <span className="topbar__jobs" role="status">
+                      <span className="spinner spinner--small" aria-hidden /> Making {generating.length === 1 ? `a ${generating[0]!.label}` : `${generating.length} resources`}
+                    </span>
+                  ) : null}
+                  {collapsed ? (
+                    <button type="button" className="icon-button" aria-label="Search" title="Search (⌘K)" onClick={openSearch}>
+                      <Search size={16} />
+                    </button>
+                  ) : null}
+                </div>
+              </header>
+              {error ? (
+                <div className="banner" role="alert">
+                  Lost contact with the Centre service: {error} Showing the last data Centre loaded.
+                  <button type="button" className="link-button" onClick={() => void quietRefresh()}>Retry</button>
+                </div>
+              ) : null}
               <div className={`main__content${docked ? ' main__content--docked' : ''}`} ref={main}>
                 <Page key={route.kind === 'home' ? `home-${homeVisit}` : route.kind} route={route} />
               </div>
@@ -372,6 +387,7 @@ export default function CentreApp() {
           </div>
         </main>
       </div>
+      {!modal && actions.state.pendingQuestions[0] ? <QuestionDialog key={actions.state.pendingQuestions[0].id} request={actions.state.pendingQuestions[0]} /> : null}
       {modal?.kind === 'generate' ? <GenerateDialog key={modal.key} request={modal.request} onClose={closeModal} /> : null}
       {modal?.kind === 'event' ? <EventDialog initialDate={modal.date} onClose={closeModal} /> : null}
       {modal?.kind === 'feedback' ? <FeedbackDialog resource={modal.resource} initialQuestionIds={modal.questionIds} onClose={closeModal} /> : null}

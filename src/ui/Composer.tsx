@@ -11,6 +11,7 @@ const commandNames: Record<string, CreateKind> = { quiz: 'quiz', test: 'test', f
 
 interface ComposerProps {
   variant: 'hero' | 'dock';
+  chatId?:string|null;
   placeholder: string;
   contextLabel: string;
   busy: boolean;
@@ -21,7 +22,7 @@ interface ComposerProps {
   notice?: ReactNode;
 }
 
-export function Composer({ variant, placeholder, contextLabel, busy, onSend, onCancel, onCommand, autoFocus, notice }: ComposerProps) {
+export function Composer({ chatId = null, variant, placeholder, contextLabel, busy, onSend, onCancel, onCommand, autoFocus, notice }: ComposerProps) {
   const [value, setValue] = useState('');
   const attachments = useComposerAttachments();
   const [dragging,setDragging] = useState(false);
@@ -77,7 +78,7 @@ export function Composer({ variant, placeholder, contextLabel, busy, onSend, onC
     if (kind === 'diagram') {
       const description = command?.[2]?.trim() ?? '';
       if (!description) { runCommand('diagram'); return; }
-      onSend(`Create an interactive diagram about: ${description}. Use my current subject and topic. Ask me in chat if you need more context, then save and show the diagram here.`,attachments.files.map(file => file.id));
+      onSend(text,attachments.files.map(file => file.id));
       attachments.clear();
       setValue('');
       return;
@@ -198,7 +199,7 @@ export function Composer({ variant, placeholder, contextLabel, busy, onSend, onC
       {attachments.error ? <div className="composer__file-error" role="alert">{attachments.error}<button type="button" aria-label="Dismiss attachment error" onClick={() => attachments.setError('')}>Dismiss</button></div> : null}
       <div className="composer__meta">
         <span className="composer__context" title="Centre sends this page as context">{contextLabel}</span>
-        <ModelMenu />
+        <ModelMenu chatId={chatId} />
       </div>
     </div>
   );

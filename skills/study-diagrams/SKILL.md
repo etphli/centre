@@ -5,9 +5,11 @@ description: Explain relationships or processes with clear self-contained intera
 
 # Study diagrams
 
+Apply automatically to `/diagram` and requests to make something interactive, even when the student does not say diagram. Create an interactive diagram resource, save it, and show it in the chat. Use the student's description as the topic, without repeating hidden generation instructions in the conversation.
+
 Choose the visual structure from the learning question. Use a flow for a process, a graph for relationships, a labelled figure for spatial structure, or a comparison for alternatives. Keep labels short and explain the relationship carried by each arrow or grouping.
 
-For a requested saved diagram, use the Centre resource tool with kind diagram and the real subject/topic IDs. Supply a self-contained HTML body using inline CSS and SVG, with JavaScript only when interaction teaches something, such as a parameter changing a graph. Use readable labels and a small colour palette with sufficient contrast. Include a text explanation and keyboard-operable controls. External scripts, fonts, images, URLs and network requests are unavailable in the diagram frame.
+For a requested saved diagram, use the Centre resource tool with kind diagram. Use the real subject/topic IDs for schoolwork, or null for both when the student is learning something outside their subjects. Supply a self-contained HTML body using inline CSS and SVG, with JavaScript only when interaction teaches something, such as a parameter changing a graph. Use readable labels and a small colour palette with sufficient contrast. Include a text explanation and keyboard-operable controls. External scripts, fonts, images, URLs and network requests are unavailable in the diagram frame.
 
 Check units, directions, boundaries and examples before saving. An attractive picture does not establish a scientific relationship. Use a static Markdown table or text sketch in chat when that fully answers the question. State what each interaction demonstrates and any simplification made.
 

@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Maximize2, MessageSquare, PanelRight, Plus, RotateCcw, X } from 'lucide-react';
+import { BookOpen, Check, ChevronRight, Maximize2, MessageSquare, PanelRight, Plus, RotateCcw, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { Chat, Resource, Snapshot } from '../../shared/schema';
 import { Composer } from './Composer';
@@ -52,9 +52,34 @@ function ThinkingLabel() {
   );
 }
 
-function ThinkingDetails({ steps,working = false }: {steps:Chat['activity'];working?:boolean}) {
+function ActivityBody({ steps }: {steps:Chat['activity']}) {
+  const body = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
+  useEffect(() => { if (body.current && follow.current) body.current.scrollTop = body.current.scrollHeight; },[steps]);
+  return <div className="thinking-details__body" ref={body} onScroll={() => { const node = body.current; if (node) follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40; }}>
+    {steps.some(step => step.kind !== 'skill') ? steps.filter(step => step.kind !== 'skill').map(step => step.kind === 'tool' ? <div className="thinking-details__step" key={step.id}>{step.state === 'done' ? <Check size={12} /> : step.state === 'error' ? <X size={12} className="activity-error" /> : <span className="spinner spinner--small" />}<span>{step.text}</span></div> : <div className="thinking-details__summary" key={step.id}><Markdown>{step.text}</Markdown></div>) : <p>Preparing the response…</p>}
+  </div>;
+}
+
+function SkillUsage({ steps }: {steps:Chat['activity']}) {
+  const names = [...new Set(steps.filter(step => step.kind === 'skill').map(step => step.text))];
+  return names.length ? <div className="skill-usage" aria-label="Skills used"><BookOpen size={12} aria-hidden /><span>Skills</span>{names.map(name => <span className="skill-usage__name" key={name}>{name}</span>)}</div> : null;
+}
+
+function ThinkingDetails({ steps,duration }: {steps:Chat['activity'];duration:number|null}) {
   if (!steps.length) return null;
-  return <details className="thinking-details"><summary><ChevronRight size={12} />{working ? 'View thinking' : 'Thinking'}<span>{steps.filter(step => step.kind === 'tool').length || ''}</span></summary><div className="thinking-details__body">{steps.map(step => step.kind === 'summary' ? <div className="thinking-details__summary" key={step.id}><span>Reasoning summary</span><Markdown>{step.text}</Markdown></div> : <div className="thinking-details__step" key={step.id}>{step.state === 'done' ? <Check size={12} /> : step.state === 'error' ? <X size={12} className="activity-error" /> : <span className="spinner spinner--small" />}<span>{step.text}</span></div>)}</div></details>;
+  return <><SkillUsage steps={steps} /><details className="thinking-details"><summary><ChevronRight size={13} />{duration === null ? 'Thinking' : `Worked for ${Math.max(1,Math.round(duration / 1000))}s`}<span>{steps.some(step => step.kind === 'tool') ? `${steps.filter(step => step.kind === 'tool').length} actions` : ''}</span></summary><ActivityBody steps={steps} /></details></>;
+}
+
+function WorkingActivity({ steps,turn,waiting,onStop,onExpand }: {steps:Chat['activity'];turn:Turn;waiting:boolean;onStop:() => void;onExpand:() => void}) {
+  const action = [...steps].reverse().find(step => step.kind === 'tool' && step.state === 'working');
+  return <><SkillUsage steps={steps} /><div className="activity-row">
+    <details className="thinking-details thinking-details--live" onToggle={event => { if (event.currentTarget.open) requestAnimationFrame(onExpand); }}>
+      <summary><ChevronRight size={13} /><span className="working__pulse" aria-hidden><i /><i /><i /></span><span className="activity-row__label">{turn.status === 'stopping' ? 'Stopping' : waiting ? 'Waiting for your answer' : action ? action.text : <ThinkingLabel />}</span><Elapsed since={turn.startedAt} /></summary>
+      <ActivityBody steps={steps} />
+    </details>
+    {turn.chatId && turn.status === 'working' ? <button type="button" className="activity-row__stop" onClick={onStop} aria-label="Stop response"><span aria-hidden />Stop</button> : null}
+  </div></>;
 }
 
 function CodexNotice() {
@@ -77,21 +102,31 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
   const { state,send,cancel } = useApp();
   const [preview,setPreview] = useState<Resource|null>(null);
   const end = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
   const messages = chat?.messages ?? [];
   const last = messages[messages.length - 1];
   const showPending = turn && !(last?.role === 'user' && last.content === turn.content) && turn.status !== 'error';
   const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
   const liveSteps = chat?.activity ?? [];
-  const action = [...liveSteps].reverse().find(step => step.kind === 'tool' && step.state === 'working');
+  const waiting = state.pendingQuestions.some(request => request.chatId === chat?.id);
 
   useEffect(() => {
+    follow.current = true;
     end.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, turn?.status, showPending]);
+  useEffect(() => {
+    const container = end.current?.closest('.main__content,.side-chat__scroll');
+    if (!container) return;
+    const onScroll = () => { follow.current = container.scrollHeight - container.scrollTop - container.clientHeight < 160; };
+    container.addEventListener('scroll',onScroll,{passive:true});
+    return () => container.removeEventListener('scroll',onScroll);
+  },[]);
+  useEffect(() => { if (turn && follow.current) end.current?.scrollIntoView({block:'end'}); },[liveSteps,turn?.id]);
 
   return (
     <div className={`thread${compact ? ' thread--compact' : ''}`} aria-live="polite" aria-busy={turn?.status === 'working'}>
       {messages.map(message => <Fragment key={message.id}>
-        {message.role === 'user' ? <div className="message message--user"><div className="message__bubble">{message.content}</div></div> : <div className="message message--assistant"><ThinkingDetails steps={message.activity} /><Markdown>{message.content}</Markdown></div>}
+        {message.role === 'user' ? <div className="message message--user"><div className="message__bubble">{message.content}</div></div> : <div className="message message--assistant"><ThinkingDetails steps={message.activity} duration={message.responseDurationMs} /><Markdown>{message.content}</Markdown></div>}
         {message.attachmentIds.length ? <MessageAttachments ids={message.attachmentIds} /> : null}
         {message.resourceIds.length ? <div className="thread-resources">{message.resourceIds.flatMap(id => { const resource = state.resources.find(item => item.id === id); return resource ? [<InlineResourcePreview key={id} resource={resource} onPreview={() => setPreview(resource)} />] : []; })}</div> : null}
       </Fragment>)}
@@ -101,19 +136,7 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
           <div className="message__bubble">{turn.content}</div>
         </div>
       ) : null}
-      {turn && turn.status !== 'error' ? (
-        <div className="working" role="status">
-          <span className="working__pulse" aria-hidden><i /><i /><i /></span>
-          {turn.status === 'stopping' ? <span>Stopping</span> : action ? <span className="thinking-label">{action.text}</span> : <ThinkingLabel />}
-          <Elapsed since={turn.startedAt} />
-          {turn.chatId && turn.status === 'working' ? (
-            <button type="button" className="button button--quiet button--small" onClick={() => void cancel(turn.chatId!)}>
-              Stop
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      {turn && turn.status !== 'error' ? <ThinkingDetails steps={liveSteps} working /> : null}
+      {turn && turn.status !== 'error' ? <WorkingActivity steps={liveSteps} turn={turn} waiting={waiting} onExpand={() => { follow.current = true; end.current?.scrollIntoView({block:'end'}); }} onStop={() => { if (turn.chatId) void cancel(turn.chatId); }} /> : null}
       {turn?.status === 'error' ? (
         <div className="thread-error" role="alert">
           <p>{turn.error}</p>
@@ -125,7 +148,7 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
       {!turn && last?.role === 'user' && lastAssistant !== last ? (
         <p className="thread-note">No reply yet. Send another message or try again.</p>
       ) : null}
-      <div ref={end} />
+      <div ref={end} className="thread__end" />
     </div>
   );
 }
@@ -241,6 +264,7 @@ export function ChatPage({ chatId }: { chatId: string }) {
         <Composer
           variant="dock"
           autoFocus
+          chatId={chatId}
           placeholder="Reply to Centre"
           contextLabel={contextLabel(route, state)}
           busy={busy}
@@ -268,6 +292,7 @@ export function ChatDock() {
       ) : null}
       <Composer
         variant="dock"
+        chatId={sideChat.chatId}
         placeholder="Ask about this page, or type / to make something"
         contextLabel={contextLabel(route, state)}
         busy={false}
@@ -338,6 +363,7 @@ export function SideChat() {
         <Composer
           variant="dock"
           autoFocus
+          chatId={chatId}
           placeholder={chat ? 'Reply to Centre' : 'Ask about this page'}
           contextLabel={contextLabel(route, state)}
           busy={busy}
