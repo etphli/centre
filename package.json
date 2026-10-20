@@ -16,6 +16,7 @@
     "build:electron": "node scripts/build-electron.mjs",
     "package:mac": "npm run build && npm run build:electron && electron-builder --mac --publish never",
     "typecheck": "tsc --noEmit",
+    "benchmark:performance": "node scripts/benchmark-performance.mjs",
     "test": "tsx --test server/*.test.ts electron/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build"
   },

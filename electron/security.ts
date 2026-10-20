@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const routes = [
   ['GET', /^\/api\/state$/],
+  ['GET', /^\/api\/state\/poll$/],
   ['GET', /^\/api\/models$/],
   ['GET', /^\/api\/skills$/],
   ['POST', /^\/api\/chats$/],

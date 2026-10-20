@@ -1,0 +1,67 @@
+{
+  "label": "hover",
+  "measuredAt": "2026-10-20T09:31:46.423Z",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M1",
+    "node": "v22.14.0",
+    "electron": "44.9.1"
+  },
+  "fixture": {
+    "chats": 80,
+    "messagesPerChat": 24,
+    "bytes": 1359955,
+    "ai": "disabled",
+    "network": "local IPC only",
+    "visibility": "forced foreground; background throttling disabled",
+    "preloadMode": "hover"
+  },
+  "assets": [
+    {
+      "file": "MarkdownContent-DEej8C1m.js",
+      "bytes": 436279,
+      "gzipBytes": 131572
+    },
+    {
+      "file": "index-DZrjmGKb.js",
+      "bytes": 493962,
+      "gzipBytes": 148355
+    }
+  ],
+  "results": [
+    {
+      "startupMs": 1866.3322919999998,
+      "home": {
+        "readyMs": 519.8000000119209
+      },
+      "preload": {
+        "mode": "hover",
+        "moduleRequests": 1,
+        "ms": 34.74929199999997,
+        "navigated": false
+      },
+      "chatOpenMs": 180.0885000000003,
+      "idle": {
+        "durationMs": 11000,
+        "stateRequests": 2,
+        "ipcBytes": 8,
+        "requestMs": 19.741624999999658,
+        "rendererTaskMs": 25.786,
+        "mainCpuMs": 62.66,
+        "appCpuMs": 138.55399999999963,
+        "rendererHeapBeforeBytes": 9472000,
+        "rendererHeapAfterBytes": 9488140,
+        "rendererMemoryBefore": {
+          "workingSetSize": 159392,
+          "peakWorkingSetSize": 190928
+        },
+        "rendererMemoryAfter": {
+          "workingSetSize": 120928,
+          "peakWorkingSetSize": 190928
+        }
+      },
+      "errors": []
+    }
+  ]
+}

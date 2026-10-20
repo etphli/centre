@@ -3,6 +3,31 @@ import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { proxyRequest } from './proxy';
 
+test('desktop polling sends validators, skips unchanged payloads, and isolates connections', async () => {
+  let version = 1;
+  const server = createServer((request,response) => {
+    assert.equal(request.headers.authorization,'Bearer poll-token');
+    const etag = `"state-${version}"`;
+    response.setHeader('etag',etag);
+    if (request.url === '/api/state/poll' && request.headers['if-none-match'] === etag) response.writeHead(304).end();
+    else response.end(JSON.stringify({ version }));
+  });
+  await new Promise<void>(resolve => server.listen(0,'127.0.0.1',resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const connection = { port:address.port,token:'poll-token' };
+  try {
+    assert.deepEqual(await proxyRequest(connection,'GET','/state',undefined),{ version:1 });
+    assert.equal(await proxyRequest(connection,'GET','/state/poll',undefined),null);
+    version = 2;
+    // An independent full read must not consume an update meant for the poller.
+    assert.deepEqual(await proxyRequest(connection,'GET','/state',undefined),{ version:2 });
+    assert.deepEqual(await proxyRequest(connection,'GET','/state/poll',undefined),{ version:2 });
+    assert.equal(await proxyRequest(connection,'GET','/state/poll',undefined),null);
+    assert.deepEqual(await proxyRequest({ ...connection },'GET','/state/poll',undefined),{ version:2 });
+  } finally { await new Promise<void>((resolve,reject) => server.close(error => error ? reject(error) : resolve())); }
+});
+
 test('desktop proxy adds its private token and blocks redirects and forbidden routes', async () => {
   let requests = 0;
   let redirectTargetRequests = 0;

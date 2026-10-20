@@ -25,6 +25,36 @@ async function fixture(extraResources: Resource[] = []) {
   return { directory,store,service,request,cleanup:async () => { await service.close(); await rm(directory,{ recursive:true,force:true }); } };
 }
 
+test('conditional state polling skips unchanged data and returns fresh data after a write',async () => {
+  const f = await fixture();
+  try {
+    const deadline = Date.now() + 5000;
+    while ((await f.request('/api/state')).body.codex.message === 'Connecting to Codex CLI…') {
+      assert.ok(Date.now() < deadline,'The missing Codex binary should finish its connection attempt');
+      await new Promise(resolve => setTimeout(resolve,10));
+    }
+    const url = `http://127.0.0.1:${f.service.port}/api/state/poll`;
+    const headers = { Authorization:`Bearer ${f.service.token}` };
+    const initial = await fetch(url,{ headers });
+    assert.equal(initial.status,200);
+    snapshotSchema.parse(await initial.json());
+    const etag = initial.headers.get('etag');
+    assert.ok(etag);
+    const unchanged = await fetch(url,{ headers:{ ...headers,'If-None-Match':etag } });
+    assert.equal(unchanged.status,304);
+    assert.equal(await unchanged.text(),'');
+    assert.equal((await fetch(url,{ headers:{ 'If-None-Match':etag } })).status,401);
+    await f.request('/api/chats','POST',{ title:'A new chat' });
+    const changed = await fetch(url,{ headers:{ ...headers,'If-None-Match':etag } });
+    assert.equal(changed.status,200);
+    assert.notEqual(changed.headers.get('etag'),etag);
+    assert.equal(snapshotSchema.parse(await changed.json()).chats[0]?.title,'A new chat');
+    const full = await fetch(url.replace('/poll',''),{ headers:{ ...headers,'If-None-Match':changed.headers.get('etag') ?? '' } });
+    assert.equal(full.status,200);
+    assert.equal(snapshotSchema.parse(await full.json()).chats.length,1);
+  } finally { await f.cleanup(); }
+});
+
 test('API enforces tokens, validates relationships and persists resources and study memory',async () => {
   const f = await fixture();
   try {

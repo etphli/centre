@@ -1,35 +1,32 @@
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
-import { openExternal } from '../data/client';
+import { memo, useEffect, useState } from 'react';
 
-const components: Components = {
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      onClick={(event) => {
-        event.preventDefault();
-        if (href && /^https?:\/\//.test(href)) void openExternal(href).catch(() => undefined);
-      }}
-    >
-      {children}
-    </a>
-  ),
-  table: ({ children }) => (
-    <div className="markdown__table">
-      <table>{children}</table>
-    </div>
-  ),
-};
+type Content = typeof import('./MarkdownContent')['default'];
+type LoadedContent = { status:'loading' } | { status:'ready'; Content:Content } | { status:'error'; error:unknown };
+let loadedContent: Content | undefined;
+let loadingContent: Promise<Content> | undefined;
 
-export function Markdown({ children }: { children: string }) {
-  return (
-    <div className="markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[[rehypeKatex, { trust: false, strict: 'ignore',macros:{'\\ensuremath':'#1'} }]]} components={components}>
-        {children.replace(/\\\(([\s\S]*?)\\\)/g, (_, math: string) => `$${math}$`).replace(/\\\[([\s\S]*?)\\\]/g, (_, math: string) => `$$${math}$$`)}
-      </ReactMarkdown>
-    </div>
-  );
+export function preloadMarkdown() {
+  loadingContent ??= import('./MarkdownContent').then(module => {
+    loadedContent = module.default;
+    return module.default;
+  }).catch(error => {
+    loadingContent = undefined;
+    throw error;
+  });
+  return loadingContent;
 }
+
+export const Markdown = memo(function Markdown({ children }: { children: string }) {
+  const [loaded,setLoaded] = useState<LoadedContent>(() => loadedContent ? { status:'ready',Content:loadedContent } : { status:'loading' });
+  useEffect(() => {
+    if (loaded.status !== 'loading') return;
+    let active = true;
+    void preloadMarkdown().then(Content => {
+      if (active) setLoaded({ status:'ready',Content });
+    },error => { if (active) setLoaded({ status:'error',error }); });
+    return () => { active = false; };
+  },[loaded.status]);
+  if (loaded.status === 'error') throw loaded.error;
+  if (loaded.status === 'loading') return <div className="markdown" role="status" aria-label="Loading content"><span className="spinner spinner--small" /></div>;
+  return <loaded.Content>{children}</loaded.Content>;
+});

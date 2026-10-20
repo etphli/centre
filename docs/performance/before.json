@@ -1,0 +1,113 @@
+{
+  "label": "before",
+  "measuredAt": "2026-10-20T09:32:38.796Z",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M1",
+    "node": "v22.14.0",
+    "electron": "44.9.1"
+  },
+  "fixture": {
+    "chats": 80,
+    "messagesPerChat": 24,
+    "bytes": 1359955,
+    "ai": "disabled",
+    "network": "local IPC only",
+    "visibility": "forced foreground; background throttling disabled",
+    "preloadMode": null
+  },
+  "assets": [
+    {
+      "file": "index-BRKct2tb.js",
+      "bytes": 929847,
+      "gzipBytes": 279349
+    }
+  ],
+  "results": [
+    {
+      "startupMs": 654.7731249999999,
+      "home": {
+        "readyMs": 285.09999999403954
+      },
+      "preload": null,
+      "chatOpenMs": 128.02416700000003,
+      "idle": {
+        "durationMs": 11000,
+        "stateRequests": 2,
+        "ipcBytes": 2929136,
+        "requestMs": 37.496541000000434,
+        "rendererTaskMs": 150.094,
+        "mainCpuMs": 65.811,
+        "appCpuMs": 403.95300000000003,
+        "rendererHeapBeforeBytes": 9416036,
+        "rendererHeapAfterBytes": 14520308,
+        "rendererMemoryBefore": {
+          "workingSetSize": 162992,
+          "peakWorkingSetSize": 193648
+        },
+        "rendererMemoryAfter": {
+          "workingSetSize": 149648,
+          "peakWorkingSetSize": 193648
+        }
+      },
+      "errors": []
+    },
+    {
+      "startupMs": 693.7329579999999,
+      "home": {
+        "readyMs": 281.40000000596046
+      },
+      "preload": null,
+      "chatOpenMs": 128.79558399999996,
+      "idle": {
+        "durationMs": 11000,
+        "stateRequests": 2,
+        "ipcBytes": 2929136,
+        "requestMs": 40.003498999999465,
+        "rendererTaskMs": 197.895,
+        "mainCpuMs": 131.634,
+        "appCpuMs": 558.5520000000001,
+        "rendererHeapBeforeBytes": 9428720,
+        "rendererHeapAfterBytes": 14523688,
+        "rendererMemoryBefore": {
+          "workingSetSize": 164064,
+          "peakWorkingSetSize": 193504
+        },
+        "rendererMemoryAfter": {
+          "workingSetSize": 124128,
+          "peakWorkingSetSize": 193504
+        }
+      },
+      "errors": []
+    },
+    {
+      "startupMs": 758.355417,
+      "home": {
+        "readyMs": 301.5
+      },
+      "preload": null,
+      "chatOpenMs": 166.1132919999999,
+      "idle": {
+        "durationMs": 11000,
+        "stateRequests": 2,
+        "ipcBytes": 2929136,
+        "requestMs": 46.42320799999925,
+        "rendererTaskMs": 195.87900000000002,
+        "mainCpuMs": 169.449,
+        "appCpuMs": 629.2729999999998,
+        "rendererHeapBeforeBytes": 9420000,
+        "rendererHeapAfterBytes": 14524412,
+        "rendererMemoryBefore": {
+          "workingSetSize": 161376,
+          "peakWorkingSetSize": 193024
+        },
+        "rendererMemoryAfter": {
+          "workingSetSize": 154112,
+          "peakWorkingSetSize": 193024
+        }
+      },
+      "errors": []
+    }
+  ]
+}
