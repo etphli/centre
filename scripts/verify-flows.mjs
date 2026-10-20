@@ -13,7 +13,7 @@ const dataDirectory = join(dataRoot, 'data');
 const userDataDirectory = join(dataRoot, 'user-data');
 const entry = join(runtime, `verify-flows-${process.pid}.cjs`);
 const reportPath = join(runtime, 'qa-results.json');
-const screenshotPaths = Object.fromEntries(['home', 'test-setup', 'models', 'settings-light', 'quiz', 'side-chat', 'diagram-dark', 'diagram-light', 'paper-cover', 'review-empty'].map(name => [name, join(runtime, `qa-${name}.png`)]));
+const screenshotPaths = Object.fromEntries(['home', 'test-setup', 'models', 'models-menu', 'models-compact', 'settings-light', 'quiz', 'side-chat', 'diagram-dark', 'diagram-light', 'paper-cover', 'review-empty'].map(name => [name, join(runtime, `qa-${name}.png`)]));
 
 const builtFiles = [join(root, 'dist', 'index.html'), join(root, 'dist-electron', 'main.cjs')];
 for (const file of builtFiles) {
@@ -191,6 +191,7 @@ app.on('browser-window-created', (_event, createdWindow) => {
 
       await clickByText('.settings-layout__nav button', 'Models', 'Models settings category');
       await waitFor("document.querySelector('button[aria-label=\\\"Choose model\\\"]') && document.querySelector('button[aria-label=\\\"Choose marking model\\\"]')", 'chat and marking model controls');
+      check('Models settings has one editable picker per purpose and no duplicate below Codex sign-in', await evaluate("document.querySelectorAll('.settings-layout .model-picker').length === 2 && !document.querySelector('section[aria-labelledby=\\\"settings-codex\\\"] .model-picker, section[aria-labelledby=\\\"settings-codex\\\"] .facts')"));
       await clickSelector('button[aria-label="Choose model"]', 'chat model menu');
       await waitFor("document.querySelector('.model-picker__panel [role=menu]')", 'model catalog menu');
       await waitFor("!document.querySelector('.model-picker__error') && document.querySelectorAll('.model-picker__models [role=menuitemradio]').length >= 3", 'loaded model catalog', 20000);
@@ -199,8 +200,41 @@ app.on('browser-window-created', (_event, createdWindow) => {
       check('Model menu shows latest Sol, Luna, and Astra choices without Terra', modelMenu.names.length === 3 && modelFamilies.some(name => name.includes('sol')) && modelFamilies.some(name => name.includes('luna')) && modelFamilies.some(name => name.includes('astra')) && !modelFamilies.some(name => name.includes('terra')), modelMenu.names);
       check('Reasoning menu omits max and ultra and uses the blue custom range', modelMenu.stops.length > 0 && modelMenu.stops.every(value => !/^(max|ultra)$/i.test(value)) && /142,\s*166,\s*232|#8ea6e8/i.test(modelMenu.sliderStyle ?? '') && modelMenu.ariaLabel === 'Reasoning effort', modelMenu);
       check('Reasoning slider stays compact and draws a thin full-width blue track', Number.parseFloat(modelMenu.sliderHeight) <= 22 && modelMenu.sliderPadding === '0px' && modelMenu.sliderBackgroundSize === '100% 3px' && modelMenu.sliderBackgroundRepeat === 'no-repeat', { height: modelMenu.sliderHeight, padding: modelMenu.sliderPadding, backgroundSize: modelMenu.sliderBackgroundSize, backgroundRepeat: modelMenu.sliderBackgroundRepeat });
-      await screenshot('models');
+      await screenshot('models-menu');
+      const desktopSize = window.getSize();
+      window.setSize(1000, 800);
+      await pause(250);
+      check('Model menu stays inside the compact desktop viewport', await evaluate("(()=>{const panel=document.querySelector('.model-picker__panel').getBoundingClientRect();const slider=document.querySelector('.model-picker__panel input[type=range]').getBoundingClientRect();return panel.left>=0 && panel.right<=innerWidth && panel.bottom<=innerHeight && slider.width>150 && slider.height<=22})()"));
+      await screenshot('models-compact');
+      window.setSize(...desktopSize);
+      await pause(250);
       await clickSelector('button[aria-label="Choose model"]', 'close chat model menu');
+
+      await clickSelector('button[aria-label="Choose model"]', 'default chat model menu');
+      await waitFor("document.querySelector('.model-picker__stops button')", 'default reasoning choices');
+      await clickByText('.model-picker__stops button', 'High', 'default reasoning choice');
+      await waitFor("window.centre.request('GET','/state').then(value=>value.settings.reasoningEffort === 'high')", 'default reasoning saved');
+      const defaultSelection = await state();
+      check('Default chat reasoning saves to settings', defaultSelection.settings.reasoningEffort === 'high', { saved: defaultSelection.settings.reasoningEffort });
+      await evaluate("document.querySelector('.model-picker__panel input[type=range]').focus()");
+      window.webContents.sendInputEvent({type:'keyDown',keyCode:'Home'});
+      window.webContents.sendInputEvent({type:'keyUp',keyCode:'Home'});
+      await waitFor("window.centre.request('GET','/state').then(value=>value.settings.reasoningEffort === 'low')", 'keyboard reasoning saved');
+      check('Keyboard slider changes persist the default reasoning', (await state()).settings.reasoningEffort === 'low');
+      const sliderBounds = await evaluate("(()=>{const box=document.querySelector('.model-picker__panel input[type=range]').getBoundingClientRect();return {left:Math.round(box.left+6),right:Math.round(box.right-6),y:Math.round(box.y+box.height/2)}})()");
+      window.webContents.sendInputEvent({type:'mouseDown',x:sliderBounds.left,y:sliderBounds.y,button:'left',clickCount:1});
+      window.webContents.sendInputEvent({type:'mouseMove',x:sliderBounds.right,y:sliderBounds.y,button:'left'});
+      window.webContents.sendInputEvent({type:'mouseUp',x:sliderBounds.right,y:sliderBounds.y,button:'left',clickCount:1});
+      await waitFor("window.centre.request('GET','/state').then(value=>value.settings.reasoningEffort === 'xhigh')", 'dragged reasoning saved');
+      check('Dragging the slider saves its final value', (await state()).settings.reasoningEffort === 'xhigh');
+      const beforeDefaultModel = await state();
+      await clickByText('.model-picker__panel [role="menuitemradio"]', 'GPT-6 Luna', 'default Luna model');
+      await waitFor("window.centre.request('GET','/state').then(value=>value.settings.chatModel === 'gpt-6-luna') && !document.querySelector('.model-picker__panel')", 'default model saved');
+      const afterDefaultModel = await state();
+      check('Default model selection persists without changing marking settings', afterDefaultModel.settings.chatModel === 'gpt-6-luna' && afterDefaultModel.settings.gradingModel === beforeDefaultModel.settings.gradingModel && afterDefaultModel.settings.gradingReasoningEffort === beforeDefaultModel.settings.gradingReasoningEffort);
+      await clickByText('.settings-layout__nav button', 'General', 'leave Models settings');
+      await clickByText('.settings-layout__nav button', 'Models', 'reopen Models settings');
+      check('Saved default model is shown after remounting settings', await evaluate("document.querySelector('.preference-row .model-picker__trigger').textContent.includes('GPT-6 Luna')"));
 
       const beforeModelSave = await state();
       await clickSelector('button[aria-label="Choose marking model"]', 'marking model menu');
@@ -211,6 +245,16 @@ app.on('browser-window-created', (_event, createdWindow) => {
       await waitFor("window.centre.request('GET','/state').then(value=>value.settings.gradingModel !== " + JSON.stringify(beforeModelSave.settings.gradingModel) + " && value.settings.gradingModel !== value.settings.chatModel)", 'independent marking-model save', 20000);
       const afterModelSave = await state();
       check('Marking model selection persists over IPC independently of the chat model', afterModelSave.settings.gradingModel !== beforeModelSave.settings.gradingModel && afterModelSave.settings.gradingModel !== afterModelSave.settings.chatModel && afterModelSave.settings.chatModel === beforeModelSave.settings.chatModel, { chatModel: afterModelSave.settings.chatModel, gradingModel: afterModelSave.settings.gradingModel });
+
+      await clickSelector('button[aria-label="Choose marking model"]', 'marking reasoning menu');
+      await waitFor("document.querySelector('.model-picker__stops button')", 'marking reasoning choices');
+      const beforeMarkingEffort = await state();
+      await clickByText('.model-picker__stops button', 'Low', 'marking reasoning choice');
+      await waitFor("window.centre.request('GET','/state').then(value=>value.settings.gradingReasoningEffort === 'low')", 'marking reasoning saved');
+      const afterMarkingEffort = await state();
+      check('Marking reasoning saves independently of the default chat reasoning', afterMarkingEffort.settings.gradingReasoningEffort === 'low' && afterMarkingEffort.settings.reasoningEffort === beforeMarkingEffort.settings.reasoningEffort);
+      await clickSelector('button[aria-label="Choose marking model"]', 'close marking reasoning menu');
+      await screenshot('models');
 
       await clickByText('nav[aria-label="Main"] button', 'Resources', 'Resources navigation');
       await waitFor("document.querySelector('.subject-tile')", 'Resources subject list');

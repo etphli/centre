@@ -1,4 +1,3 @@
-import { ModelMenu } from './ModelMenu';
 import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, openExternal, updates, type UpdateStatus } from '../data/client';
@@ -234,10 +233,6 @@ function CodexSection() {
       </div>
       {codex.message ? <p className="settings-detail">{codex.message}</p> : null}
       {message ? <p className="settings-detail">{message}</p> : null}
-      <dl className="facts">
-        <div><dt>New chats</dt><dd><ModelMenu target="default" /></dd></div>
-        <div><dt>Marking</dt><dd>{state.settings.gradingModel === 'gpt-6-luna' ? 'GPT-6 Luna' : state.settings.gradingModel}, {state.settings.gradingReasoningEffort} reasoning</dd></div>
-      </dl>
     </Section>
   );
 }

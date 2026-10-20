@@ -70,7 +70,7 @@ export function StudyPreferences() {
 }
 
 export function ModelPreferences() {
-  return <><Row title="Default chat model" detail="Used for chat and creating resources. You can change it from any message bar."><ModelMenu /></Row><Row title="Quiz marking" detail="Choose the model that grades answers and explains mistakes. This is independent of your chat model."><ModelMenu target="grading" /></Row></>;
+  return <><Row title="Default chat model" detail="Used for new chats and creating resources. Change the model for an individual chat from its message bar."><ModelMenu target="default" /></Row><Row title="Quiz marking" detail="Choose the model that grades answers and explains mistakes. This is independent of your chat model."><ModelMenu target="grading" /></Row></>;
 }
 
 export function SkillsPreferences() {
