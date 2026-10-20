@@ -1,0 +1,50 @@
+name: Desktop checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Require Google Desktop OAuth config
+        shell: bash
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+            if [ -z "${!name}" ]; then
+              echo "Missing repository secret: $name"
+              exit 1
+            fi
+          done
+      - name: Build Electron process
+        run: npm run build:electron
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      - name: Build unsigned app for inspection
+        run: npx electron-builder --mac --dir --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Preserve app permissions and symlinks in archive
+        shell: bash
+        run: |
+          apps=(release/mac*/Centre.app)
+          ditto -c -k --sequesterRsrc --keepParent "${apps[0]}" release/Centre-unsigned.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Centre-macOS-unsigned
+          path: release/Centre-unsigned.zip
+          retention-days: 7
