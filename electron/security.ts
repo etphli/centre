@@ -5,6 +5,8 @@ const routes = [
   ['GET', /^\/api\/state\/poll$/],
   ['GET', /^\/api\/models$/],
   ['GET', /^\/api\/skills$/],
+  ['PATCH', /^\/api\/assistant-memories\/[0-9a-f-]{36}$/],
+  ['POST', /^\/api\/assistant-memories\/[0-9a-f-]{36}\/forget$/],
   ['POST', /^\/api\/chats$/],
   ['POST', /^\/api\/questions\/[^/]+\/answer$/],
   ['POST', /^\/api\/chats\/[^/]+\/(messages|cancel|archive|restore)$/],

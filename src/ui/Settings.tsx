@@ -1,9 +1,10 @@
-import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download } from 'lucide-react';
+import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download, Brain } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, openExternal, updates, type UpdateStatus } from '../data/client';
 import { useApp } from './context';
 import { GeneralPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
 import { errorMessage, initials, timeAgo } from './format';
+import { MemorySettings } from './MemorySettings';
 
 const POLL_MS = 2000;
 const POLL_LIMIT_MS = 180_000;
@@ -309,6 +310,7 @@ function UpdatesSection() {
 const categories = [
   { id:'general',label:'General',icon:SlidersHorizontal },
   { id:'study',label:'Study',icon:GraduationCap },
+  { id:'memory',label:'Memory',icon:Brain },
   { id:'models',label:'Models',icon:Cpu },
   { id:'connections',label:'Connections',icon:Plug },
   { id:'skills',label:'Skills',icon:Wand2 },
@@ -322,6 +324,7 @@ export function SettingsPage() {
     <div className="settings-layout__content"><h1>{categories.find(item => item.id === category)?.label}</h1>
       {category === 'general' ? <GeneralPreferences /> : null}
       {category === 'study' ? <StudyPreferences /> : null}
+      {category === 'memory' ? <MemorySettings /> : null}
       {category === 'models' ? <><ModelPreferences /><CodexSection /></> : null}
       {category === 'connections' ? <><GoogleSection /><OrganatoSection /><p className="settings-foot">Credentials are stored in your macOS Keychain. <button type="button" className="link-button" onClick={() => void openExternal('https://organato.vercel.app').catch(() => undefined)}>Open Organato <ExternalLink size={12} aria-hidden /></button></p></> : null}
       {category === 'skills' ? <SkillsPreferences /> : null}
