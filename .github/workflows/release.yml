@@ -1,19 +1,40 @@
-name: Signed macOS release
+name: macOS release
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: macos-latest
-    environment: release
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Require Apple credentials and Google OAuth config
+      - run: npm ci
+      - name: Set a unique release version
+        id: version
+        shell: bash
+        run: |
+          version=$(node --input-type=module -e "import p from './package.json' with {type:'json'}; const [major,minor,patch]=p.version.split('.').map(Number); console.log([major,minor,patch+Number(process.env.GITHUB_RUN_NUMBER)].join('.'))")
+          npm version "$version" --no-git-tag-version
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Check and build
+        run: npm run check && npm run build:electron
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      - name: Verify text-size controls in Electron
+        run: node scripts/verify-text-size.mjs
+      - name: Choose signing mode
+        id: signing
         shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -21,26 +42,61 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
-          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
-            if [ -z "${!name}" ]; then
-              echo "Missing release secret: $name"
-              exit 1
-            fi
+          configured=0
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!name}" ]; then configured=$((configured + 1)); fi
           done
-      - run: npm ci
-      - run: npm run typecheck && npm test && npm run build && npm run build:electron
-        env:
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-      - name: Sign, notarize, and upload draft release
-        run: npx electron-builder --mac --publish always --config.mac.notarize=true
+          if [ "$configured" -eq 5 ]; then
+            echo 'signed=true' >> "$GITHUB_OUTPUT"
+          elif [ "$configured" -eq 0 ]; then
+            echo 'signed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Apple signing is partially configured. Supply all five signing secrets or remove them to build unsigned.'
+            exit 1
+          fi
+      - name: Build signed and notarized Apple Silicon and Intel installers
+        if: steps.signing.outputs.signed == 'true'
+        run: npx electron-builder --mac --arm64 --x64 --publish never --config.mac.notarize=true --config.forceCodeSigning=true
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Build unsigned Apple Silicon and Intel installers
+        if: steps.signing.outputs.signed == 'false'
+        run: npx electron-builder --mac dmg --arm64 --x64 --publish never --config.mac.notarize=false
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Publish downloadable release
+        shell: bash
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          shopt -s nullglob
+          assets=(release/*.dmg)
+          if [ "${#assets[@]}" -ne 2 ]; then
+            echo 'Expected both Apple Silicon and Intel DMGs.'
+            exit 1
+          fi
+          cat > release/notes.md <<'NOTES'
+          Download the **arm64.dmg** for Apple Silicon Macs or **x64.dmg** for Intel Macs. Open it and drag Centre into Applications.
+
+          You can send the DMG directly to friends. This repository is private, so its download links require repository access.
+
+          Study data and credentials stay on each person's Mac. AI features require the Codex CLI and their own login.
+          NOTES
+          if [ "$SIGNED" = true ]; then
+            assets+=(release/*.zip release/latest-mac*.yml release/*.blockmap)
+            echo 'This release is Developer ID signed and notarized. Automatic updates require repository access.' >> release/notes.md
+          else
+            echo 'This release is not Developer ID signed or notarized. After copying Centre into Applications, macOS may require approval in System Settings > Privacy & Security > Open Anyway. Updates are installed by downloading a newer DMG.' >> release/notes.md
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --target "$GITHUB_SHA" --title "Centre $RELEASE_TAG" --notes-file release/notes.md --generate-notes --latest
+          fi

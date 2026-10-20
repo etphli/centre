@@ -29,7 +29,7 @@ A missing key makes Organato sync and writes fail. A read-only key can sync but 
 
 ## Study in Centre
 
-Start a chat to ask questions or explain a difficult topic. Use `/quiz`, `/test`, or `/flashcards` to create a resource with guided choices. Type `/diagram` followed by a description, or ask to make something interactive, to create a diagram directly in chat. Your message stays as you typed it. `/plan` starts a study-planning conversation.
+Start a chat to ask questions or explain a difficult topic. Use `/quiz`, `/test`, or `/flashcards` to create a resource with guided choices. Type `/diagram` followed by a description, or ask to make something interactive, to create a diagram directly in chat. Centre also creates interactive resources proactively when they make a task easier, such as a checkable list for upcoming work or a quiz for practice questions. Ask for plain text when that is what you prefer. Checklist controls work while the resource is open; checked progress resets when it reloads. Your message stays as you typed it. `/plan` starts a study-planning conversation.
 
 Centre lists the visible models and supported reasoning efforts from your Codex CLI catalog. New chats and resource generation default to `gpt-6.1-sol` with medium reasoning. Quiz marking defaults to `gpt-6-luna` with medium reasoning. Choose its model and reasoning independently in Settings. The message bar changes the model and effort for that conversation only. New chats use the default set in Settings.
 
@@ -63,7 +63,7 @@ Provide the Google Desktop OAuth config described above, then run:
 npm run package:mac
 ```
 
-The app, DMG, and ZIP appear in `release/`. Local builds are unsigned. To distribute a signed app with automatic updates, follow [the release guide](docs/releases.md).
+The app, DMG, and ZIP appear in `release/`. Every push to `main` also publishes Apple Silicon and Intel DMGs in [Releases](https://github.com/etphli/centre/releases/latest). Download a DMG to share with friends. See [the release guide](docs/releases.md) for installation, signing, and automatic updates.
 
 ## Verify changes
 
@@ -73,5 +73,7 @@ npm run build:electron
 node scripts/verify-flows.mjs
 node scripts/verify-interactions.mjs
 ```
+
+With a signed-in Codex account, run `npx tsx server/live-interaction-check.ts` to check real-model checklist, quiz, plain-text and personal-resource behaviour in temporary local data. Generated checklist HTML is retained under `.runtime/live-interactions/` for browser checks.
 
 See [the architecture](docs/architecture.md) for process ownership, model selection, curriculum evidence, and storage.
