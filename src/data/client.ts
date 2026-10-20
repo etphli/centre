@@ -1,3 +1,4 @@
+import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { z } from 'zod';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
@@ -67,6 +68,7 @@ export const api = {
   restoreResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/restore`,okSchema,{}),
   moveResource: (id:string,location:{subjectId:string|null;topicId:string|null}) => request('PATCH',`/resources/${encodeURIComponent(id)}/location`,resourceSchema,location),
   exportResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/export`, exportSchema),
+  refreshConnectedFile: (id:string) => request('POST', `/resources/${encodeURIComponent(id)}/refresh`,resourceSchema,{}),
   previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, z.object({ url: z.string().url() })),
   saveFeedback: (id: string, notes: string, questionIds: string[] = [], confident = false) => request('POST', `/resources/${encodeURIComponent(id)}/feedback`, okSchema, { notes, questionIds, confident }),
   gradeQuiz: (resourceId: string, answers: Record<string, string>) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers }),
@@ -75,6 +77,11 @@ export const api = {
   resolveMemory: (id: string) => request('POST', `/memories/${encodeURIComponent(id)}/resolve`, okSchema, {}),
   syncOrganato: () => request('POST', '/organato/sync', snapshotSchema, {}),
   createOrganatoItem: (input: unknown) => request('POST', '/organato/items', assignmentSchema, input),
+  connectors: () => request('GET', '/connectors', connectorsResponseSchema),
+  connectGoogle: async (id: GoogleConnectorId, editable = false) => { const result = await request('POST', '/connectors/google/start', z.object({url:z.string().url()}), {id,editable}); await openExternal(result.url); return result; },
+  connectNotion: (token:string) => request('POST', '/connectors/notion', okSchema, {token}),
+  disconnectConnector: (id:ConnectorId) => request('POST', '/connectors/disconnect', okSchema, {id}),
+  cancelConnector: () => request('POST', '/connectors/cancel', okSchema, {}),
   skills: () => request('GET', '/skills', z.object({ skills: z.array(z.object({ id: z.string(), name: z.string(), description: z.string(), source: z.string() })) })),
   saveSettings: (patch: Partial<z.infer<typeof preferencesSchema>> & { organatoApiKey?: string; organatoBaseUrl?: string; googleClientId?: string; googleClientSecret?: string; chatModel?: string; gradingModel?: string; gradingReasoningEffort?: z.infer<typeof reasoningEffortSchema>; reasoningEffort?: z.infer<typeof reasoningEffortSchema> }) => request('PATCH', '/settings', settingsSchema, patch),
   googleSignIn: async () => { const result = await request('POST', '/auth/google/start', z.object({ url: z.string() }), {}); await openExternal(result.url); return result; },

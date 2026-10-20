@@ -190,6 +190,106 @@
       "files": [
         "SKILL.md"
       ]
+    },
+    {
+      "id": "claude-doc-coauthoring",
+      "name": "Document coauthoring",
+      "description": "Plan and revise reports, proposals and longer documents together.",
+      "source": "Anthropic Claude skills: doc-coauthoring",
+      "originSha256": "2e47d78846faeea4a56e9809c52700087a15a2155a3f293a3efbaded81398ef4",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-docx",
+      "name": "Word documents",
+      "description": "Plan, review and structure Word document content.",
+      "source": "Anthropic Claude skills: docx",
+      "originSha256": "8017469ea95fb7d28225c62daf8e2f3492a7b516fc64c18c28977cbf8980b7fe",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-pdf",
+      "name": "PDFs",
+      "description": "Review PDF content and plan extraction or document layouts.",
+      "source": "Anthropic Claude skills: pdf",
+      "originSha256": "9f78b8359fbd4943ad260a7a1e436e5a96503406d6c34e99f69223d647d85b9c",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-pptx",
+      "name": "Presentations",
+      "description": "Plan presentations with clear stories and readable slides.",
+      "source": "Anthropic Claude skills: pptx",
+      "originSha256": "a7ff03e2c85b636f55232a6b1555f5dd90216b7a1a359ab289d8364e6acbc6a0",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-xlsx",
+      "name": "Spreadsheets",
+      "description": "Reason about tables, spreadsheet formulas and data analysis.",
+      "source": "Anthropic Claude skills: xlsx",
+      "originSha256": "6712b39718fe815054abca9c3ee72f989613e6f771c8a5c58f30a65a6c905622",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-algorithmic-art",
+      "name": "Algorithmic art",
+      "description": "Design generative art and interactive sketches.",
+      "source": "Anthropic Claude skills: algorithmic-art",
+      "originSha256": "3bc4092c09804853186524c826bc0621b940bb6122c05b84496dff95388e6eef",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-canvas-design",
+      "name": "Canvas design",
+      "description": "Compose posters, diagrams and visual study materials.",
+      "source": "Anthropic Claude skills: canvas-design",
+      "originSha256": "a1f288079624402f30682753c1d43920b6664785698d21d3e7aa197450a6448b",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-theme-factory",
+      "name": "Theme factory",
+      "description": "Choose consistent colours and typography for study resources.",
+      "source": "Anthropic Claude skills: theme-factory",
+      "originSha256": "c35893e221e28895c52143cc11bf30e41a44817796b39d4b15727dadc9796552",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-frontend-design",
+      "name": "Frontend design",
+      "description": "Design thoughtful interactive learning experiences.",
+      "source": "Anthropic Claude skills: frontend-design",
+      "originSha256": "d91970639e9f5c37682ac7ab60094d35f1c7c1f38d731bd56396563aee10c1d3",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "claude-internal-comms",
+      "name": "Internal communications",
+      "description": "Draft concise updates, newsletters and progress reports.",
+      "source": "Anthropic Claude skills: internal-comms",
+      "originSha256": "067b7587a344a928fc6534ef66b1bcd591fc7c26d207ea7ca3334aeb678d6475",
+      "files": [
+        "SKILL.md"
+      ]
     }
   ]
 }

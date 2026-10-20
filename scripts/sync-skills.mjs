@@ -52,3 +52,5 @@ for (const [id, name, description] of authored) {
 }
 await writeFile(join(targetRoot, 'manifest.json'), `${JSON.stringify({ version: 1, skills }, null, 2)}\n`);
 console.log(`Bundled ${skills.length} Centre skills. Existing global skills were read only.`);
+
+await import('./download-claude-skills.mjs');

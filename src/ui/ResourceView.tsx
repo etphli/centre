@@ -1,3 +1,5 @@
+import { ConnectedFileView } from './ConnectedFileView';
+import { connectorCatalog } from '../../shared/connectors';
 import { DeleteResource } from './DeleteResource';
 import { Check, ChevronLeft, ChevronRight, Download, FolderInput, Printer, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -397,7 +399,7 @@ export function ResourceView({ resourceId }: { resourceId: string }) {
         <h1 className="page__title">{resource.title}</h1>
         <div className="resource-header__row">
           <span className="resource-header__meta">
-            <Icon size={14} aria-hidden /> {kindLabels[resource.kind]}, made {timeAgo(resource.createdAt)}
+            <Icon size={14} aria-hidden /> {resource.connectedFile ? connectorCatalog.find(item => item.id === resource.connectedFile?.connector)?.name : kindLabels[resource.kind]}, made {timeAgo(resource.createdAt)}
             {resource.completedAt ? <span className="done-pill"><Check size={12} aria-hidden /> Done {timeAgo(resource.completedAt)}</span> : null}
           </span>
           <div className="resource-header__actions">
@@ -424,7 +426,8 @@ export function ResourceView({ resourceId }: { resourceId: string }) {
       {resource.kind === 'test' ? <TestPaper resource={resource} /> : null}
       {resource.kind === 'flashcards' ? <Flashcards key={resource.id} resource={resource} /> : null}
       {resource.kind === 'diagram' ? <div className="diagram"><DiagramFrame resource={resource} /></div> : null}
-      {resource.kind === 'notes' ? (resource.content.trim() ? <article className="notes"><Markdown>{resource.content}</Markdown></article> : <ParseProblem resource={resource} reason="The notes are empty." />) : null}
+      {resource.connectedFile ? <ConnectedFileView key={resource.id} resource={resource} /> : null}
+      {resource.kind === 'notes' && !resource.connectedFile ? (resource.content.trim() ? <article className="notes"><Markdown>{resource.content}</Markdown></article> : <ParseProblem resource={resource} reason="The notes are empty." />) : null}
     </div>
   );
 }

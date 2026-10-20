@@ -1,3 +1,5 @@
+import { ConnectedFileView } from './ConnectedFileView';
+import { connectorCatalog } from '../../shared/connectors';
 import { ArrowUpRight, Check, Eye } from 'lucide-react';
 import type { Resource } from '../../shared/schema';
 import { DeleteResource } from './DeleteResource';
@@ -116,7 +118,7 @@ export function ResourceCard({ resource, onPreview }: { resource: Resource; onPr
   return (
     <article className={`resource-card resource-card--${resource.kind}`}>
       <div className="resource-card__top">
-        <span className="resource-card__kind"><Icon size={13} aria-hidden /> {kindLabels[resource.kind]}</span>
+        <span className="resource-card__kind"><Icon size={13} aria-hidden /> {resource.connectedFile ? connectorCatalog.find(item => item.id === resource.connectedFile?.connector)?.name : kindLabels[resource.kind]}</span>
         {resource.completedAt ? <span className="resource-card__done" title="Done"><Check size={12} aria-label="Done" /></span> : null}
         <DeleteResource resource={resource} compact />
         <button type="button" className="resource-card__peek" onClick={onPreview} aria-label={`Preview ${resource.title}`} title="Preview">
@@ -135,6 +137,7 @@ export function ResourceCard({ resource, onPreview }: { resource: Resource; onPr
 }
 
 function PreviewBody({ resource }: { resource: Resource }) {
+  if (resource.connectedFile) return <ConnectedFileView key={resource.id} resource={resource} />;
   switch (resource.kind) {
     case 'quiz': {
       const shown = resource.questions.slice(0, 5);
@@ -184,7 +187,7 @@ export function ResourcePreviewDialog({ resource, onClose }: { resource: Resourc
   return (
     <Dialog
       title={resource.title}
-      description={<span className="dialog__kind"><Icon size={13} aria-hidden /> {kindLabels[resource.kind]}, {meta}</span>}
+      description={<span className="dialog__kind"><Icon size={13} aria-hidden /> {resource.connectedFile ? connectorCatalog.find(item => item.id === resource.connectedFile?.connector)?.name : kindLabels[resource.kind]}, {meta}</span>}
       onClose={onClose}
       size="lg"
       className="preview-dialog"
