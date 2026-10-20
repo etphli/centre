@@ -29,6 +29,8 @@ test('automatic skill selection uses registered IDs for chat and each resource k
   assert.deepEqual(await ids('Hello'), ['unslop', 'ask-questions']);
   assert.deepEqual(await ids('Why and how? Teach me.'), ['unslop', 'ask-questions', 'how', 'why', 'teach']);
   assert.deepEqual(await ids('Make something interactive about circuits'), ['unslop', 'ask-questions', 'study-diagrams']);
+  for (const text of ['Make it a list I can check off', 'A checklist of deadlines', 'Tasks to tick off']) assert.deepEqual(await ids(text), ['unslop', 'ask-questions', 'study-diagrams']);
+  assert.deepEqual(await ids('Give me five practice questions'), ['unslop', 'ask-questions', 'active-recall']);
   assert.deepEqual(await ids('/diagram circuits'), ['unslop', 'ask-questions', 'study-diagrams']);
   assert.deepEqual(await ids('Draw a diagram', 'diagram'), ['unslop', 'study-diagrams']);
   assert.deepEqual(await ids('A practice paper', 'test'), ['unslop', 'exam-prep']);
