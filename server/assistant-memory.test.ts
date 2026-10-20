@@ -84,17 +84,22 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     assert.equal((await disk()).assistantMemories.length,1);
     assert.equal((await disk()).assistantMemories[0].id,memory.id);
     assert.match((await disk()).assistantMemories[0].content,/music/);
+    const edited = await request(`/assistant-memories/${memory.id}`,'PATCH',{content:'I prefer worked examples about painting.'});
+    assert.equal(edited.id,memory.id);
+    assert.equal(edited.createdAt,memory.createdAt);
+    assert.equal(edited.key,memory.key);
+    assert.equal((await disk()).assistantMemories.length,1);
     assert.equal((await sendMessage(secondChat,'Invalid memory input.')).messages.at(-1).content,'Tool failed');
     assert.equal((await disk()).assistantMemories.length,1);
     await restart();
     await sendMessage(secondChat,'Recall after another restart.');
-    assert.match(await lastPrompt(),/I prefer worked examples about music/);
-    assert.doesNotMatch(await lastPrompt(),/I prefer worked examples about astronomy/);
+    assert.match(await lastPrompt(),/I prefer worked examples about painting/);
+    assert.doesNotMatch(await lastPrompt(),/I prefer worked examples about (astronomy|music)/);
     assert.equal((await sendMessage(secondChat,'Forget my examples preference.')).messages.at(-1).content,'centre_forget_memory succeeded');
     await restart();
     await sendMessage(await newChat(),'What do you remember?');
     assert.deepEqual((await disk()).assistantMemories,[]);
-    assert.doesNotMatch(await lastPrompt(),/I prefer worked examples about (astronomy|music)/);
+    assert.doesNotMatch(await lastPrompt(),/I prefer worked examples about (astronomy|music|painting)/);
   } finally {
     await service.close();
     if (original === undefined) delete process.env.CENTRE_CODEX_BIN; else process.env.CENTRE_CODEX_BIN = original;

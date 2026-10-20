@@ -21,7 +21,7 @@ import { getCurriculumContext,readCurriculum } from './curriculum';
 import { calendarInputSchema,calendarPatchSchema } from './calendar';
 import { errorMessage, HttpError, requireFound } from './errors';
 import { AttachmentStore, MAX_ATTACHMENTS_PER_MESSAGE } from './attachments';
-import { remember,forgetMemory,forgetMemoryInputSchema } from './assistant-memory';
+import { remember,updateMemory,forgetMemory,forgetMemoryInputSchema } from './assistant-memory';
 
 const topicInput = z.object({ subjectId:z.string(), name:z.string().trim().min(1).max(200), description:z.string().max(10000).default('') }).strict();
 const eventInput = calendarInputSchema;
@@ -240,6 +240,15 @@ export async function createService(options: { port?:number; token?:string; data
     if (method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) return visibleState();
     if (method === 'GET' && path === '/api/models') return { models:await codex.models() };
     if (method === 'GET' && path === '/api/skills') return { skills:await listSkills() };
+    const assistantMemoryMatch = /^\/api\/assistant-memories\/([^/]+)(\/forget)?$/.exec(path);
+    if (assistantMemoryMatch) {
+      const id = decodeURIComponent(assistantMemoryMatch[1]);
+      if (method === 'PATCH' && !assistantMemoryMatch[2]) return updateMemory(store,id,value);
+      if (method === 'POST' && assistantMemoryMatch[2]) {
+        z.object({}).strict().parse(value);
+        return forgetMemory(store,{ id });
+      }
+    }
     if (method === 'POST' && path === '/api/attachments') return attachmentStore.upload(value);
     const attachmentMatch = /^\/api\/attachments\/([^/]+)$/.exec(path);
     if (attachmentMatch && method === 'GET') return attachmentStore.get(decodeURIComponent(attachmentMatch[1] ?? ''));
