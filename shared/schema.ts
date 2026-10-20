@@ -68,10 +68,11 @@ export const contextSchema = z.object({ page: z.string(), subjectId: z.string().
 export const resourceLocationSchema = z.object({subjectId:z.string().min(1).nullable(),topicId:z.string().min(1).nullable()}).strict().refine(location => (location.subjectId === null) === (location.topicId === null), 'Choose a subject and topic together, or personal learning.');
 const createResourceBaseShape = { subjectId: z.string().min(1).nullable(), topicId: z.string().min(1).nullable(), title: z.string().optional(), instructions: z.string().default(''), difficulty: z.enum(['gentle', 'standard', 'challenging']).default('standard') };
 const createResourceToolBaseShape = createResourceBaseShape;
+export const flashcardCountSchema = z.union([z.literal('auto'), z.number().int().min(1).max(30)]);
 export const createResourceVariants = [
   z.object({ kind: z.literal('quiz'), ...createResourceBaseShape, questionCount: z.number().int().min(1).max(30).default(8), questionTypes: responseTypesSchema.default([...allResponseTypes]) }),
   z.object({ kind: z.literal('test'), ...createResourceBaseShape, testLength: testLengthSchema.default({ mode: 'time', minutes: 45 }), questionTypes: responseTypesSchema.default([...allResponseTypes]) }),
-  z.object({ kind: z.literal('flashcards'), ...createResourceBaseShape, questionCount: z.number().int().min(1).max(30).default(8) }),
+  z.object({ kind: z.literal('flashcards'), ...createResourceBaseShape, questionCount: flashcardCountSchema.default('auto') }),
   z.object({ kind: z.literal('diagram'), ...createResourceBaseShape }),
   z.object({ kind: z.literal('notes'), ...createResourceBaseShape }),
 ] as const;
@@ -79,7 +80,7 @@ export const createResourceSchema = z.discriminatedUnion('kind', createResourceV
 export const createResourceToolVariants = [
   z.object({ kind: z.literal('quiz'), ...createResourceToolBaseShape, questionCount: z.number().int().min(1).max(30), questionTypes: responseTypesSchema }),
   z.object({ kind: z.literal('test'), ...createResourceToolBaseShape, testLength: testLengthSchema, questionTypes: responseTypesSchema }),
-  z.object({ kind: z.literal('flashcards'), ...createResourceToolBaseShape, questionCount: z.number().int().min(1).max(30) }),
+  z.object({ kind: z.literal('flashcards'), ...createResourceToolBaseShape, questionCount: flashcardCountSchema }),
   z.object({ kind: z.literal('diagram'), ...createResourceToolBaseShape }),
   z.object({ kind: z.literal('notes'), ...createResourceToolBaseShape }),
 ] as const;

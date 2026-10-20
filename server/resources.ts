@@ -46,10 +46,11 @@ export class Resources {
     const { subject,topic } = this.location(input);
     const output = generatedResourceSchema.parse(generated);
     const questions = output.questions.map(q => ({ ...q, id: randomUUID() }));
-    if (input.kind === 'quiz' || input.kind === 'flashcards') {
+    if (input.kind === 'quiz' || (input.kind === 'flashcards' && input.questionCount !== 'auto')) {
       const expectedCount = input.questionCount;
       if (questions.length !== expectedCount) throw new HttpError(422, `Expected ${expectedCount} questions, received ${questions.length}. No resource was saved.`);
     }
+    if (input.kind === 'flashcards' && questions.length === 0) throw new HttpError(422, 'Flashcards need at least one card. No resource was saved.');
     if (input.kind === 'test' && questions.length === 0) throw new HttpError(422, 'A test needs at least one question. No resource was saved.');
     if (input.kind === 'test' && input.testLength.mode === 'questions' && questions.length !== input.testLength.questionCount) throw new HttpError(422, `Expected ${input.testLength.questionCount} questions, received ${questions.length}. No resource was saved.`);
     const selectedTypes = new Set(selectedQuestionTypes(input));
@@ -78,7 +79,9 @@ export class Resources {
           ? `Create a ${input.testLength.minutes}-minute test. Choose a sensible question count for that duration; there is no fixed question count. Use only these selected response types: ${input.questionTypes.join(', ')}.`
           : `Create a test with exactly ${input.testLength.questionCount} ${input.testLength.questionCount === 1 ? 'question' : 'questions'}. Use only these selected response types: ${input.questionTypes.join(', ')}.`;
         case 'quiz': return `Return exactly ${input.questionCount} questions. Use only these selected response types: ${input.questionTypes.join(', ')}.`;
-        case 'flashcards': return `Return exactly ${input.questionCount} concise flashcards.`;
+        case 'flashcards': return input.questionCount === 'auto'
+          ? 'Choose the number of concise flashcards based on the scope of the topic and supplied material, from 1 to 30 cards. Cover the distinct key concepts without repetition or padding; there is no fixed card count.'
+          : `Return exactly ${input.questionCount} concise flashcards.`;
         case 'diagram': return 'Create an interactive HTML diagram; no assessment fields are needed.';
         case 'notes': return 'Create study notes; no assessment fields are needed.';
       }

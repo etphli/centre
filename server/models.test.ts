@@ -36,7 +36,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const params = message.params;
     const grading = Boolean(params.outputSchema?.properties?.feedback);
     const prompt = params.input?.[0]?.text ?? '';
-    const test = prompt.includes('Create a complete test');
+    const test = prompt.includes('Create a complete test') || prompt.includes('Create a complete flashcards');
     const text = params.outputSchema?.properties?.response ? JSON.stringify({response:{kind:'message',content:'Fixture response'}}) : params.outputSchema ? JSON.stringify(grading ? {score:1,total:1,feedback:[{questionId:'q-one',score:1,maxScore:1,feedback:'Correct.',needsReview:false}]} : test ? {title:'Timed test',content:'',questions:[{responseType:'short_response',choices:[],prompt:'Solve $2x=8$.',answer:'$x=4$.',explanation:'Divide by 2.',marks:1}]} : {title:'Selected model notes',content:'Study equations.',questions:[]}) : 'Fixture response';
     const complete = () => {
       send({method:'item/completed',params:{threadId:params.threadId,item:{id:'answer',type:'agentMessage',phase:'final_answer',text}}});
@@ -92,6 +92,13 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const questionCountTest = await request('/api/resources/generate','POST',{kind:'test',subjectId:'math',topicId:'algebra',instructions:'A one-question algebra test.'});
     assert.equal(questionCountTest.status,200); assert.equal(questionCountTest.body.durationMinutes,null); assert.deepEqual(questionCountTest.body.testLength,{mode:'questions',questionCount:1}); assert.equal(questionCountTest.body.questions.length,1);
     const questionCountPrompt = promptText((await calls()).filter(call => call.method === 'turn/start').at(-1)?.params.input); assert.match(questionCountPrompt,/Create a test with exactly 1 question/);
+    for (const sizing of [{}, {questionCount:'auto'}, {questionCount:1}]) {
+      const cards = await request('/api/resources/generate','POST',{kind:'flashcards',subjectId:'math',topicId:'algebra',instructions:'Recall solving an equation.',...sizing});
+      assert.equal(cards.status,200); assert.equal(cards.body.questions.length,1);
+      const cardsPrompt = promptText((await calls()).filter(call => call.method === 'turn/start').at(-1)?.params.input);
+      if ('questionCount' in sizing && sizing.questionCount === 1) assert.match(cardsPrompt,/Return exactly 1 concise flashcards/);
+      else { assert.match(cardsPrompt,/based on the scope of the topic and supplied material/); assert.match(cardsPrompt,/from 1 to 30 cards/); assert.doesNotMatch(cardsPrompt,/Return exactly/); }
+    }
     assert.equal((await request('/api/settings','PATCH',{gradingModel:'gpt-6.1-sol',gradingReasoningEffort:'high'})).status,200);
     assert.equal((await request('/api/quiz/grade','POST',{resourceId:'quiz',answers:{'q-one':'2'}})).status,200);
     const grading = (await calls()).filter(call => call.method === 'turn/start').at(-1);

@@ -52,6 +52,8 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
   const [newTopic, setNewTopic] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>(state.settings.defaultDifficulty);
   const [count, setCount] = useState(kind === 'test' ? state.settings.defaultTestQuestions : isPlan ? 4 : state.settings.defaultQuizQuestions);
+  const [automaticCards, setAutomaticCards] = useState(true);
+  const autoCount = kind === 'flashcards' && automaticCards;
   const [testMode,setTestMode] = useState<'time'|'questions'>(state.settings.defaultTestLengthMode);
   const [duration,setDuration] = useState(state.settings.defaultTestMinutes);
   const [questionTypes,setQuestionTypes] = useState<ResponseType[]>(kind === 'test' ? state.settings.defaultTestQuestionTypes : state.settings.defaultQuizQuestionTypes);
@@ -71,7 +73,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
   const unit = isPlan ? 'sessions' : kind === 'flashcards' ? 'cards' : 'questions';
   const prompt = prompts[kind];
   const optionsSummary = [
-    kind === 'test' ? testMode === 'time' ? `${duration} minutes` : `${count} questions` : countable ? `${Number.isNaN(count) ? '?' : count} ${unit}` : null,
+    kind === 'test' ? testMode === 'time' ? `${duration} minutes` : `${count} questions` : autoCount ? 'automatic card count' : countable ? `${Number.isNaN(count) ? '?' : count} ${unit}` : null,
     `${difficulties.find((option) => option.value === difficulty)?.label.toLowerCase()} ${isPlan ? 'pace' : assessment || countable ? 'difficulty' : 'depth'}`,
     !isPlan && title.trim() ? 'custom title' : null,
   ].filter(Boolean).join(', ');
@@ -109,7 +111,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
       setError('Pick a subject.');
       return;
     }
-    if ((countable || isPlan || (kind === 'test' && testMode === 'questions')) && (!Number.isInteger(count) || count < 1 || count > maxCount)) {
+    if (((countable && !autoCount) || isPlan || (kind === 'test' && testMode === 'questions')) && (!Number.isInteger(count) || count < 1 || count > maxCount)) {
       if (countable) setOptionsOpen(true);
       setError(`Choose between 1 and ${maxCount} ${unit}.`);
       return;
@@ -141,7 +143,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
       : [
           `Make me a ${noun} ${personal ? "for personal learning outside my subjects. Save without a subject or topic" : `for ${subjectName}, topic "${topicName ?? 'this topic'}"`}.`,
           [
-            countable ? `${kind === 'flashcards' ? 'Cards' : 'Questions'}: ${count}` : null,
+            autoCount ? 'Cards: automatic. Choose how many cards are needed to cover the distinct key concepts in the topic and supplied material, from 1 to 30, without repetition or padding.' : countable ? `${kind === 'flashcards' ? 'Cards' : 'Questions'}: ${count}` : null,
             kind === 'test' ? testMode === 'time' ? `Duration: ${duration} minutes. Choose enough questions to fit this time.` : `Questions: exactly ${count}.` : null,
             assessment ? `Include ${questionTypes.map(type => responseTypes.find(option => option.value === type)?.label.toLowerCase()).join(', ')}. Include each selected type where the question count allows.` : null,
             `${assessment || countable ? 'Difficulty' : 'Depth'}: ${difficulty}`,
@@ -221,6 +223,17 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
             <div className="gen__types"><span>Question types</span><QuestionTypes label="Question types to include" value={questionTypes} onChange={setQuestionTypes} /></div>
           </div> : null}
 
+          {kind === 'flashcards' ? <div className="gen__assessment">
+            <div className="gen__test-mode" role="group" aria-label="Number of cards">
+              <button type="button" aria-pressed={automaticCards} onClick={() => setAutomaticCards(true)}>Automatic</button>
+              <button type="button" aria-pressed={!automaticCards} onClick={() => setAutomaticCards(false)}>Choose count</button>
+            </div>
+            {automaticCards ? <p className="gen__hint">Centre chooses how many cards the material needs.</p> : <label className="gen__inline">
+              <span id={ids.count}>Cards</span>
+              <input type="number" min={1} max={maxCount} value={Number.isNaN(count) ? '' : count} onChange={(event) => setCount(event.target.valueAsNumber)} aria-labelledby={ids.count} />
+            </label>}
+          </div> : null}
+
           {request.attachmentIds?.length ? <p className="gen__attachments">{request.attachmentIds.length} {request.attachmentIds.length === 1 ? 'file attached' : 'files attached'}</p> : null}
           <textarea
             ref={promptRef}
@@ -240,12 +253,6 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
               <span className="gen__summary">{optionsSummary}</span>
             </summary>
             <div className="gen__options-body">
-              {kind === 'flashcards' ? (
-                <label className="gen__inline">
-                  <span id={ids.count}>{kind === 'flashcards' ? 'Cards' : 'Questions'}</span>
-                  <input type="number" min={1} max={maxCount} value={Number.isNaN(count) ? '' : count} onChange={(event) => setCount(event.target.valueAsNumber)} aria-labelledby={ids.count} />
-                </label>
-              ) : null}
               <div className="gen__inline">
                 <span id={ids.difficulty}>{isPlan ? 'Pace' : assessment || countable ? 'Difficulty' : 'Depth'}</span>
                 <div className="segmented gen__segmented" role="radiogroup" aria-labelledby={ids.difficulty}>
