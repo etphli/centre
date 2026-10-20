@@ -1,3 +1,4 @@
+import { Connections } from './Connections';
 import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download, Brain } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, openExternal, updates, type UpdateStatus } from '../data/client';
@@ -326,7 +327,7 @@ export function SettingsPage() {
       {category === 'study' ? <StudyPreferences /> : null}
       {category === 'memory' ? <MemorySettings /> : null}
       {category === 'models' ? <><ModelPreferences /><CodexSection /></> : null}
-      {category === 'connections' ? <><GoogleSection /><OrganatoSection /><p className="settings-foot">Credentials are stored in your macOS Keychain. <button type="button" className="link-button" onClick={() => void openExternal('https://organato.vercel.app').catch(() => undefined)}>Open Organato <ExternalLink size={12} aria-hidden /></button></p></> : null}
+      {category === 'connections' ? <><Connections /><GoogleSection /><OrganatoSection /><p className="settings-foot">Credentials are stored in your macOS Keychain. <button type="button" className="link-button" onClick={() => void openExternal('https://organato.vercel.app').catch(() => undefined)}>Open Organato <ExternalLink size={12} aria-hidden /></button></p></> : null}
       {category === 'skills' ? <SkillsPreferences /> : null}
       {category === 'updates' ? <UpdatesSection /> : null}
     </div>

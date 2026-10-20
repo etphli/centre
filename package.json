@@ -18,7 +18,11 @@
     "typecheck": "tsc --noEmit",
     "benchmark:performance": "node scripts/benchmark-performance.mjs",
     "test": "tsx --test server/*.test.ts electron/*.test.ts",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "skills:download": "node scripts/download-claude-skills.mjs",
+    "postinstall": "npm run skills:download",
+    "prebuild": "npm run skills:download",
+    "verify:connectors": "tsx scripts/verify-connectors.mjs"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",

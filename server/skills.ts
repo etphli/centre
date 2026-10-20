@@ -20,9 +20,9 @@ const runtimeNote = `# Centre runtime adaptation
 
 These are bundled instructions, not extra tool permissions. Apply their reasoning and writing methods using only tools available in this conversation. The original skill comes from a coding-agent environment; Centre is a study app. This adaptation takes precedence over original workflow and tool assumptions.
 
-Use available Centre tools to inspect study context and Organato, and save notes, resources or calendar entries only when the current request authorizes the action. Use web research only when a web-search tool is actually available. Otherwise use supplied material and clearly identify claims you cannot verify. Never claim to have searched, run code, browsed files, consulted an unavailable integration, delegated or saved something without a successful tool result.
+Use available Centre tools to inspect study context, connected Google services, Notion and Organato, and save notes, resources or calendar entries only when the current request authorizes the action. Use web research only when a web-search tool is actually available. Otherwise use supplied material and clearly identify claims you cannot verify. Never claim to have searched, run code, browsed files, consulted an unavailable integration, delegated or saved something without a successful tool result.
 
-For original terminal, filesystem, git, deployment, scripts, MCP discovery, subagent and named model instructions, carry out the relevant thinking in the current conversation. Centre does not grant these capabilities. Software lifecycle playbooks are reference material, not actions to execute. Do not request unavailable scripts or references. Only the supporting references included below are available for this skill. Load another bundled skill through centre_read_skill when it is useful. For how, why and teach, use the student's topic or supplied materials as the subject, rather than assuming a repository. Research deliverables belong in the response or a requested Centre note. Keep skill workflow mechanics out of the student's explanation.
+For original terminal, filesystem, git, deployment, scripts, MCP discovery, subagent and named model instructions, carry out the relevant thinking in the current conversation. Centre does not grant these capabilities. Software lifecycle and document-file playbooks are reference material. Apply their planning, review, design and writing methods. Centre cannot run their Python, Office or PDF scripts or generate binary Office files. Use connected document tools for supported Google file edits and Centre resources for study output. Never claim a binary file was created. Do not request unavailable scripts or references. Only the supporting references included below are available for this skill. Load another bundled skill through centre_read_skill when it is useful. For how, why and teach, use the student's topic or supplied materials as the subject, rather than assuming a repository. Research deliverables belong in the response or a requested Centre note. Keep skill workflow mechanics out of the student's explanation.
 `;
 
 async function safeFile(root: string, path: string, limit: number) {
@@ -64,6 +64,16 @@ export async function loadApplicableSkills({ text, kind }: { text: string; kind?
   const available = new Set((await listSkills()).map(skill => skill.id));
   const selected = new Set(kind ? ['unslop'] : ['unslop','ask-questions']);
   const routes: Array<[string, RegExp]> = [
+    ['claude-doc-coauthoring', /\b(?:coauthor|co-author|draft|report|proposal)\b/i],
+    ['claude-docx', /\b(?:docx|word document)\b/i],
+    ['claude-pdf', /\bpdfs?\b/i],
+    ['claude-pptx', /\b(?:pptx|presentation|slides|slide deck)\b/i],
+    ['claude-xlsx', /\b(?:xlsx|spreadsheet|sheets|excel|formula)\b/i],
+    ['claude-algorithmic-art', /\b(?:algorithmic art|generative art)\b/i],
+    ['claude-canvas-design', /\b(?:poster|canvas design|visual design)\b/i],
+    ['claude-theme-factory', /\b(?:theme factory|colour palette|color palette|typography)\b/i],
+    ['claude-frontend-design', /\b(?:frontend design|interactive learning|interactive resource)\b/i],
+    ['claude-internal-comms', /\b(?:newsletter|progress report|status update)\b/i],
     ['poteto-mode', /\bpoteto(?:-mode)?\b/i],
     ['how', /\bhow\b/i],
     ['why', /\bwhy\b/i],
@@ -82,6 +92,7 @@ export async function loadApplicableSkills({ text, kind }: { text: string; kind?
     ['codebase-design', /\bcodebase[- ]design\b/i],
     ['domain-modeling', /\bdomain[- ]model(?:ing|ling)\b/i],
   ];
+  for (const id of available) if (id.startsWith('claude-') && text.toLowerCase().includes(id)) selected.add(id);
   for (const [id, pattern] of routes) if (pattern.test(text)) selected.add(id);
   if (kind === 'diagram') selected.add('study-diagrams');
   if (kind === 'test') selected.add('exam-prep');

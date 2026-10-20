@@ -37,7 +37,7 @@ Centre remembers facts, learning preferences, and ongoing goals across chats and
 
 Quizzes show one question at a time. Your answers stay in place while you move between questions. Marking saves the attempt and sends questions that need more review to **Review**. The default quiz has 8 questions. Flashcards default to **Automatic**, so Centre chooses the number of cards based on the material, up to 30. Select **Choose count** to request an exact number instead. Tests can use a duration or an exact question count. Your default is time, initially 45 minutes. Each paper starts with a cover page showing the topic, section breakdown and mark totals, followed by separate multiple-choice, short-response and long-response sections when selected. Before every quiz or test, review its count or duration and choose multiple choice, short response, long response, or a mix. Settings stores those defaults.
 
-Pin chats or place them in folders. Open the side chat beside a page, including a quiz, to keep that page visible while you ask about it. Each message includes the current page context. Centre bundles 19 adapted study and writing skills. Centre selects relevant skills automatically, shows their names beside the response, and lets you request one by name.
+Pin chats or place them in folders. Open the side chat beside a page, including a quiz, to keep that page visible while you ask about it. Each message includes the current page context. Centre bundles 29 adapted study, writing and design skills, including 10 official Claude skills. Centre selects relevant skills automatically, shows their names beside the response, and lets you request one by name.
 
 Attach text, PDFs, DOCX files or images with the paperclip or by dragging files into the message bar. Expand the thinking row to see public reasoning summaries, progress updates, and tool activity. The row keeps the varied thinking phrases and shows elapsed time. Clarification questions open in a popup with suggested choices and a custom answer field. Your answer resumes the same response. **Stop response** cancels the question and the response.
 
@@ -55,7 +55,27 @@ For PDF papers, install [Tectonic](https://tectonic-typesetting.github.io/). Its
 
 Centre provides one **Sign in with Google** button. It opens the system browser and uses a loopback callback with PKCE. Google sign-in identifies your local account; it does not upload study data.
 
-The OAuth client belongs to the app, so you do not enter its ID or secret in Settings. A desktop build reads both environment variables or the installed-app JSON file. The build validates the input and writes an ignored config file. Electron Builder places that file in the app's resources. Never commit the source JSON or OAuth values.
+The desktop app includes its OAuth client. To use your own Google Cloud project, enter its Desktop OAuth client ID and secret under **Settings > Connections > Google connection setup**. A desktop build reads both environment variables or the installed-app JSON file. The build validates the input and writes an ignored config file. Electron Builder places that file in the app's resources. Never commit the source JSON or OAuth values.
+
+## Connected apps and files
+
+Open **Settings > Connections** to search apps or filter by connected services. Available Google connectors are Drive, Docs, Sheets, Slides, Calendar, Contacts, Tasks, Classroom, Forms, Meet, Chat, YouTube, Analytics and Search Console. Gmail is excluded. Each service requests its own permissions. Enable the corresponding APIs in the OAuth client’s Google Cloud project and configure its consent screen. School or workplace administrators may restrict access.
+
+Notion uses an internal integration token. Create an integration in [Notion](https://www.notion.so/profile/integrations), paste its token into the Notion connection, and add the integration to the pages Centre should read. Tokens and Google refresh credentials stay in macOS Keychain. Connection status and saved content stay in the local study data file.
+
+Ask Centre to find and review a connected file. Reading a Doc, Sheet, presentation, Form, Drive file or Notion page creates a linked resource in **Resources** and attaches it to the conversation. Reading the same file refreshes that resource. Open it to read inside Centre, inspect spreadsheet cells or navigate slides, with the side chat still available. **Refresh** fetches the source again. Saved content remains available offline after disconnecting.
+
+**Google preview** embeds the original Docs, Sheets or Slides viewer when Google permits access. **Centre view** uses the saved content and works without Google browser cookies. It shows text and values, with bounded previews, rather than reproducing every image, layout or spreadsheet formula. Sheets default to A1:Z100; ask Centre for another range. Forms show questions. Drive shows file metadata. Notion shows one page of blocks; ask Centre to read nested blocks or continue pagination when needed.
+
+To edit a Doc, Sheet or presentation, enable editing for that service in Connections and request the exact change in chat. Docs and Slides support exact text replacement with revision checks. Sheets supports bounded cell updates, with literal values by default and an explicit formula mode. Successful edits refresh the linked resource. Other connectors currently provide read access.
+
+API references: [Google Desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app), [Google scopes](https://developers.google.com/identity/protocols/oauth2/scopes), [Docs edits](https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/batchUpdate), [Slides edits](https://developers.google.com/workspace/slides/api/reference/rest/v1/presentations/batchUpdate), [Sheets edits](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/update), and [Notion search](https://developers.notion.com/reference/post-search).
+
+## Claude skills
+
+`npm install` and `npm run build` verify the bundled [official Anthropic skills](https://github.com/anthropics/skills) and automatically download missing or changed files. `npm run skills:download` runs the same check directly. The pinned commit and SHA-256 hashes live in `skills/claude-sources.json`; downloads must match those hashes. Available upstream licence files are preserved. A complete bundle needs no network access.
+
+The additional skills cover document coauthoring, Word content, PDFs, presentations, spreadsheets, algorithmic art, canvas design, themes, frontend design and internal communications. Centre automatically applies relevant writing, design and review methods. Skills do not add terminal access or the Python/Office tools used by their original environment; binary Office or PDF creation remains outside these skills’ Centre adaptation.
 
 ## Build a macOS app
 
@@ -74,6 +94,7 @@ npm run check
 npm run build:electron
 node scripts/verify-flows.mjs
 node scripts/verify-interactions.mjs
+npm run verify:connectors
 ```
 
 With a signed-in Codex account, run `npx tsx server/live-interaction-check.ts` to check real-model checklist, quiz, plain-text and personal-resource behaviour in temporary local data. Generated checklist HTML is retained under `.runtime/live-interactions/` for browser checks.

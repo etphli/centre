@@ -1,0 +1,162 @@
+{
+  "repository": "anthropics/skills",
+  "revision": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+  "skills": [
+    {
+      "id": "claude-doc-coauthoring",
+      "upstream": "doc-coauthoring",
+      "name": "Document coauthoring",
+      "description": "Plan and revise reports, proposals and longer documents together.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "2e47d78846faeea4a56e9809c52700087a15a2155a3f293a3efbaded81398ef4"
+        }
+      ]
+    },
+    {
+      "id": "claude-docx",
+      "upstream": "docx",
+      "name": "Word documents",
+      "description": "Plan, review and structure Word document content.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "8017469ea95fb7d28225c62daf8e2f3492a7b516fc64c18c28977cbf8980b7fe"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa"
+        }
+      ]
+    },
+    {
+      "id": "claude-pdf",
+      "upstream": "pdf",
+      "name": "PDFs",
+      "description": "Review PDF content and plan extraction or document layouts.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "9f78b8359fbd4943ad260a7a1e436e5a96503406d6c34e99f69223d647d85b9c"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa"
+        }
+      ]
+    },
+    {
+      "id": "claude-pptx",
+      "upstream": "pptx",
+      "name": "Presentations",
+      "description": "Plan presentations with clear stories and readable slides.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "a7ff03e2c85b636f55232a6b1555f5dd90216b7a1a359ab289d8364e6acbc6a0"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa"
+        }
+      ]
+    },
+    {
+      "id": "claude-xlsx",
+      "upstream": "xlsx",
+      "name": "Spreadsheets",
+      "description": "Reason about tables, spreadsheet formulas and data analysis.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "6712b39718fe815054abca9c3ee72f989613e6f771c8a5c58f30a65a6c905622"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa"
+        }
+      ]
+    },
+    {
+      "id": "claude-algorithmic-art",
+      "upstream": "algorithmic-art",
+      "name": "Algorithmic art",
+      "description": "Design generative art and interactive sketches.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "3bc4092c09804853186524c826bc0621b940bb6122c05b84496dff95388e6eef"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362"
+        }
+      ]
+    },
+    {
+      "id": "claude-canvas-design",
+      "upstream": "canvas-design",
+      "name": "Canvas design",
+      "description": "Compose posters, diagrams and visual study materials.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "a1f288079624402f30682753c1d43920b6664785698d21d3e7aa197450a6448b"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362"
+        }
+      ]
+    },
+    {
+      "id": "claude-theme-factory",
+      "upstream": "theme-factory",
+      "name": "Theme factory",
+      "description": "Choose consistent colours and typography for study resources.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "c35893e221e28895c52143cc11bf30e41a44817796b39d4b15727dadc9796552"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362"
+        }
+      ]
+    },
+    {
+      "id": "claude-frontend-design",
+      "upstream": "frontend-design",
+      "name": "Frontend design",
+      "description": "Design thoughtful interactive learning experiences.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "d91970639e9f5c37682ac7ab60094d35f1c7c1f38d731bd56396563aee10c1d3"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        }
+      ]
+    },
+    {
+      "id": "claude-internal-comms",
+      "upstream": "internal-comms",
+      "name": "Internal communications",
+      "description": "Draft concise updates, newsletters and progress reports.",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "sha256": "067b7587a344a928fc6534ef66b1bcd591fc7c26d207ea7ca3334aeb678d6475"
+        },
+        {
+          "path": "LICENSE.txt",
+          "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362"
+        }
+      ]
+    }
+  ]
+}

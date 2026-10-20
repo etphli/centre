@@ -9,7 +9,7 @@ const fixtureSkill = { id: 'sample', name: 'Sample', description: 'A study skill
 
 test('bundled skill catalog loads actual named instructions and supporting references', async () => {
   const skills = await listSkills();
-  assert.equal(skills.length, 19);
+  assert.equal(skills.length, 29);
   for (const id of ['unslop', 'poteto-mode', 'how', 'why', 'teach', 'research', 'exam-prep', 'active-recall']) assert.ok(skills.some(skill => skill.id === id), id);
   for (const skill of skills) {
     const instruction = await readSkillInstruction(skill.id);
@@ -26,6 +26,9 @@ test('bundled skill catalog loads actual named instructions and supporting refer
 
 test('automatic skill selection uses registered IDs for chat and each resource kind', async () => {
   const ids = async (text: string, kind?: Parameters<typeof loadApplicableSkills>[0]['kind']) => (await loadApplicableSkills({ text, kind })).map(skill => skill.id);
+  assert.ok((await ids('Review this Google Sheets spreadsheet')).includes('claude-xlsx'));
+  assert.ok((await ids('Create a presentation')).includes('claude-pptx'));
+  assert.ok((await ids('/claude-docx')).includes('claude-docx'));
   assert.deepEqual(await ids('Hello'), ['unslop', 'ask-questions']);
   assert.deepEqual(await ids('Why and how? Teach me.'), ['unslop', 'ask-questions', 'how', 'why', 'teach']);
   assert.deepEqual(await ids('Make something interactive about circuits'), ['unslop', 'ask-questions', 'study-diagrams']);
