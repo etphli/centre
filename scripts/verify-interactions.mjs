@@ -27,7 +27,7 @@ function fixtureCodex() {
   const send = value => process.stdout.write(JSON.stringify(value)+'\n');
   const complete = (threadId,text) => {
     if (stopped.has(threadId)) return;
-    send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text}}});
+    send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:JSON.stringify({response:{kind:'message',content:text}})}}});
     send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});
   };
   const call = (threadId,tool,args,after) => {const id = ++sequence; waiting.set(id,after); send({id,method:'item/tool/call',params:{threadId,tool,arguments:args}});};
@@ -53,7 +53,13 @@ function fixtureCodex() {
       const text = prompt.split('Student message:\n')[1] ?? '';
       send({method:'turn/started',params:{threadId,turn:{id:'turn-'+sequence}}});
       send({method:'item/reasoning/summaryTextDelta',params:{threadId,itemId:'reasoning',summaryIndex:0,delta:'Checking the request and choosing a useful learning activity.'}});
-      if (/take your time/i.test(text)) {
+      if (prompt.includes('The student answered your popup.')) complete(threadId,'You chose Yes.');
+      else if (/like blue/i.test(text)) {
+        const response = {kind:'questions',questions:[{id:'blue',header:'Colour',question:'Do you like blue?',options:[{label:'Yes',description:''},{label:'No',description:''}]}]};
+        send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:JSON.stringify({response})}}});
+        send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});
+      }
+      else if (/take your time/i.test(text)) {
         send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'update',phase:'commentary',text:'I am checking how current flows through a series circuit.'}}});
         setTimeout(() => complete(threadId,'Current is the same through every part of a series circuit.'),9000);
       } else if (/interactive|\/diagram/i.test(text)) save(threadId,'diagram',true);
@@ -126,6 +132,14 @@ async function electronRunner(config) {
         await waitFor("!document.querySelector('.activity-row')");
         await newChat();
         check('A fresh chat returns to the saved default',await evaluate("document.querySelector('button[aria-label=\"Choose model\"]').textContent.includes('Sol')"));
+        await send('Ask me a question as a test, like do you like blue');
+        await waitFor("Boolean(document.querySelector('.question-dialog[open]'))");
+        check('Structured final questions open the popup without a question-tool call',(await state()).chats[0].activity.some(step=>step.id.startsWith('question:')));
+        await screenshot('structured-question-popup');
+        await click('.question-dialog input[type=radio]');await click('.question-dialog button[type=submit]');
+        await waitFor("!document.querySelector('.question-dialog') && document.querySelector('.thread')?.textContent.includes('You chose Yes.')");
+        check('Structured popup answers resume the original request',(await state()).chats[0].messages.at(-1).content === 'You chose Yes.');
+        await newChat();
         await send('/diagram coffee extraction for personal learning');
         await waitFor("Boolean(document.querySelector('.thread-resources__diagram'))");
         snapshot = await state();

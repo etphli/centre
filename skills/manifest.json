@@ -185,7 +185,7 @@
     {
       "id": "ask-questions",
       "name": "Ask questions",
-      "description": "Ask for missing preferences or confirmation in a popup using centre_ask_question.",
+      "description": "Ask the student questions in a popup through the question tool or structured response.",
       "source": "Centre study skills",
       "files": [
         "SKILL.md"

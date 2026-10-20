@@ -21,7 +21,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
   if (!message.method && waiting.has(message.id)) {
     const threadId = waiting.get(message.id); waiting.delete(message.id);
     if (!message.result.success) return;
-    send({method:'item/completed',params:{threadId,item:{id:'reply',type:'agentMessage',phase:'final_answer',text:message.result.contentItems[0].text}}});
+    send({method:'item/completed',params:{threadId,item:{id:'reply',type:'agentMessage',phase:'final_answer',text:JSON.stringify({response:{kind:'message',content:message.result.contentItems[0].text}})}}});
     send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}}); return;
   }
   if (!message.id) return;

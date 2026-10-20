@@ -28,7 +28,7 @@ The model catalog does not prove that an account can use each model. A completed
 
 The learner profile defaults to Year 9 NSW. If a subject name contains a year from 7 to 12, that year overrides the profile year for the request. Through Year 10, Centre retrieves official NESA curriculum pages for supported Mathematics, English, and Science syllabuses in `server/curriculum.ts`. It caches successful reads in memory for 15 minutes. The assistant must cite fetched official evidence for exact outcomes or dates and say when alignment is unverified. It does not infer school sequencing or Core and Path choices.
 
-The `skills/manifest.json` file lists 18 bundled, adapted skills. The service loads relevant skills from the manifest for chat and resource requests. The `unslop` skill loads by default. Centre also exposes the skill list and lets a chat request another skill by its listed name. Electron sets `CENTRE_SKILLS_DIR` to the packaged `Resources/skills` directory; development uses the project-root `skills` directory.
+The `skills/manifest.json` file lists 19 bundled, adapted skills. The service loads relevant skills from the manifest for chat and resource requests. The `unslop` skill loads by default. Centre also exposes the skill list and lets a chat request another skill by its listed name. Electron sets `CENTRE_SKILLS_DIR` to the packaged `Resources/skills` directory; development uses the project-root `skills` directory.
 
 ## Preferences and greetings
 
@@ -77,6 +77,9 @@ Review notes preserve the student's description of difficult questions. Quiz mar
 
 ## Questions and response activity
 
-`centre_ask_question` creates an in-memory request in `server/questions.ts` and suspends the running dynamic tool call. The authenticated state response exposes pending requests to the renderer. The popup submits validated answers to `/api/questions/:id/answer`. The service saves the answer in chat history before resolving the tool call. Requests are scoped to a chat and removed on answer, cancellation, turn completion, disconnect, or shutdown. Renderer reloads recover pending questions from the service. Restarting the service clears them. The Codex response timer pauses while the student answers and restarts when the tool returns.
+Chat completions use `server/chat-response.ts` to distinguish messages from questions. A structured question opens the popup even when the model does not call `centre_ask_question`. The service keeps the Centre response open while the student answers, then starts a continuation turn using the returned answer. The question tool remains available and suspends its current Codex turn until answered.
+
+Both routes create in-memory requests in `server/questions.ts`. The authenticated state response exposes pending requests to the renderer. The popup submits validated answers to `/api/questions/:id/answer`. The service saves the answer in chat history before continuing. Cancellation and shutdown clear both request types. Renderer reloads recover pending questions from the service; restarting the service clears them. Model execution timeouts do not run while a structured question waits, and the question tool pauses its turn timer.
+
 
 Automatically applied skills and tool-loaded skills appear by name in response activity. The activity panel contains public reasoning summaries, completed progress messages, and tool status. It never requests private reasoning text. The composer reads the chat's optional model override; Settings owns defaults for new chats and the separate marking model.
