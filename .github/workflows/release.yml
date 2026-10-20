@@ -27,7 +27,9 @@ jobs:
           npm version "$version" --no-git-tag-version
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
       - name: Check and build
-        run: npm run check && npm run build:electron
+        run: npm run check
+      - name: Build Electron with Google OAuth config
+        run: npm run build:electron
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
