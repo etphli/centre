@@ -11,6 +11,7 @@ import { useApp } from './context';
 import { initials, todayKey } from './format';
 import type { Route } from './types';
 import './chat-list.css';
+import { preloadMarkdown } from './Markdown';
 
 function NavItem({ icon, label, active, onClick, badge }: { icon: ReactNode; label: string; active: boolean; onClick: () => void; badge?: number }) {
   return (
@@ -386,6 +387,8 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
           type="button"
           data-row-focus
           className="chat-nav__item"
+          onPointerEnter={() => { void preloadMarkdown().catch(() => {}); }}
+          onFocus={() => { void preloadMarkdown().catch(() => {}); }}
           draggable
           aria-current={active ? 'page' : undefined}
           title={title}

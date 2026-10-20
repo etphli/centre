@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { z, ZodError } from 'zod';
@@ -211,7 +211,7 @@ export async function createService(options: { port?:number; token?:string; data
       });
       return { ok:true };
     }
-    if (method === 'GET' && path === '/api/state') return visibleState();
+    if (method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) return visibleState();
     if (method === 'GET' && path === '/api/models') return { models:await codex.models() };
     if (method === 'GET' && path === '/api/skills') return { skills:await listSkills() };
     if (method === 'POST' && path === '/api/attachments') return attachmentStore.upload(value);
@@ -317,7 +317,15 @@ export async function createService(options: { port?:number; token?:string; data
       if (Buffer.byteLength(provided) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(provided),Buffer.from(expected))) throw new HttpError(401,'Unauthorized.');
       const value = ['POST','PATCH'].includes(request.method ?? '') ? await body(request,path === '/api/attachments' && request.method === 'POST' ? 30 * 1024 * 1024 : undefined) : undefined;
       const result = await route(request.method ?? 'GET',path,value);
-      response.writeHead(200).end(JSON.stringify(result));
+      const content = JSON.stringify(result);
+      if (request.method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) {
+        const etag = `"${createHash('sha256').update(content).digest('base64url')}"`;
+        response.setHeader('ETag',etag);
+        if (path === '/api/state/poll' && request.headers['if-none-match'] === etag) {
+          response.writeHead(304).end(); return;
+        }
+      }
+      response.writeHead(200).end(content);
     }).catch(error => {
       const status = error instanceof HttpError ? error.status : error instanceof ZodError || error instanceof URIError ? 400 : 500;
       const message = error instanceof ZodError ? error.issues.map(issue => `${issue.path.join('.') || 'request'}: ${issue.message}`).join('; ') : errorMessage(error);

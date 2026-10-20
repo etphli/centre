@@ -16,11 +16,17 @@ export interface DesktopBridge {
 }
 declare global { interface Window { centre?: DesktopBridge } }
 
+let stateEtag: string | null = null;
+
 async function request<T>(method: Method, path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
   let value: unknown;
+  let nextStateEtag: string | null = null;
+  const stateRequest = method === 'GET' && (path === '/state' || path === '/state/poll');
   if (window.centre) value = await window.centre.request(method, path, body);
   else {
-    const response = await fetch(`/api${path}`, { method, headers: { 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const response = await fetch(`/api${path}`, { method, headers: { 'Content-Type': 'application/json', ...(path === '/state/poll' && stateEtag ? { 'If-None-Match':stateEtag } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    if (path === '/state/poll' && response.status === 304) return schema.parse(null);
+    if (stateRequest) nextStateEtag = response.headers.get('etag');
     value = await response.json();
     if (!response.ok) {
       const error = z.object({ error: z.string() }).safeParse(value);
@@ -29,12 +35,15 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
   }
   const failure = z.object({ error: z.string() }).safeParse(value);
   if (failure.success) throw new Error(failure.data.error);
-  return schema.parse(value);
+  const result = schema.parse(value);
+  if (stateRequest && !window.centre && (path === '/state/poll' || !stateEtag)) stateEtag = nextStateEtag;
+  return result;
 }
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
 export const api = {
   state: () => request('GET', '/state', snapshotSchema),
+  pollState: () => request('GET', '/state/poll', snapshotSchema.nullable()),
   models: () => request('GET', '/models', z.object({ models: z.array(modelSchema) })),
   createChat: (modelSelection:ModelSelection|null = null) => request('POST', '/chats', chatSchema, {modelSelection}),
   selectChatModel: (id:string,selection:ModelSelection) => request('PATCH',`/chats/${encodeURIComponent(id)}/model`,chatSchema,modelSelectionSchema.parse(selection)),

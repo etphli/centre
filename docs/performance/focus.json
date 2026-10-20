@@ -1,0 +1,67 @@
+{
+  "label": "focus",
+  "measuredAt": "2026-10-20T09:32:00.083Z",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M1",
+    "node": "v22.14.0",
+    "electron": "44.9.1"
+  },
+  "fixture": {
+    "chats": 80,
+    "messagesPerChat": 24,
+    "bytes": 1359955,
+    "ai": "disabled",
+    "network": "local IPC only",
+    "visibility": "forced foreground; background throttling disabled",
+    "preloadMode": "focus"
+  },
+  "assets": [
+    {
+      "file": "MarkdownContent-DEej8C1m.js",
+      "bytes": 436279,
+      "gzipBytes": 131572
+    },
+    {
+      "file": "index-DZrjmGKb.js",
+      "bytes": 493962,
+      "gzipBytes": 148355
+    }
+  ],
+  "results": [
+    {
+      "startupMs": 1112.682208,
+      "home": {
+        "readyMs": 259.59999999403954
+      },
+      "preload": {
+        "mode": "focus",
+        "moduleRequests": 1,
+        "ms": 42.20516699999985,
+        "navigated": false
+      },
+      "chatOpenMs": 261.37175,
+      "idle": {
+        "durationMs": 11000,
+        "stateRequests": 2,
+        "ipcBytes": 8,
+        "requestMs": 23.21020899999985,
+        "rendererTaskMs": 23.044999999999995,
+        "mainCpuMs": 58.692,
+        "appCpuMs": 115.75000000000024,
+        "rendererHeapBeforeBytes": 9504948,
+        "rendererHeapAfterBytes": 9506244,
+        "rendererMemoryBefore": {
+          "workingSetSize": 158240,
+          "peakWorkingSetSize": 195328
+        },
+        "rendererMemoryAfter": {
+          "workingSetSize": 151632,
+          "peakWorkingSetSize": 195328
+        }
+      },
+      "errors": []
+    }
+  ]
+}
