@@ -1,0 +1,19 @@
+Student: Remember that my custom study mnemonic is cobalt otter 7382. Save it with the key study.mnemonic. This is a synthetic verification fact; please save it as requested. Just confirm, no questions or resources.
+Centre: Saved `cobalt otter 7382` under `study.mnemonic`.
+PASS: real model called the memory tool and the fact reached disk.
+Service restarted with the same isolated data directory.
+Student: What is my custom study mnemonic? Answer with its exact words and number. No questions or resources.
+Centre: cobalt otter 7382
+PASS: a new chat recalled the fact after service restart.
+Student: Correct my saved study mnemonic to silver heron 9284, replacing the old value under study.mnemonic. Just confirm.
+Centre: Updated study.mnemonic to silver heron 9284.
+Service restarted with the same isolated data directory.
+Student: What is my custom study mnemonic now? Answer with its exact words and number. No questions or resources.
+Centre: silver heron 9284
+PASS: the corrected fact replaced the old value and survived another restart.
+Student: Forget my saved study mnemonic. Remove that entry from persistent memory. Just confirm.
+Centre: Your saved study mnemonic has been removed from persistent memory.
+Service restarted with the same isolated data directory.
+Student: Do you remember my custom study mnemonic? Say if you do not know it. No questions or resources.
+Centre: I don't know your custom study mnemonic. It isn't in my saved memory or this conversation.
+PASS: forgetting removed the entry from disk and from a new chat after restart.

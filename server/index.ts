@@ -4,7 +4,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { z, ZodError } from 'zod';
-import { modelSelectionSchema, askQuestionSchema, resourceLocationSchema, messageSchema, chatSchema, contextSchema, createResourceSchema, createResourceToolVariants, feedbackSchema, gradeSchema, topicSchema, eventSchema, reasoningEffortSchema,preferencesSchema, type Activity, type Chat, type PageContext } from '../shared/schema';
+import { rememberInputSchema,modelSelectionSchema, askQuestionSchema, resourceLocationSchema, messageSchema, chatSchema, contextSchema, createResourceSchema, createResourceToolVariants, feedbackSchema, gradeSchema, topicSchema, eventSchema, reasoningEffortSchema,preferencesSchema, type Activity, type Chat, type PageContext } from '../shared/schema';
 import { Store } from './store';
 import { Questions } from './questions';
 import { chatResponseSchema,chatResponseInstructions,questionRoutingInstructions } from './chat-response';
@@ -21,6 +21,7 @@ import { getCurriculumContext,readCurriculum } from './curriculum';
 import { calendarInputSchema,calendarPatchSchema } from './calendar';
 import { errorMessage, HttpError, requireFound } from './errors';
 import { AttachmentStore, MAX_ATTACHMENTS_PER_MESSAGE } from './attachments';
+import { remember,forgetMemory,forgetMemoryInputSchema } from './assistant-memory';
 
 const topicInput = z.object({ subjectId:z.string(), name:z.string().trim().min(1).max(200), description:z.string().max(10000).default('') }).strict();
 const eventInput = calendarInputSchema;
@@ -106,7 +107,9 @@ export async function createService(options: { port?:number; token?:string; data
   }
   const tools = [
     schemaTool('centre_ask_question','Ask one to three clarification questions in a popup and wait for the student to answer. Offer two to four useful choices or an empty options list for free text. Every question also allows a custom answer. Use whenever the student needs to answer a question, including preferences, confirmations, teaching questions, and popup tests. Full quiz papers belong in resources.',askQuestionSchema),
-    schemaTool('centre_get_state','Read subjects, topics, resources, chats, upcoming work, events and study weakness memories.',z.object({}).strict()),
+    schemaTool('centre_get_state','Read subjects, topics, resources, chats, upcoming work, events, study weakness memories and persistent assistantMemories.',z.object({}).strict()),
+    schemaTool('centre_remember','Remember a student fact, learning preference or ongoing goal across chats and app restarts. Use a stable descriptive key; reusing that key updates the memory. Save one concise fact per key. Never save secrets or temporary task details.',rememberInputSchema),
+    schemaTool('centre_forget_memory','Forget a persistent assistant memory when the student asks. Use its exact ID from assistantMemories in current context or centre_get_state.',forgetMemoryInputSchema),
     schemaTool('centre_read_skill','Read the complete adapted instructions for a bundled skill. Use an exact ID from availableSkills in app context.',z.object({ id:z.string().min(1).max(64) }).strict()),
     schemaTool('centre_read_curriculum','Fetch a current official NESA or NSW education HTML page. Use retrieved evidence before claiming exact syllabus outcomes or implementation dates, and cite its URL.',z.object({ url:z.string().url().max(2048) }).strict()),
     schemaTool('centre_create_topic','Create a study topic inside an imported subject.',topicInput),
@@ -126,6 +129,8 @@ export async function createService(options: { port?:number; token?:string; data
         return codex.waitForUserInput(threadId,() => questions.ask(chat.id,input));
       }
       case 'centre_get_state': z.object({}).strict().parse(input); return visibleState();
+      case 'centre_remember': return remember(store,input);
+      case 'centre_forget_memory': return forgetMemory(store,input);
       case 'centre_read_skill': return readSkillInstruction(z.object({ id:z.string().min(1).max(64) }).strict().parse(input).id);
       case 'centre_read_curriculum': return readCurriculum(z.object({ url:z.string().url().max(2048) }).strict().parse(input).url);
       case 'centre_create_topic': return createTopic(input);
@@ -214,7 +219,7 @@ export async function createService(options: { port?:number; token?:string; data
     const topic = store.state.topics.find(x => x.id === (context.topicId ?? resource?.topicId));
     const subject = store.state.subjects.find(x => x.id === (context.subjectId ?? topic?.subjectId ?? resource?.subjectId));
     const {nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty} = store.state.settings;
-    return { page:context, subject, topic, resource,learnerPreferences:{nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty},curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel), subjects:store.state.subjects, topics:store.state.topics, memories:store.state.memories.filter(x => !x.resolvedAt), upcomingWork:store.state.assignments.filter(x => !['completed','submitted'].includes(x.status)), studyEvents:store.state.events.filter(x => !x.completedAt), attempts:store.state.attempts.filter(x => x.resourceId === context.resourceId),availableSkills:await listSkills(), date:new Date().toISOString() };
+    return { page:context, subject, topic, resource,learnerPreferences:{nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty},curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel), subjects:store.state.subjects, topics:store.state.topics, memories:store.state.memories.filter(x => !x.resolvedAt), assistantMemories:store.state.assistantMemories, upcomingWork:store.state.assignments.filter(x => !['completed','submitted'].includes(x.status)), studyEvents:store.state.events.filter(x => !x.completedAt), attempts:store.state.attempts.filter(x => x.resourceId === context.resourceId),availableSkills:await listSkills(), date:new Date().toISOString() };
   }
   async function route(method: string, path: string, value: unknown) {
     const organization = await chatOrganizationRoute(store,method,path,value);

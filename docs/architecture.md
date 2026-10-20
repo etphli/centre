@@ -38,6 +38,8 @@ Preferences store a nickname, response length, theme, spacing, text size, school
 
 Chat messages and organization are local. Chats can be pinned or placed in ordered folders. The side chat stays beside the current page and sends that page's context with each message.
 
+Persistent assistant memory is separate from resource-linked review notes. `assistantMemories` stores up to 50 keyed facts, preferences, or goals in the same atomic local snapshot. Existing snapshots default this field to an empty array. `centre_remember` validates a concise key and content, then creates or replaces that key without changing its ID or creation time. `centre_forget_memory` removes an entry by ID. Both tools wait for the disk save before returning success. Chat context and resource generation and marking requests include the current entries, including after a service restart. Model instructions treat memory as student data, prefer current requests and settings over remembered preferences, and prohibit saving secrets or reviving corrected or forgotten entries from earlier turns.
+
 Online quizzes show one question at a time. Moving between questions preserves answers. Submission sends the complete attempt to Codex for marking. The app stores the result and adds questions flagged for review to the local review list.
 
 ## Diagrams and attachments
