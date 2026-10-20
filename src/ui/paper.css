@@ -1,0 +1,26 @@
+.paper-pages{width:100%;display:grid;gap:24px}
+.paper--cover{min-height:660px;display:flex;flex-direction:column;justify-content:center;padding:64px 48px;text-align:center}
+.paper-cover__title{margin-bottom:48px}
+.paper-cover__title>p{font-size:14px;color:#5b5850;margin:0 0 18px}
+.paper-cover__title h2{font-size:31px;font-weight:500;line-height:1.2;margin:0 0 15px;text-wrap:balance}
+.paper-cover__title .paper-cover__topic{font-size:17px;color:#1d1c1a}
+.paper-cover__title .paper-cover__duration{font-size:13px;margin-top:24px}
+.paper-cover__parts{width:100%;border-collapse:collapse;text-align:left;font-size:13px}
+.paper-cover__parts caption{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.paper-cover__parts th,.paper-cover__parts td{padding:11px 8px;border-bottom:1px solid #d6d1c7;font-weight:400}
+.paper-cover__parts thead th{font-size:11px;color:#716c61}
+.paper-cover__parts th:first-child{padding-left:0}
+.paper-cover__parts td,.paper-cover__parts th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.paper-cover__parts tbody th span{display:inline-block;width:22px;color:#716c61}
+.paper-cover__parts tfoot th,.paper-cover__parts tfoot td{font-weight:600;border-bottom:0;padding-top:14px}
+.paper-cover__total{margin:32px 0 0;font-size:14px}.paper-cover__total strong{display:block;font-size:32px;font-weight:500;margin-top:3px}
+.paper--section{min-height:450px;padding:40px 48px}
+.paper-section__header{border-bottom:1px solid #c9c5bb;padding-bottom:18px;margin-bottom:28px}
+.paper-section__header>span{font-size:12px;color:#716c61}
+.paper-section__header h3{margin:5px 0 7px;font-size:22px;font-weight:500}
+.paper-section__header p{font-size:12px;margin:0;color:#716c61}
+.paper--section .paper__questions{gap:28px}
+.paper__answer-space{height:80px}.paper__answer-space--long_response{height:150px}
+.paper__questions>li .paper__choices{margin-top:12px;padding-left:22px;display:grid;gap:7px}
+.paper__questions>li .paper__choices>li{padding-right:0}
+@media(max-width:1050px){.paper--cover,.paper--section{padding:36px 28px}.paper--cover{min-height:580px}.paper-cover__title h2{font-size:26px}}

@@ -1,0 +1,59 @@
+{
+  "name": "centre",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Your study, in one place.",
+  "author": "Ethan Likht",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -n service,web \"npm run dev:service\" \"npm run dev:web\"",
+    "dev:service": "tsx server/index.ts",
+    "dev:web": "vite --host 127.0.0.1",
+    "desktop": "node scripts/desktop.mjs",
+    "build": "tsc --noEmit && vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "package:mac": "npm run build && npm run build:electron && electron-builder --mac --publish never",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test server/*.test.ts electron/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
+    "electron-updater": "6.8.9",
+    "katex": "^0.19.0",
+    "lucide-react": "^0.468.0",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.0",
+    "electron": "44.9.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "overrides": {
+    "katex": "$katex",
+    "mammoth": {
+      "argparse": "2.0.1"
+    }
+  }
+}

@@ -1,0 +1,83 @@
+import { z } from 'zod';
+
+export const resourceKindSchema = z.enum(['quiz', 'test', 'flashcards', 'diagram', 'notes']);
+export type ResourceKind = z.infer<typeof resourceKindSchema>;
+export const responseTypeValues = ['multiple_choice', 'short_response', 'long_response'] as const;
+export const responseTypeSchema = z.enum(responseTypeValues);
+export type ResponseType = z.infer<typeof responseTypeSchema>;
+export const allResponseTypes: ResponseType[] = [...responseTypeValues];
+export const responseTypesSchema = z.array(responseTypeSchema).min(1).refine(values => new Set(values).size === values.length, 'Choose each response type at most once.');
+export const testLengthSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('time'), minutes: z.number().int().min(5).max(180) }),
+  z.object({ mode: z.literal('questions'), questionCount: z.number().int().min(1).max(30) }),
+]);
+export type TestLength = z.infer<typeof testLengthSchema>;
+export const subjectSchema = z.object({ id: z.string(), name: z.string(), shortName: z.string().nullable(), color: z.string(), icon: z.string().default('book') });
+export const topicSchema = z.object({ id: z.string(), subjectId: z.string(), name: z.string(), description: z.string().default('') });
+export const questionSchema = z.object({ id: z.string(), responseType: responseTypeSchema.default('short_response'), choices: z.array(z.string().min(1)).max(6).default([]), prompt: z.string(), answer: z.string(), explanation: z.string().default(''), marks: z.number().int().positive().default(1) });
+const generatedQuestionBaseSchema = questionSchema.omit({ id: true });
+export const generatedQuestionSchema = z.discriminatedUnion('responseType', [
+  generatedQuestionBaseSchema.safeExtend({ responseType: z.literal('multiple_choice'), choices: z.array(z.string().min(1)).min(2).max(6) }).refine(question => question.choices.includes(question.answer), { path: ['answer'], message: 'The answer must exactly match one of the choices.' }),
+  generatedQuestionBaseSchema.safeExtend({ responseType: z.literal('short_response'), choices: z.array(z.string()).max(0).default([]) }),
+  generatedQuestionBaseSchema.safeExtend({ responseType: z.literal('long_response'), choices: z.array(z.string()).max(0).default([]) }),
+]);
+export const resourceSchema = z.object({ id: z.string(), subjectId: z.string(), topicId: z.string(), title: z.string(), kind: resourceKindSchema, createdAt: z.string(), updatedAt: z.string(), content: z.string(), questions: z.array(questionSchema).default([]), questionTypes: responseTypesSchema.default([...allResponseTypes]), testLength: testLengthSchema.nullable().default(null), durationMinutes: z.number().int().min(5).max(180).nullable().default(null), completedAt: z.string().nullable().default(null) }).superRefine((resource, ctx) => {
+  resource.questions.forEach((question, index) => {
+    if (question.responseType === 'multiple_choice') {
+      if (question.choices.length < 2) ctx.addIssue({ code: 'custom', path: ['questions', index, 'choices'], message: 'Multiple-choice questions need at least two choices.' });
+      if (!question.choices.includes(question.answer)) ctx.addIssue({ code: 'custom', path: ['questions', index, 'answer'], message: 'The answer must exactly match one of the choices.' });
+    } else if (question.choices.length > 0) {
+      ctx.addIssue({ code: 'custom', path: ['questions', index, 'choices'], message: 'Only multiple-choice questions can include choices.' });
+    }
+  });
+});
+export const attachmentSchema = z.object({ id:z.string().uuid(), name:z.string().min(1).max(200), mimeType:z.string().min(1).max(200), size:z.number().int().positive().max(20 * 1024 * 1024) });
+export type Attachment = z.infer<typeof attachmentSchema>;
+export const activitySchema = z.object({ id:z.string().min(1).max(200), kind:z.enum(['summary','tool']), text:z.string().max(20_000), state:z.enum(['working','done','error']) });
+export type Activity = z.infer<typeof activitySchema>;
+export const messageSchema = z.object({ id: z.string(), role: z.enum(['user', 'assistant']), content: z.string(), createdAt: z.string(), resourceIds:z.array(z.string()).default([]), attachmentIds:z.array(z.string().uuid()).max(5).default([]), activity:z.array(activitySchema).max(60).default([]) });
+export const chatSchema = z.object({ id: z.string(), title: z.string(), createdAt: z.string(), updatedAt: z.string(), deletedAt: z.string().nullable().default(null), codexThreadId: z.string().nullable().default(null), pinnedAt: z.string().nullable().default(null), folderId: z.string().nullable().default(null), sortOrder: z.number().int().default(0), activity:z.array(activitySchema).max(60).default([]), messages: z.array(messageSchema) });
+export const chatFolderSchema = z.object({ id: z.string(), name: z.string(), sortOrder: z.number().int().default(0), collapsed: z.boolean().default(false) });
+export const eventSchema = z.object({ id: z.string(), title: z.string(), date: z.string(), time: z.string().nullable().default(null), subjectId: z.string().nullable().default(null), notes: z.string().default(''), completedAt: z.string().nullable().default(null),organatoId:z.string().nullable().default(null),organatoVersion:z.number().int().positive().nullable().default(null),timeZone:z.string().default('Australia/Sydney') });
+export const assignmentSchema = z.object({ id: z.string(), title: z.string(), kind: z.enum(['work', 'todo']), subjectId: z.string().nullable(), dueDate: z.string().nullable(), status: z.string(), version: z.number() });
+export const memorySchema = z.object({ id: z.string(), subjectId: z.string(), topicId: z.string(), resourceId: z.string(), question: z.string(), note: z.string(), createdAt: z.string(), nextReviewAt: z.string(), resolvedAt: z.string().nullable().default(null) });
+export const accountSchema = z.object({ name: z.string(), email: z.string(), picture: z.string().optional() });
+export const gradeResultSchema = z.object({ score: z.number(), total: z.number(), feedback: z.array(z.object({ questionId: z.string(), score: z.number(), maxScore: z.number(), feedback: z.string(), needsReview: z.boolean() })) });
+export const attemptSchema = z.object({ id: z.string(), resourceId: z.string(), answers: z.record(z.string(), z.string()), result: gradeResultSchema, createdAt: z.string() });
+export const reasoningEffortSchema = z.enum(['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+export const modelSchema = z.object({ id: z.string(), name: z.string(), reasoningEfforts: z.array(reasoningEffortSchema), defaultReasoningEffort: reasoningEffortSchema });
+export const preferencesSchema = z.object({ nickname: z.string().trim().max(60).default(''), theme: z.enum(['dark', 'light', 'midnight', 'system']).default('dark'), density: z.enum(['compact', 'comfortable']).default('compact'), textSize: z.enum(['small', 'standard', 'large']).default('standard'), studentYearLevel: z.number().int().min(7).max(12).default(9), timeZone: z.string().max(100).refine(value => { try { new Intl.DateTimeFormat('en',{timeZone:value}); return true; } catch { return false; } },'Choose a valid IANA time zone.').default('Australia/Sydney'), responseStyle: z.enum(['concise', 'balanced', 'detailed']).default('balanced'), defaultQuizQuestions: z.number().int().min(1).max(30).default(8), defaultTestLengthMode: z.enum(['time', 'questions']).default('time'), defaultTestMinutes: z.number().int().min(5).max(180).default(45), defaultTestQuestions: z.number().int().min(1).max(30).default(10), defaultQuizQuestionTypes: responseTypesSchema.default([...allResponseTypes]), defaultTestQuestionTypes: responseTypesSchema.default([...allResponseTypes]), defaultDifficulty: z.enum(['gentle', 'standard', 'challenging']).default('standard') });
+export const settingsSchema = z.object({ organatoBaseUrl: z.string().default('https://organato.vercel.app/api/v1'), organatoConnected: z.boolean().default(false), googleClientId: z.string().default(''), account: accountSchema.nullable().default(null), chatModel: z.string().min(1).default('gpt-6.1-sol'), reasoningEffort: reasoningEffortSchema.default('medium'), gradingModel: z.string().min(1).default('gpt-6-luna'), gradingReasoningEffort: reasoningEffortSchema.default('medium'), ...preferencesSchema.shape });
+export const snapshotSchema = z.object({ subjects: z.array(subjectSchema), topics: z.array(topicSchema), resources: z.array(resourceSchema), chats: z.array(chatSchema), chatFolders: z.array(chatFolderSchema).default([]), events: z.array(eventSchema), memories: z.array(memorySchema), assignments: z.array(assignmentSchema), attempts: z.array(attemptSchema).default([]), settings: settingsSchema, codex: z.object({ available: z.boolean(), authenticated: z.boolean(), message: z.string() }), lastSyncedAt: z.string().nullable(), syncError: z.string().nullable().default(null) });
+export const contextSchema = z.object({ page: z.string(), subjectId: z.string().optional(), topicId: z.string().optional(), resourceId: z.string().optional() });
+export const resourceLocationSchema = z.object({subjectId:z.string().min(1),topicId:z.string().min(1)}).strict();
+const createResourceBaseShape = { subjectId: z.string().min(1), topicId: z.string().min(1), title: z.string().optional(), instructions: z.string().default(''), difficulty: z.enum(['gentle', 'standard', 'challenging']).default('standard') };
+const createResourceToolBaseShape = createResourceBaseShape;
+export const createResourceVariants = [
+  z.object({ kind: z.literal('quiz'), ...createResourceBaseShape, questionCount: z.number().int().min(1).max(30).default(8), questionTypes: responseTypesSchema.default([...allResponseTypes]) }),
+  z.object({ kind: z.literal('test'), ...createResourceBaseShape, testLength: testLengthSchema.default({ mode: 'time', minutes: 45 }), questionTypes: responseTypesSchema.default([...allResponseTypes]) }),
+  z.object({ kind: z.literal('flashcards'), ...createResourceBaseShape, questionCount: z.number().int().min(1).max(30).default(8) }),
+  z.object({ kind: z.literal('diagram'), ...createResourceBaseShape }),
+  z.object({ kind: z.literal('notes'), ...createResourceBaseShape }),
+] as const;
+export const createResourceSchema = z.discriminatedUnion('kind', createResourceVariants);
+export const createResourceToolVariants = [
+  z.object({ kind: z.literal('quiz'), ...createResourceToolBaseShape, questionCount: z.number().int().min(1).max(30), questionTypes: responseTypesSchema }),
+  z.object({ kind: z.literal('test'), ...createResourceToolBaseShape, testLength: testLengthSchema, questionTypes: responseTypesSchema }),
+  z.object({ kind: z.literal('flashcards'), ...createResourceToolBaseShape, questionCount: z.number().int().min(1).max(30) }),
+  z.object({ kind: z.literal('diagram'), ...createResourceToolBaseShape }),
+  z.object({ kind: z.literal('notes'), ...createResourceToolBaseShape }),
+] as const;
+export const feedbackSchema = z.object({ resourceId: z.string(), notes: z.string().max(20000).default(''), questionIds: z.array(z.string()).default([]), confident: z.boolean().default(false) });
+export const gradeSchema = z.object({ resourceId: z.string(), answers: z.record(z.string(), z.string()) });
+export type Subject = z.infer<typeof subjectSchema>;
+export type Topic = z.infer<typeof topicSchema>;
+export type Resource = z.infer<typeof resourceSchema>;
+export type Chat = z.infer<typeof chatSchema>;
+export type ChatFolder = z.infer<typeof chatFolderSchema>;
+export type StudyEvent = z.infer<typeof eventSchema>;
+export type StudyMemory = z.infer<typeof memorySchema>;
+export type Snapshot = z.infer<typeof snapshotSchema>;
+export type PageContext = z.infer<typeof contextSchema>;
+export type CreateResource = z.infer<typeof createResourceSchema>;
+export type GradeResult = z.infer<typeof gradeResultSchema>;

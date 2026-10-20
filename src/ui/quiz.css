@@ -1,0 +1,168 @@
+/* One-question-at-a-time quiz. Builds on .question and .score in centre.css. */
+
+.quiz__progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.quiz__count {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiz__answered {
+  color: var(--text-3);
+}
+
+.quiz__dots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* 22px hit area around a small mark. */
+.quiz__dot {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.quiz__dot::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  transition: background-color 120ms var(--ease), border-color 120ms var(--ease), transform 120ms var(--ease);
+}
+
+.quiz__dot:hover::after {
+  border-color: var(--text-3);
+}
+
+.quiz__dot.is-answered::after {
+  background: var(--text-3);
+  border-color: var(--text-3);
+}
+
+.quiz__dot.is-right::after {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.quiz__dot.is-partial::after {
+  background: var(--warn);
+  border-color: var(--warn);
+}
+
+.quiz__dot.is-wrong::after {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.quiz__dot[aria-current='step']::after {
+  border-color: var(--text);
+  transform: scale(1.25);
+}
+
+.question--single {
+  padding: 20px;
+}
+
+.question--single .question__head {
+  margin-bottom: 14px;
+}
+
+.question--single .question__prompt {
+  font-size: 15.5px;
+}
+
+.question--single .question__answer {
+  min-height: 112px;
+}
+
+.quiz__your-answer {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.quiz__your-answer p {
+  margin: 2px 0 0;
+}
+
+.quiz__label {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.quiz__model {
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.quiz__model summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.quiz__missing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.quiz__nav {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 0;
+  background: linear-gradient(transparent, var(--bg) 30%);
+}
+
+.quiz__nav .form__error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quiz__dot::after {
+    transition: none;
+  }
+}
+.quiz-choices{display:grid;gap:7px;margin-top:20px}
+.quiz-choice{position:relative;display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:7px;padding:11px 13px;cursor:pointer;font-size:13px;color:var(--text-2)}
+.quiz-choice:hover{background:var(--surface)}
+.quiz-choice.is-selected{border-color:var(--text-3);background:var(--surface-3);color:var(--text)}
+.quiz-choice input{width:14px;height:14px;accent-color:#8ea6e8;margin:0}
+.quiz-choice__letter{font-size:11px;color:var(--text-3)}
+.quiz-choice .markdown{min-width:0}.quiz-choice .markdown p{margin:0}
+.paper .paper__choices{list-style-type:upper-alpha;padding-left:23px;display:grid;gap:6px;margin:13px 0 0}
+.paper .paper__choices>li{margin:0;padding:0;min-height:0}.paper .paper__choices p{margin:0}

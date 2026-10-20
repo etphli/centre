@@ -1,0 +1,33 @@
+appId: au.com.centre.desktop
+productName: Centre
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - '!dist-electron/google-oauth.json'
+  - package.json
+extraResources:
+  - from: skills
+    to: skills
+  - from: dist-electron/google-oauth.json
+    to: google-oauth.json
+asar: true
+mac:
+  icon: dist-electron/icon.icns
+  category: public.app-category.education
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  darkModeSupport: true
+  artifactName: Centre-${version}-${arch}.${ext}
+dmg:
+  title: Centre
+publish:
+  provider: github
+  owner: etphli
+  repo: centre
+  private: true
+  releaseType: draft

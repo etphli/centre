@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-electron/
+release/
+.runtime/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+.centre-data/

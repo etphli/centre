@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "id": "unslop",
+      "name": "Unslop",
+      "description": "Edit writing into plain, natural prose. Apply to every written response.",
+      "source": "Installed Codex skill: unslop",
+      "originSha256": "181883e539caec8258ec9129e3ba5f133409144a2cbf2aa361158ab94cfc3441",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "poteto-mode",
+      "name": "Poteto mode",
+      "description": "Use poteto or /poteto-mode for concise prose, deliberate reasoning and verified results.",
+      "source": "Installed Codex skill: poteto-mode",
+      "originSha256": "3b6793bdaeada0bfc7291bcc00422093bd8d10e64a9bc3b6707008ba3c4c7316",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "how",
+      "name": "How",
+      "description": "Explain how a concept, process or supplied code works, step by step.",
+      "source": "Installed Codex skill: how",
+      "originSha256": "fe503e7a9b2a3a7ad2622a2de6124cb06c466922fb44bc61817b49b52042b885",
+      "files": [
+        "SKILL.md",
+        "references/explorer-prompt.md",
+        "references/explainer-prompt.md",
+        "references/critique-rubric.md"
+      ]
+    },
+    {
+      "id": "why",
+      "name": "Why",
+      "description": "Investigate causes, rationale and tradeoffs, separating evidence from inference.",
+      "source": "Installed Codex skill: why",
+      "originSha256": "dc8f2d8a7dbef7d0467cca8e6d055a4dbde027db6e2cbbfb18aa9071d8f20b6c",
+      "files": [
+        "SKILL.md",
+        "references/epistemics.md"
+      ]
+    },
+    {
+      "id": "teach",
+      "name": "Teach",
+      "description": "Teach a topic by connecting how it works with why it works.",
+      "source": "Installed Codex skill: teach",
+      "originSha256": "0a5987b0588dc56e14bfd84d0300e2ab405abc7c5c2aa81e0d3d7c6b243db7a7",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "research",
+      "name": "Research",
+      "description": "Research a question using available sources and produce a cited brief.",
+      "source": "Installed Codex skill: research",
+      "originSha256": "985569f15739c713d6784887c3d186d4ef9ac85bec5ad9c068d25bf0739928e4",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "technical-writing",
+      "name": "Technical writing",
+      "description": "Write or revise clear instructions, explanations, reports and technical documents.",
+      "source": "Installed Codex skill: technical-writing",
+      "originSha256": "bd0cb21034f4fe6695cfdf8cd3561026eec943f0bb6e9300bc78a2b3340865a7",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "bro",
+      "name": "Bro",
+      "description": "Restate the previous explanation in plain language with minimal jargon.",
+      "source": "Installed Codex skill: bro",
+      "originSha256": "aa329d0ceeeecb6822a7174ad76bb07a7826a3c52ceb6a588dec4138815084bb",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "grilling",
+      "name": "Grilling",
+      "description": "Stress-test a claim, plan or argument with focused questions.",
+      "source": "Installed Codex skill: grilling",
+      "originSha256": "10ff989e7498b23b5acb49d5048f11dcd906757d2f79c5cdf8a00001381296f2",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "codebase-design",
+      "name": "Codebase design",
+      "description": "Explain or critique interfaces and module boundaries in supplied code.",
+      "source": "Installed Codex skill: codebase-design",
+      "originSha256": "2c20617f87ec8af6a434859f381b2f061a69b530444e74eb39e78bb016a6d1e2",
+      "files": [
+        "SKILL.md",
+        "DEEPENING.md",
+        "DESIGN-IT-TWICE.md"
+      ]
+    },
+    {
+      "id": "domain-modeling",
+      "name": "Domain modeling",
+      "description": "Clarify concepts, relationships and terminology in a subject or supplied design.",
+      "source": "Installed Codex skill: domain-modeling",
+      "originSha256": "327a2b50620e2fd70abc6893cd6965e76b20f8d0adb0dc2c8d5eb3845efb643e",
+      "files": [
+        "SKILL.md",
+        "CONTEXT-FORMAT.md",
+        "ADR-FORMAT.md"
+      ]
+    },
+    {
+      "id": "active-recall",
+      "name": "Active recall",
+      "description": "Quiz the student interactively, diagnose gaps and revisit missed concepts.",
+      "source": "Centre study skills",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "exam-prep",
+      "name": "Exam prep",
+      "description": "Prepare practice exams and targeted revision from course topics and weaknesses.",
+      "source": "Centre study skills",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "study-plan",
+      "name": "Study plan",
+      "description": "Build a realistic revision plan around deadlines, available time and review needs.",
+      "source": "Centre study skills",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "study-diagrams",
+      "name": "Study diagrams",
+      "description": "Explain relationships or processes with clear self-contained interactive study diagrams.",
+      "source": "Centre study skills",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "essay-writing",
+      "name": "Essay writing",
+      "description": "Plan, review or revise essays with a clear argument and evidence.",
+      "source": "Centre study skills",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "worked-examples",
+      "name": "Worked examples",
+      "description": "Teach mathematical or technical problems through worked steps and transfer practice.",
+      "source": "Centre study skills",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "source-checking",
+      "name": "Source checking",
+      "description": "Check claims, citations and source quality while preserving uncertainty.",
+      "source": "Centre study skills",
+      "files": [
+        "SKILL.md"
+      ]
+    }
+  ]
+}

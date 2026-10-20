@@ -1,0 +1,5 @@
+.diagram-embed{display:block;width:100%;border:0;background:var(--bg);color-scheme:inherit}
+.page--diagram .diagram{width:100%;border:0;border-radius:0;overflow:visible;background:var(--bg)}
+.thread-resources__diagram .diagram-embed,.preview-dialog__diagram .diagram-embed{width:100%;min-height:200px;max-height:none;border:0;background:var(--bg)}
+.thread-resources__diagram header .link-button{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.preview-dialog__diagram{background:var(--bg)}
