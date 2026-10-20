@@ -21,6 +21,7 @@ const imported = [
   ['domain-modeling', 'Domain modeling', 'Clarify concepts, relationships and terminology in a subject or supplied design.'],
 ];
 const authored = [
+  ['ask-questions', 'Ask questions', 'Ask for missing preferences or confirmation in a popup using centre_ask_question.'],
   ['active-recall', 'Active recall', 'Quiz the student interactively, diagnose gaps and revisit missed concepts.'],
   ['exam-prep', 'Exam prep', 'Prepare practice exams and targeted revision from course topics and weaknesses.'],
   ['study-plan', 'Study plan', 'Build a realistic revision plan around deadlines, available time and review needs.'],

@@ -1,3 +1,4 @@
+import { DeleteResource } from './DeleteResource';
 import { Check, ChevronLeft, ChevronRight, Download, FolderInput, Printer, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
@@ -389,6 +390,7 @@ export function ResourceView({ resourceId }: { resourceId: string }) {
       <header className="resource-header">
         <div className="resource-header__crumbs">
           <SubjectBadge subject={subject} size="sm" />
+          {!subject ? <span>Personal learning</span> : null}
           {subject ? <button type="button" className="link-button" onClick={() => navigate({ kind: 'subject', subjectId: subject.id })}>{subject.name}</button> : null}
           {topic ? <><span aria-hidden>/</span><button type="button" className="link-button" onClick={() => navigate({ kind: 'topic', subjectId: topic.subjectId, topicId: topic.id })}>{topic.name}</button></> : null}
         </div>
@@ -399,6 +401,7 @@ export function ResourceView({ resourceId }: { resourceId: string }) {
             {resource.completedAt ? <span className="done-pill"><Check size={12} aria-hidden /> Done {timeAgo(resource.completedAt)}</span> : null}
           </span>
           <div className="resource-header__actions">
+            <DeleteResource resource={resource} onDeleted={() => navigate({kind:'resources'})} />
             <button type="button" className="button button--quiet button--small" onClick={() => setMoving(true)}><FolderInput size={14} />Move</button>
             {resource.kind === 'diagram' ? <OpenDiagramButton resource={resource} /> : null}
             {resource.kind === 'test' ? (

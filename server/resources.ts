@@ -36,6 +36,8 @@ export function safeLatex(value: string) {
 export class Resources {
   constructor(private readonly store: Store, private readonly codex: Codex) {}
   private location(input: Pick<CreateResource, 'subjectId' | 'topicId'>) {
+    if (input.subjectId === null && input.topicId === null) return {subject:{name:'Personal learning'},topic:{name:'Personal learning',description:''}};
+    if (input.subjectId === null || input.topicId === null) throw new HttpError(400,'Choose a subject and topic together, or personal learning.');
     const subject = requireFound(this.store.state.subjects.find(x => x.id === input.subjectId), 'Subject');
     const topic = requireFound(this.store.state.topics.find(x => x.id === input.topicId && x.subjectId === input.subjectId), 'Topic');
     return { subject, topic };
@@ -86,7 +88,7 @@ export class Resources {
     return this.saveGenerated(input, JSON.parse(output));
   }
   async feedback(id: string, notes: string, questionIds: string[], confident = false) {
-    const resource = requireFound(this.store.state.resources.find(x => x.id === id), 'Resource');
+    const resource = requireFound(this.store.state.resources.find(x => x.id === id && !x.deletedAt), 'Resource');
     for (const questionId of questionIds) if (!resource.questions.some(q => q.id === questionId)) throw new HttpError(400, 'A selected question does not belong to this resource.');
     if (!confident && !notes.trim()) throw new HttpError(400, 'Describe what needs review or mark the resource as confident.');
     const selected = questionIds.length ? resource.questions.filter(q => questionIds.includes(q.id)) : [];
@@ -98,7 +100,7 @@ export class Resources {
     const now = new Date(); this.store.state.memories.push({ id: randomUUID(), subjectId: resource.subjectId, topicId: resource.topicId, resourceId: resource.id, question, note, createdAt: now.toISOString(), nextReviewAt: new Date(now.getTime() + 3 * 86400000).toISOString(), resolvedAt: null });
   }
   async grade(resourceId: string, answers: Record<string,string>) {
-    const resource = requireFound(this.store.state.resources.find(x => x.id === resourceId), 'Resource');
+    const resource = requireFound(this.store.state.resources.find(x => x.id === resourceId && !x.deletedAt), 'Resource');
     if (resource.kind !== 'quiz') throw new HttpError(400, 'Only online quizzes can be graded.');
     if (Object.keys(answers).some(id => !resource.questions.some(q => q.id === id))) throw new HttpError(400, 'An answer refers to an unknown question.');
     const appliedSkills = await loadApplicableSkills({ text:'' });
@@ -124,13 +126,13 @@ export class Resources {
   }
   async relocate(id:string,input:Pick<CreateResource,'subjectId'|'topicId'>) {
     this.location(input);
-    const resource = requireFound(this.store.state.resources.find(x => x.id === id),'Resource');
+    const resource = requireFound(this.store.state.resources.find(x => x.id === id && !x.deletedAt),'Resource');
     resource.subjectId = input.subjectId;resource.topicId = input.topicId;resource.updatedAt = new Date().toISOString();
     for (const memory of this.store.state.memories.filter(value => value.resourceId === id)) { memory.subjectId = input.subjectId;memory.topicId = input.topicId; }
     await this.store.save();return resource;
   }
   export(id: string) {
-    const resource = requireFound(this.store.state.resources.find(x => x.id === id), 'Resource');
+    const resource = requireFound(this.store.state.resources.find(x => x.id === id && !x.deletedAt), 'Resource');
     const {subject,topic} = this.location(resource);
     const content = resource.kind === 'test' && resource.questions.length ? paperTemplate(resource.title,subject.name,resource.questions,resource.testLength ?? resource.durationMinutes ?? 45,topic.name) : resource.content;
     const extension = resource.kind === 'test' ? 'tex' : resource.kind === 'diagram' ? 'html' : resource.kind === 'notes' ? 'md' : 'json';

@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { PageContext, Resource, Snapshot } from '../../shared/schema';
+import type { ModelSelection, PageContext, Resource, Snapshot } from '../../shared/schema';
 import type { GenerateRequest, Navigate, Route, ToastInput } from './types';
 
 export type TurnStatus = 'working' | 'stopping' | 'error';
@@ -23,6 +23,8 @@ export interface SideChatState {
 
 export interface CentreActions {
   state: Snapshot;
+  draftModelSelection:ModelSelection|null;
+  selectModel:(chatId:string|null,selection:ModelSelection) => Promise<unknown>;
   route: Route;
   navigate: Navigate;
   refresh: () => Promise<void>;

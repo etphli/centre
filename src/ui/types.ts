@@ -17,8 +17,8 @@ export type CreateKind = ResourceKind | 'plan';
 
 export interface GenerateRequest {
   kind: CreateKind;
-  subjectId?: string;
-  topicId?: string;
+  subjectId?: string|null;
+  topicId?: string|null;
   instructions?: string;
   attachmentIds?: string[];
 }
@@ -40,7 +40,7 @@ export function routeContext(route: Route, state: Snapshot | null): PageContext 
     case 'resource': {
       const resource = state?.resources.find((item) => item.id === route.resourceId);
       return resource
-        ? { page: 'resource', subjectId: resource.subjectId, topicId: resource.topicId, resourceId: resource.id }
+        ? { page: 'resource', subjectId: resource.subjectId ?? undefined, topicId: resource.topicId ?? undefined, resourceId: resource.id }
         : { page: 'resource', resourceId: route.resourceId };
     }
     case 'home':
