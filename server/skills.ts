@@ -62,7 +62,7 @@ export async function readSkillInstruction(id: string): Promise<{ id: string; na
 
 export async function loadApplicableSkills({ text, kind }: { text: string; kind?: ResourceKind }): Promise<Array<{ id: string; name: string; content: string; source: string }>> {
   const available = new Set((await listSkills()).map(skill => skill.id));
-  const selected = new Set(['unslop']);
+  const selected = new Set(kind ? ['unslop'] : ['unslop','ask-questions']);
   const routes: Array<[string, RegExp]> = [
     ['poteto-mode', /\bpoteto(?:-mode)?\b/i],
     ['how', /\bhow\b/i],
@@ -72,7 +72,7 @@ export async function loadApplicableSkills({ text, kind }: { text: string; kind?
     ['technical-writing', /\b(?:technical[- ]writing|write documentation)\b/i],
     ['bro', /(?:^|\s)(?:\$|\/)?bro\b/i],
     ['grilling', /\b(?:grill|grilling|stress[- ]test)\b/i],
-    ['study-diagrams', /\b(?:diagram|diagrams|visualise|visualize|visualisation|visualization)\b/i],
+    ['study-diagrams', /\b(?:interactive|diagram|diagrams|visualise|visualize|visualisation|visualization)\b/i],
     ['exam-prep', /\b(?:exam|exams|exam-prep|practice[- ]paper|revision)\b/i],
     ['active-recall', /\b(?:active[- ]recall|flashcards?|quiz|quizzes)\b/i],
     ['study-plan', /\b(?:study[- ]plan|study[- ]schedule|revision[- ]plan)\b/i],

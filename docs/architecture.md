@@ -12,7 +12,7 @@ During web development, Vite proxies `/api` and reads the service token from ign
 
 ## Local data
 
-`shared/schema.ts` defines the stored data. Subjects and assignments come from Organato. Topics belong to subjects, resources belong to topics, and review notes point to a resource and question. Quiz attempts retain answers and marking feedback. Chats retain their messages, pin state, folder, and ordering.
+`shared/schema.ts` defines the stored data. Subjects and assignments come from Organato. Topics belong to subjects, school resources belong to topics, while personal resources use null subject and topic IDs, and review notes point to a resource and question. Quiz attempts retain answers and marking feedback. Chats retain their messages, pin state, folder, ordering, and optional model override. Deleted resources retain their content and history locally, while state responses hide them and their review items until restored.
 
 The service stores local JSON under `~/Library/Application Support/Centre/data` on macOS and writes it atomically. `CENTRE_DATA_DIR` overrides the path for isolated runs. Organato and updater credentials use macOS Keychain. Credential values do not appear in app state responses.
 
@@ -74,3 +74,9 @@ Review notes preserve the student's description of difficult questions. Quiz mar
 - [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
 - [Google desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)
 - [Organato API reference](https://github.com/etphli/organato/blob/main/docs/16-organato-api.md), private repository
+
+## Questions and response activity
+
+`centre_ask_question` creates an in-memory request in `server/questions.ts` and suspends the running dynamic tool call. The authenticated state response exposes pending requests to the renderer. The popup submits validated answers to `/api/questions/:id/answer`. The service saves the answer in chat history before resolving the tool call. Requests are scoped to a chat and removed on answer, cancellation, turn completion, disconnect, or shutdown. Renderer reloads recover pending questions from the service. Restarting the service clears them. The Codex response timer pauses while the student answers and restarts when the tool returns.
+
+Automatically applied skills and tool-loaded skills appear by name in response activity. The activity panel contains public reasoning summaries, completed progress messages, and tool status. It never requests private reasoning text. The composer reads the chat's optional model override; Settings owns defaults for new chats and the separate marking model.

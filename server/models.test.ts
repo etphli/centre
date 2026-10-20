@@ -102,11 +102,21 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     for (let attempt = 0; attempt < 50; attempt++) { if ((await request('/api/state')).body.chats[0]?.messages.at(-1)?.content === 'hold this response') break; await setTimeout(5); }
     assert.equal((await request(`/api/chats/${chat.id}/archive`,'POST',{})).status,409);
     assert.equal((await pending).status,200);
+    assert.equal((await request(`/api/chats/${chat.id}/model`,'PATCH',{model:'gpt-6-luna',effort:'low'})).status,200);
+    assert.equal((await request(`/api/chats/${chat.id}/messages`,'POST',{content:'Use my chat choice',context:{page:'chat'}})).status,200);
+    const scopedTurn = (await calls()).filter(call => call.method === 'turn/start').at(-1);
+    assert.equal(scopedTurn?.params.model,'gpt-6-luna'); assert.equal(scopedTurn?.params.effort,'low');
+    const newChat = (await request('/api/chats','POST',{})).body;
+    assert.equal((await request(`/api/chats/${newChat.id}/messages`,'POST',{content:'Use the default',context:{page:'chat'}})).status,200);
+    const defaultTurn = (await calls()).filter(call => call.method === 'turn/start').at(-1);
+    assert.equal(defaultTurn?.params.model,'gpt-6.1-sol'); assert.equal(defaultTurn?.params.effort,'high');
+    assert.equal((await request('/api/state')).body.settings.chatModel,'gpt-6.1-sol');
+    assert.equal((await request(`/api/chats/${chat.id}/model`,'PATCH',{model:'retired-model',effort:'medium'})).status,400);
     const saved = await Store.open(directory); assert.equal(saved.state.settings.chatModel,'gpt-6.1-sol'); assert.equal(saved.state.settings.reasoningEffort,'high'); assert.equal(saved.state.settings.gradingModel,'gpt-6.1-sol'); assert.equal(saved.state.settings.gradingReasoningEffort,'high');
     await service.close();
     saved.state.settings.chatModel = 'retired-model'; await saved.save();
     service = await createService({dataDir:directory});
-    const unavailable = await request(`/api/chats/${chat.id}/messages`,'POST',{content:'Keep this request for retry.',context:{page:'chat'}});
+    const unavailable = await request(`/api/chats/${newChat.id}/messages`,'POST',{content:'Keep this request for retry.',context:{page:'chat'}});
     assert.equal(unavailable.status,400); assert.match(unavailable.body.error,/no longer in the Codex model catalog/);
     assert.equal((await request('/api/state')).body.chats[0]?.messages.at(-1)?.content,'Keep this request for retry.');
   } finally {

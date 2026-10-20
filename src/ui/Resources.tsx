@@ -54,13 +54,16 @@ export function OrganatoEmpty({ state }: { state: Snapshot }) {
 
 export function SubjectsPage() {
   const { state, navigate } = useApp();
+  const [preview,setPreview] = useState<string|null>(null);
+  const personal = state.resources.filter(resource => resource.subjectId === null);
+  const previewing = state.resources.find(resource => resource.id === preview);
   return (
     <div className="page">
       <header className="page__header">
         <h1 className="page__title">Resources</h1>
         <p className="page__lede">Pick a subject to see its topics and everything you&rsquo;ve made for them.</p>
       </header>
-      {state.subjects.length === 0 ? (
+      {state.subjects.length === 0 && personal.length === 0 ? (
         <OrganatoEmpty state={state} />
       ) : (
         <ul className="subject-grid">
@@ -85,6 +88,8 @@ export function SubjectsPage() {
           })}
         </ul>
       )}
+      {personal.length ? <section className="personal-resources" aria-labelledby="personal-resources-heading"><h2 id="personal-resources-heading">Personal learning</h2><p className="muted">Resources outside your school subjects.</p><ul className="resource-grid">{personal.map(resource => <li key={resource.id}><ResourceCard resource={resource} onPreview={() => setPreview(resource.id)} /></li>)}</ul></section> : null}
+      {previewing ? <ResourcePreviewDialog resource={previewing} onClose={() => setPreview(null)} /> : null}
     </div>
   );
 }

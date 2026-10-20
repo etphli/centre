@@ -59,7 +59,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
     }
   }
   let pending=false;
-  const report=()=>{if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;parent.postMessage({type:'centre:diagram-size',height:Math.ceil(document.body.getBoundingClientRect().height)},'*')})};
+  const report=()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;parent.postMessage({type:'centre:diagram-size',height:Math.ceil(document.body.getBoundingClientRect().height)},'*')})};
   new ResizeObserver(report).observe(document.body);addEventListener('load',report);report();
 })();
 </script><!--/centre:bridge--></body></html>`;
