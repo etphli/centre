@@ -2,7 +2,7 @@
 
 ## Download and share Centre
 
-Every push to `main` runs the **macOS release** workflow. After checks pass, it publishes a GitHub release with two installers:
+Every push to `main` checks whether four PRs have merged since the latest published release. Once that batch is ready and checks pass, the **macOS release** workflow publishes a GitHub release with two installers:
 
 - `Centre-<version>-arm64.dmg` for Apple Silicon Macs.
 - `Centre-<version>-x64.dmg` for Intel Macs.
@@ -15,11 +15,13 @@ Each person keeps their own study data and credentials on their Mac. AI features
 
 ## Automatic releases
 
-The workflow checks types, runs tests, builds the renderer and Electron process, and verifies text-size controls in the running app before packaging both architectures. It publishes a release immediately, rather than leaving a draft.
+The workflow counts distinct PRs merged into `main` after the latest release tag, using the commits included in the build. Merge commits, squash merges, and rebase merges count. Direct pushes do not count as PRs. The first three PRs wait; the fourth triggers a release containing the whole batch. A failed release leaves the batch pending for the next run. Before the first release, the count starts at the beginning of the repository.
 
-Versions use the major and minor from `package.json`, with its patch plus the GitHub workflow run number. For example, base `0.1.0` and run 12 produce `0.1.12`. The workflow changes the version only in its build checkout. Rerunning a workflow replaces assets on that same release. Keep the base version stable within a release series; increase its major or minor for a new series.
+When a release is due, the workflow checks types, runs tests, builds the renderer and Electron process, and verifies text-size controls in the running app before packaging both architectures. It publishes the release immediately, rather than leaving a draft. Desktop checks still run on every push and PR.
 
-The workflow also supports **Run workflow** on `main`. Release jobs run serially so an older build cannot replace a newer release as latest.
+Versions use the major and minor from `package.json`, with its patch plus the GitHub workflow run number. For example, base `0.1.0` and run 12 produce `0.1.12`. Skipped batches can leave gaps in version numbers. The workflow changes the version only in its build checkout. Keep the base version stable within a release series; increase its major or minor for a new series.
+
+The workflow also supports **Run workflow** on `main` to retry a pending batch. Manual runs use the same four-PR check. Once a release publishes, its PRs no longer count toward the next batch. Release jobs run serially so an older build cannot replace a newer release as latest.
 
 Required repository secrets:
 

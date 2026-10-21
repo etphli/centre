@@ -7,7 +7,7 @@ import { setTimeout } from 'node:timers/promises';
 import { snapshotSchema } from '../shared/schema';
 import { createService } from './index';
 
-test('a popup answer resumes the same Codex turn, persists the answer and cancels cleanly',async () => {
+test('a five-question popup resumes the same Codex turn, persists every answer and cancels cleanly',async () => {
   const directory = await mkdtemp(join(tmpdir(),'centre-question-flow-'));
   const original = process.env.CENTRE_CODEX_BIN;
   const binary = join(directory,'codex-fixture');
@@ -35,7 +35,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     waiting.set(id,threadId);
     send({method:'turn/started',params:{threadId,turn:{id:'turn-'+id}}});
     send({method:'item/reasoning/summaryTextDelta',params:{threadId,itemId:'summary',summaryIndex:0,delta:'Checking the quiz format.'}});
-    send({id,method:'item/tool/call',params:{threadId,tool:'centre_ask_question',arguments:{questions:[{id:'format',header:'Quiz format',question:'Use five mixed questions?',options:[{label:'Five mixed questions'},{label:'Five short responses'}]}]}}});
+    send({id,method:'item/tool/call',params:{threadId,tool:'centre_ask_question',arguments:{questions:[{id:'format',header:'Quiz format',question:'Use five mixed questions?',options:[{label:'Five mixed questions'},{label:'Five short responses'}]},...Array.from({length:4},(_,index) => ({id:'extra'+index,header:'Follow-up',question:'Explain idea '+index,options:[]}))]}}});
   }
   if (message.method === 'turn/interrupt') send({method:'turn/completed',params:{threadId:message.params.threadId,turn:{status:'interrupted'}}});
 });
@@ -55,17 +55,18 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const chat = (await request('/chats','POST',{})).body;
     const response = request(`/chats/${chat.id}/messages`,'POST',{content:'Make a five-minute electricity quiz.',context:{page:'chat'}});
     const question = await waitForQuestion();
-    assert.equal(question.chatId,chat.id);
+    assert.equal(question.chatId,chat.id); assert.equal(question.questions.length,5);
+    const answers = {format:'Five mixed questions',...Object.fromEntries(Array.from({length:4},(_,index) => ['extra'+index,'Explanation '+index]))};
     assert.equal((await state()).chats[0]?.messages.length,1);
     assert.ok((await state()).chats[0]?.activity.some(activity => activity.kind === 'skill' && activity.text === 'Ask questions'));
     assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers:{wrong:'Yes'}})).status,400);
-    assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers:{format:'Five mixed questions'}})).status,200);
+    assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers})).status,200);
     const completed = await response;
-    assert.equal(completed.status,200); assert.match(completed.body.messages.at(-1).content,/Five mixed questions/);
+    assert.equal(completed.status,200); assert.match(completed.body.messages.at(-1).content,/Five mixed questions/); assert.match(completed.body.messages.at(-1).content,/Explanation 3/);
     assert.equal((await state()).pendingQuestions.length,0);
     assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers:{format:'Again'}})).status,409);
     const saved = JSON.parse(await readFile(join(directory,'state.json'),'utf8'));
-    assert.deepEqual(saved.pendingQuestions,[]); assert.match(saved.chats[0].messages[1].content,/Use five mixed questions/);
+    assert.deepEqual(saved.pendingQuestions,[]); assert.match(saved.chats[0].messages[1].content,/Use five mixed questions/); assert.match(saved.chats[0].messages[1].content,/Explanation 3/);
     assert.ok(saved.chats[0].messages.at(-1).responseDurationMs >= 0);
 
     const cancelled = request(`/chats/${chat.id}/messages`,'POST',{content:'Another quiz.',context:{page:'chat'}});

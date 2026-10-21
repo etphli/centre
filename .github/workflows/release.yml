@@ -5,12 +5,31 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  pull-requests: read
 concurrency:
   group: macos-release
   cancel-in-progress: false
 jobs:
-  release:
+  cadence:
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.cadence.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check for four merged PRs since the last release
+        id: cadence
+        run: node scripts/release-cadence.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    needs: cadence
+    if: needs.cadence.outputs.publish == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

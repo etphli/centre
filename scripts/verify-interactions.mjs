@@ -66,6 +66,7 @@ function fixtureCodex() {
       else {
         const questions = [{id:'format',header:'Quiz format',question:'Use five short-response questions for this five-minute electricity quiz?',options:[{label:'Five short responses',description:'Practise explaining each idea in your own words.'},{label:'Choose another format',description:'Tell me your preferred format.'}]}];
         if (/two questions/i.test(text)) questions.push({id:'level',header:'Difficulty',question:'How challenging should it be?',options:[]});
+        if (/five questions/i.test(text)) questions.push(...Array.from({length:4},(_,index) => ({id:'followup'+index,header:'Study preferences',question:['Which electricity topic needs the most practice?','What do you already understand?','Which examples help you learn?','What should we focus on next?'][index],options:[]})));
         call(threadId,'centre_ask_question',{questions},result => {if (result.success) save(threadId,'quiz');});
       }
     }
@@ -169,6 +170,22 @@ async function electronRunner(config) {
         await clickText('.question-dialog button','Back');
         check('Custom answers survive navigation between questions',await evaluate("document.querySelector('.question-dialog textarea').value === 'Five questions, short response'"));
         await clickText('.question-dialog button','Next');await clickText('.question-dialog button','Send answer');await waitFor("!document.querySelector('.question-dialog')");
+        await newChat();await send('Ask five questions before my quiz');await waitFor("Boolean(document.querySelector('.question-dialog'))");
+        check('One request contains five questions',(await state()).pendingQuestions[0].questions.length === 5);
+        await click('.question-dialog input[type=radio]');await clickText('.question-dialog button','Next');
+        for(let index=0;index<4;index++) {
+          await waitFor(`document.querySelector('.question-dialog__progress').textContent.includes('${index + 2} of 5')`);
+          await type('.question-dialog textarea',['Series circuits','Current and voltage','Worked examples','Circuit diagrams'][index]);
+          if(index < 3)await clickText('.question-dialog button','Next');
+        }
+        await screenshot('five-question-popup');
+        await clickText('.question-dialog button','Back');
+        check('Answers beyond the third question survive navigation',await evaluate("document.querySelector('.question-dialog textarea').value === 'Worked examples'"));
+        await clickText('.question-dialog button','Next');
+        check('The fifth answer survives navigation',await evaluate("document.querySelector('.question-dialog textarea').value === 'Circuit diagrams'"));
+        await clickText('.question-dialog button','Send answer');await waitFor("!document.querySelector('.question-dialog') && Boolean(document.querySelector('.thread-resources'))");
+        snapshot = await state();
+        check('All five answers persist and the original task resumes',snapshot.pendingQuestions.length === 0 && snapshot.chats[0].messages[1].content.includes('Circuit diagrams') && snapshot.chats[0].messages.at(-1).content === 'Your resource is ready.');
         await newChat();await send('Another electricity quiz');await waitFor("Boolean(document.querySelector('.question-dialog'))");
         await evaluate("location.reload()");await waitFor("Boolean(document.querySelector('.question-dialog'))");
         check('Pending popup survives a renderer reload',(await state()).pendingQuestions.length === 1);

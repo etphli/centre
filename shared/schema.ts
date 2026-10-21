@@ -44,10 +44,10 @@ export const clarificationQuestionSchema = z.object({
   options:z.array(z.object({ label:z.string().trim().min(1).max(200), description:z.string().max(500).default('') }).strict()).max(4).default([])
     .refine(options => options.length !== 1 && new Set(options.map(option => option.label)).size === options.length, 'Use two to four distinct choices, or no choices.'),
 }).strict();
-export const askQuestionSchema = z.object({ questions:z.array(clarificationQuestionSchema).min(1).max(3).refine(questions => new Set(questions.map(question => question.id)).size === questions.length, 'Question IDs must be unique.') }).strict();
+export const askQuestionSchema = z.object({ questions:z.array(clarificationQuestionSchema).min(1).refine(questions => new Set(questions.map(question => question.id)).size === questions.length, 'Question IDs must be unique.') }).strict();
 export const pendingQuestionSchema = askQuestionSchema.extend({ id:z.string().uuid(),chatId:z.string(),createdAt:z.string() });
 export type PendingQuestion = z.infer<typeof pendingQuestionSchema>;
-export const questionAnswersSchema = z.object({ answers:z.record(z.string().max(64),z.string().trim().min(1).max(4000)).refine(answers => Object.keys(answers).length >= 1 && Object.keys(answers).length <= 3) }).strict();
+export const questionAnswersSchema = z.object({ answers:z.record(z.string().max(64),z.string().trim().min(1).max(4000)).refine(answers => Object.keys(answers).length >= 1) }).strict();
 export const messageSchema = z.object({ responseDurationMs:z.number().nonnegative().nullable().default(null), id: z.string(), role: z.enum(['user', 'assistant']), content: z.string(), createdAt: z.string(), resourceIds:z.array(z.string()).default([]), attachmentIds:z.array(z.string().uuid()).max(5).default([]), activity:z.array(activitySchema).max(60).default([]) });
 export const modelSelectionSchema = z.object({ model:z.string().min(1).max(200),effort:z.enum(['none','low','medium','high','xhigh','max','ultra']) }).strict();
 export type ModelSelection = z.infer<typeof modelSelectionSchema>;

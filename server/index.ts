@@ -112,7 +112,7 @@ export async function createService(options: { port?:number; token?:string; data
     }
   }
   const tools = [
-    schemaTool('centre_ask_question','Ask one to three clarification questions in a popup and wait for the student to answer. Offer two to four useful choices or an empty options list for free text. Every question also allows a custom answer. Use whenever the student needs to answer a question, including preferences, confirmations, teaching questions, and popup tests. Full quiz papers belong in resources.',askQuestionSchema),
+    schemaTool('centre_ask_question','Ask one or more questions in a popup and wait for the student to answer. There is no limit on the number of questions in a call. Offer two to four useful choices or an empty options list for free text. Every question also allows a custom answer. Use whenever the student needs to answer a question, including preferences, confirmations, teaching questions, and popup tests. Full quiz papers belong in resources.',askQuestionSchema),
     schemaTool('centre_get_state','Read subjects, topics, resources, chats, upcoming work, events, study weakness memories and persistent assistantMemories.',z.object({}).strict()),
     schemaTool('centre_remember','Remember a student fact, learning preference or ongoing goal across chats and app restarts. Use a stable descriptive key; reusing that key updates the memory. Save one concise fact per key. Never save secrets or temporary task details.',rememberInputSchema),
     schemaTool('centre_forget_memory','Forget a persistent assistant memory when the student asks. Use its exact ID from assistantMemories in current context or centre_get_state.',forgetMemoryInputSchema),

@@ -7,7 +7,7 @@ import { setTimeout } from 'node:timers/promises';
 import { snapshotSchema } from '../shared/schema';
 import { createService } from './index';
 
-test('a question opens a popup even when the model finishes without calling the question tool',async () => {
+test('five questions open a popup even when the model finishes without calling the question tool',async () => {
   const directory = await mkdtemp(join(tmpdir(),'centre-question-routing-'));
   const original = process.env.CENTRE_CODEX_BIN;
   const binary = join(directory,'codex-fixture');
@@ -26,7 +26,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const threadId = message.params.threadId;turns++;
     const structured = Boolean(message.params.outputSchema?.properties?.response);
     const answered = message.params.input[0].text.includes('The student answered your popup.');
-    const response = answered ? {kind:'message',content:'You chose Yes.'} : {kind:'questions',questions:[{id:'blue',header:'Colour',question:'Do you like blue?',options:[{label:'Yes'},{label:'No'}]}]};
+    const response = answered ? {kind:'message',content:'You chose Yes.'} : {kind:'questions',questions:[{id:'blue',header:'Colour',question:'Do you like blue?',options:[{label:'Yes'},{label:'No'}]},...Array.from({length:4},(_,index) => ({id:'extra'+index,header:'Follow-up',question:'Explain idea '+index,options:[]}))]};
     const text = structured ? JSON.stringify({response}) : 'Do you like blue?';
     send({method:'item/completed',params:{threadId,item:{id:'answer-'+turns,type:'agentMessage',phase:'final_answer',text}}});
     send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});
@@ -52,8 +52,8 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     }
     assert.ok(pending,'The question must open a popup rather than finish as an inline chat message.');
     assert.equal(ended,false);
-    assert.equal(pending.questions[0]?.question,'Do you like blue?');
-    assert.equal((await request(`/questions/${pending.id}/answer`,'POST',{answers:{blue:'Yes'}})).status,200);
+    assert.equal(pending.questions[0]?.question,'Do you like blue?'); assert.equal(pending.questions.length,5);
+    assert.equal((await request(`/questions/${pending.id}/answer`,'POST',{answers:{blue:'Yes',...Object.fromEntries(Array.from({length:4},(_,index) => ['extra'+index,'Explanation '+index]))}})).status,200);
     const result = await completion;
     assert.equal(result.status,200);assert.equal(result.body.messages.at(-1).content,'You chose Yes.');
     assert.equal(result.body.messages.length,3);
