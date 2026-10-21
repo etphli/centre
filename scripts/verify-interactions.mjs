@@ -194,6 +194,25 @@ async function electronRunner(config) {
         await screenshot('question-narrow');
         await clickText('.question-dialog button','Stop response');await waitFor("!document.querySelector('.question-dialog')");
         check('Stopping a popup clears the active question',(await state()).pendingQuestions.length === 0);
+        window.setSize(1280,800);
+        await newChat();await send('Explain series circuits, take your time');
+        await waitFor("Boolean(document.querySelector('.activity-row'))");
+        await evaluate("location.reload()");
+        await waitFor("Boolean(document.querySelector('.chat-nav__spinner'))");
+        await clickText('.chat-nav__item','Explain series circuits');
+        await waitFor("Boolean(document.querySelector('.activity-row'))");
+        check('Reload recovers the running response and keeps Send unavailable',await evaluate("Boolean(document.querySelector('button[aria-label=\"Stop\"]')) && !document.querySelector('button[aria-label=\"Send\"]') && !document.querySelector('.thread-error')"));
+        await screenshot('response-recovered-after-reload');
+        await click('button[aria-label="Stop"]');
+        await waitFor("Boolean(document.querySelector('button[aria-label=\"Send\"]'))");
+        check('A recovered response can be stopped',(await state()).activeResponses.length === 0);
+        await type('textarea[aria-label="Message Centre"]','Ask me a question as a test, like do you like blue');
+        await evaluate("(()=>{const button=document.querySelector('button[aria-label=\"Send\"]');button.click();button.click();})()");
+        await waitFor("Boolean(document.querySelector('.question-dialog'))");
+        check('Rapid duplicate sends create only one message and response',(await state()).chats[0].messages.length === 2 && !await evaluate("Boolean(document.querySelector('.thread-error'))"));
+        await click('.question-dialog input[type=radio]');await click('.question-dialog button[type=submit]');
+        await waitFor("!document.querySelector('.question-dialog') && document.querySelector('.thread')?.textContent.includes('You chose Yes.')");
+        check('The same chat replies after stop and rapid resend',(await state()).chats[0].messages.at(-1).content === 'You chose Yes.');
         check('No renderer errors',errors.length === 0);
         await finish();
       }catch(error){await screenshot('failure').catch(()=>{});await finish(error);}

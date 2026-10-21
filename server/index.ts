@@ -80,7 +80,7 @@ export async function createService(options: { port?:number; token?:string; data
   const connectors = new Connectors(store,credentials);
   const connectedFiles = new ConnectedFiles(store,connectors);
   const questions = new Questions();
-  const busy = new Set<string>(); const cancelled = new Set<string>();
+  const busy = new Map<string,number>(); const cancelled = new Set<string>();
   const pending = new Set<Promise<unknown>>();
   function track<T>(work: () => Promise<T>): Promise<T> {
     const result = work(); pending.add(result);
@@ -179,13 +179,13 @@ export async function createService(options: { port?:number; token?:string; data
   function visibleState() {
     const resources = store.state.resources.filter(resource => !resource.deletedAt);
     const resourceIds = new Set(resources.map(resource => resource.id));
-    return { ...store.state,resources,memories:store.state.memories.filter(memory => resourceIds.has(memory.resourceId)),attempts:store.state.attempts.filter(attempt => resourceIds.has(attempt.resourceId)),chats:store.state.chats.filter(chat => !chat.deletedAt),codex:{ ...codex.status },pendingQuestions:questions.list() }; }
+    return { ...store.state,resources,memories:store.state.memories.filter(memory => resourceIds.has(memory.resourceId)),attempts:store.state.attempts.filter(attempt => resourceIds.has(attempt.resourceId)),chats:store.state.chats.filter(chat => !chat.deletedAt),codex:{ ...codex.status },pendingQuestions:questions.list(),activeResponses:[...busy].map(([chatId,startedAt]) => ({chatId,startedAt,status:cancelled.has(chatId) ? 'stopping' : 'working'})) }; }
   async function sendMessage(id: string, value: unknown) {
     const input = z.object({ content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]) }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
     const content = input.content.trim();
     const chat = requireFound(store.state.chats.find(x => x.id === id && !x.deletedAt),'Chat');
     if (busy.has(id)) throw new HttpError(409,'This conversation already has a response in progress.');
-    busy.add(id); cancelled.delete(id);
+    busy.set(id,Date.now()); cancelled.delete(id);
     let unsubscribeActivity: (() => void) | undefined;
     try {
       const attachedFiles = await Promise.all(input.attachmentIds.map(attachmentId => attachmentStore.resolveForMessage(attachmentId)));
@@ -232,7 +232,8 @@ export async function createService(options: { port?:number; token?:string; data
       chat.messages.push(messageSchema.parse({ id:randomUUID(), role:'assistant', content:response,responseDurationMs:Date.now() - responseStartedAt, createdAt:new Date().toISOString(), activity:chat.activity }));
       chat.activity = []; chat.updatedAt = new Date().toISOString(); return chat;
     } finally {
-      questions.cancel(id); unsubscribeActivity?.(); finishActivity(chat); await store.save(); busy.delete(id); cancelled.delete(id);
+      try { questions.cancel(id); unsubscribeActivity?.(); finishActivity(chat); await store.save(); }
+      finally { busy.delete(id); cancelled.delete(id); }
     }
   }
   async function studyContext(context: PageContext) {

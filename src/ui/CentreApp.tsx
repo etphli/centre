@@ -134,7 +134,20 @@ export default function CentreApp() {
     if (chatId) return api.selectChatModel(chatId,selection);
     setDraftModelSelection(selection); return selection;
   },[]);
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [localTurns, setTurns] = useState<Turn[]>([]);
+  const inFlight = useRef(new Set<string|null>());
+  const turns = useMemo(() => {
+    const active = state?.activeResponses ?? [];
+    const result = localTurns.filter(turn => turn.status !== 'error' || !active.some(response => response.chatId === turn.chatId));
+    for (const response of active) {
+      if (result.some(turn => turn.chatId === response.chatId)) continue;
+      const chat = state?.chats.find(chat => chat.id === response.chatId);
+      if (!chat) continue;
+      const message = [...chat.messages].reverse().find(message => message.role === 'user');
+      result.push({id:-response.startedAt,chatId:response.chatId,content:message?.content ?? '',attachmentIds:message?.attachmentIds ?? [],context:{page:'chat'},status:response.status,startedAt:response.startedAt});
+    }
+    return result;
+  },[localTurns,state]);
   const [generating, setGenerating] = useState<{ id: number; label: string }[]>([]);
   const [sideChat, setSideChat] = useState<SideChatState>({ open: false, chatId: null });
   const [homeVisit,setHomeVisit] = useState(0);
@@ -178,6 +191,8 @@ export default function CentreApp() {
   }, [notify, quietRefresh]);
 
   const send = useCallback(async (content: string, context: PageContext, chatId: string | null, onCreated?: (chatId: string) => void, attachmentIds:string[] = []): Promise<string | null> => {
+    if (inFlight.current.has(chatId) || state?.activeResponses.some(response => response.chatId === chatId)) return chatId;
+    inFlight.current.add(chatId);
     seq.current += 1;
     const id = seq.current;
     const update = (patch: Partial<Turn>) => setTurns((list) => list.map((turn) => (turn.id === id ? { ...turn, ...patch } : turn)));
@@ -189,6 +204,8 @@ export default function CentreApp() {
         const chat = await api.createChat(draftModelSelection);
         setDraftModelSelection(null);
         target = chat.id;
+        inFlight.current.add(target);
+        inFlight.current.delete(null);
         update({ chatId: target });
         await quietRefresh();
         onCreated?.(target);
@@ -202,9 +219,10 @@ export default function CentreApp() {
       else update({ status: 'error', error: errorMessage(failure) });
     } finally {
       stopped.current.delete(id);
+      inFlight.current.delete(target);
     }
     return target;
-  }, [quietRefresh,draftModelSelection]);
+  }, [quietRefresh,draftModelSelection,state?.activeResponses]);
 
   const hasActiveTurn = turns.some(turn => turn.status !== 'error');
   useEffect(() => {

@@ -54,14 +54,21 @@ readline.createInterface({input:process.stdin}).on('line',line => {
   try {
     const chat = (await request('/chats','POST',{})).body;
     const response = request(`/chats/${chat.id}/messages`,'POST',{content:'Make a five-minute electricity quiz.',context:{page:'chat'}});
+    void response.catch(() => undefined);
     const question = await waitForQuestion();
     assert.equal(question.chatId,chat.id); assert.equal(question.questions.length,5);
     const answers = {format:'Five mixed questions',...Object.fromEntries(Array.from({length:4},(_,index) => ['extra'+index,'Explanation '+index]))};
+    const running = (await request('/state')).body;
+    assert.equal(running.activeResponses?.[0]?.chatId,chat.id,'A fresh renderer must be able to recover the running response');
+    const overlap = await request(`/chats/${chat.id}/messages`,'POST',{content:'A follow-up.',context:{page:'chat'}});
+    assert.equal(overlap.status,409);
+    assert.equal(overlap.body.error,'This conversation already has a response in progress.');
     assert.equal((await state()).chats[0]?.messages.length,1);
     assert.ok((await state()).chats[0]?.activity.some(activity => activity.kind === 'skill' && activity.text === 'Ask questions'));
     assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers:{wrong:'Yes'}})).status,400);
     assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers})).status,200);
     const completed = await response;
+    assert.deepEqual((await request('/state')).body.activeResponses,[]);
     assert.equal(completed.status,200); assert.match(completed.body.messages.at(-1).content,/Five mixed questions/); assert.match(completed.body.messages.at(-1).content,/Explanation 3/);
     assert.equal((await state()).pendingQuestions.length,0);
     assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers:{format:'Again'}})).status,409);
@@ -74,7 +81,14 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     assert.equal((await request(`/chats/${chat.id}/cancel`,'POST',{})).status,200);
     assert.equal((await cancelled).status,409);
     assert.equal((await state()).pendingQuestions.length,0);
+    assert.deepEqual((await state()).activeResponses,[]);
     assert.equal((await request(`/questions/${next.id}/answer`,'POST',{answers:{format:'Too late'}})).status,409);
+    const afterCancel = request(`/chats/${chat.id}/messages`,'POST',{content:'Try once more.',context:{page:'chat'}});
+    void afterCancel.catch(() => undefined);
+    const retryQuestion = await waitForQuestion();
+    assert.equal((await request(`/questions/${retryQuestion.id}/answer`,'POST',{answers:{...answers,format:'Five short responses'}})).status,200);
+    assert.equal((await afterCancel).status,200);
+    assert.deepEqual((await state()).activeResponses,[]);
   } finally {
     await service.close();
     if (original === undefined) delete process.env.CENTRE_CODEX_BIN; else process.env.CENTRE_CODEX_BIN = original;

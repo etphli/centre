@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,6 +52,21 @@ test('conditional state polling skips unchanged data and returns fresh data afte
     const full = await fetch(url.replace('/poll',''),{ headers:{ ...headers,'If-None-Match':changed.headers.get('etag') ?? '' } });
     assert.equal(full.status,200);
     assert.equal(snapshotSchema.parse(await full.json()).chats.length,1);
+  } finally { await f.cleanup(); }
+});
+
+test('a failed state save cannot leave a conversation permanently busy',async () => {
+  const f = await fixture();
+  try {
+    const chat = (await f.request('/api/chats','POST',{})).body;
+    const temporary = join(f.directory,'state.json.tmp');
+    await mkdir(temporary);
+    const send = () => f.request(`/api/chats/${chat.id}/messages`,'POST',{content:'Hello',context:{page:'chat'}});
+    assert.equal((await send()).status,500);
+    await rm(temporary,{recursive:true});
+    const retry = await send();
+    assert.notEqual(retry.body.error,'This conversation already has a response in progress.');
+    assert.equal((await f.request('/api/state')).body.chats[0].messages.length,2);
   } finally { await f.cleanup(); }
 });
 

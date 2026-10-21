@@ -280,9 +280,10 @@ export function ChatPage({ chatId }: { chatId: string }) {
 
 /** Persistent bottom composer on non-chat pages while the side chat is closed. Sending opens the side chat. */
 export function ChatDock() {
-  const { state, route, sideChat, askHere, openSideChat, openGenerate } = useApp();
+  const { state, route, sideChat, askHere, openSideChat, openGenerate, turns, cancel } = useApp();
   const context = routeContext(route, state);
   const chat = state.chats.find((item) => item.id === sideChat.chatId);
+  const busy = turns.some(turn => turn.chatId === sideChat.chatId && turn.status !== 'error');
   return (
     <div className="dock">
       {chat ? (
@@ -295,7 +296,8 @@ export function ChatDock() {
         chatId={sideChat.chatId}
         placeholder="Ask about this page, or type / to make something"
         contextLabel={contextLabel(route, state)}
-        busy={false}
+        busy={busy}
+        onCancel={chat ? () => void cancel(chat.id) : undefined}
         notice={<CodexNotice />}
         onSend={(content,attachmentIds) => askHere(content, context,attachmentIds)}
         onCommand={(kind, rest,attachmentIds) => openGenerate({ kind,attachmentIds, subjectId: context.subjectId, topicId: context.topicId, instructions: rest })}
