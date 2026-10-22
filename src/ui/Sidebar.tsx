@@ -593,7 +593,7 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
             <span className="avatar" aria-hidden>{initials(account?.name ?? 'Centre')}</span>
           )}
           <span className="account__text">
-            <span className="account__name">{account?.name ?? 'Not signed in'}</span>
+            <span className="account__name">{state.settings.cloudAccount?.email ?? account?.name ?? 'Not signed in'}</span>
             <span className="account__status">{state.settings.cloudAccount ? state.settings.cloudSyncEnabled ? 'Cloud sync enabled' : 'Sync off' : state.settings.organatoConnected ? 'Organato connected' : 'Local only'}</span>
           </span>
         </button>

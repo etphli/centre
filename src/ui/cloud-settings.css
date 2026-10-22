@@ -1,8 +1,11 @@
-.cloud-settings__form { max-width: 540px; padding-top: 4px; }
-.cloud-settings__pairing { align-items: start; }
-.cloud-settings__qr { display: block; width: 192px; height: 192px; border-radius: 6px; background: #fff; }
-.cloud-settings__disconnect { color: var(--danger); }
-.cloud-settings__disconnect:hover { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 45%, var(--line)); }
+.cloud-settings__form { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:12px; max-width:620px; padding-top:4px; }
+.cloud-settings__form .form__actions { margin:0; padding:0; }
+.cloud-settings__form .form__error { grid-column:1 / -1; }
+@media(max-width:760px){.cloud-settings__form{grid-template-columns:1fr;justify-items:start}.cloud-settings__form .field{width:100%}}
+.settings-section .cloud-settings__disconnect { color: var(--danger); }
+.settings-section .cloud-settings__disconnect:hover { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 45%, var(--line)); }
 .settings-section:has(#settings-cloud) .settings-row { flex-wrap: wrap; gap: 12px; }
 .settings-section:has(#settings-cloud) .settings-row__actions { flex-wrap: wrap; }
 .settings-section:has(#settings-cloud) .facts dd { overflow-wrap: anywhere; }
+
+.mobile-install{display:flex;align-items:center;gap:24px;flex-wrap:wrap}.mobile-install>div{flex:1;min-width:220px}.mobile-install__qr{background:white;border-radius:var(--radius);max-width:100%;height:auto}.cloud-settings__account-pairing{display:grid;justify-items:start;gap:12px;padding-block:16px}.cloud-settings__account-pairing>p{margin:0;color:var(--text-2);font-size:.8125rem;line-height:1.6}.cloud-settings__account-pairing .button{width:auto;white-space:normal}

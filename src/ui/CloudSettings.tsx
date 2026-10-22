@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Copy, RefreshCw, CheckCircle2, PauseCircle, CircleAlert } from 'lucide-react';
-import qrcode from 'qrcode-generator';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { RefreshCw, CheckCircle2, PauseCircle, CircleAlert } from 'lucide-react';
+import { AccountPairing } from './MobileSettings';
 import { cloudApi } from '../data/client';
 import type { CloudStatus } from '../../shared/cloud-status';
 import { useApp } from './context';
@@ -9,8 +9,6 @@ import './cloud-settings.css';
 
 const POLL_MS = 2000;
 const SIGN_IN_LIMIT_MS = 180_000;
-
-type Pairing = { baseUrl: string; code: string; expiresAt: string };
 
 function Status({ tone, children }: { tone: 'ok' | 'off' | 'error' | 'busy'; children: ReactNode }) {
   return (
@@ -51,17 +49,10 @@ export function CloudSettings() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [address, setAddress] = useState('');
   const [addressError, setAddressError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'configure' | 'sign-in' | 'import' | 'sync' | 'pair' | 'disconnect' | 'resolve' | null>(null);
+  const [busy, setBusy] = useState<'configure' | 'sign-in' | 'import' | 'sync' | 'disconnect' | 'resolve' | null>(null);
   const [signingInSince, setSigningInSince] = useState<number | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
-  const [pairing, setPairing] = useState<Pairing | null>(null);
   const live = useRef(true);
-  const pairLink = pairing ? `centre://pair?baseUrl=${encodeURIComponent(pairing.baseUrl)}&code=${encodeURIComponent(pairing.code)}` : null;
-  const pairingQr = useMemo(()=>{
-    if (!pairLink) return null;
-    const qr = qrcode(0,'M'); qr.addData(pairLink); qr.make();
-    return `data:image/svg+xml,${encodeURIComponent(qr.createSvgTag({cellSize:4,margin:16,scalable:true}))}`;
-  },[pairLink]);
 
   function apply(next: CloudStatus | undefined) {
     if (!next || !live.current) return next;
@@ -101,14 +92,6 @@ export function CloudSettings() {
     return () => clearInterval(timer);
   }, [signingInSince, syncing, notify]);
 
-  // The pairing code is single-use and short-lived: drop it from memory when it expires.
-  useEffect(() => {
-    if (!pairing) return;
-    const remaining = new Date(pairing.expiresAt).getTime() - Date.now();
-    const timer = setTimeout(() => setPairing(null), Math.max(0, remaining));
-    return () => clearTimeout(timer);
-  }, [pairing]);
-
   async function run<T>(kind: NonNullable<typeof busy>, work: () => Promise<T>, success?: string) {
     setBusy(kind);
     try {
@@ -134,18 +117,8 @@ export function CloudSettings() {
   }
 
   async function disconnect() {
-    setPairing(null);
     setConfirmDisconnect(false);
     apply(await run('disconnect', () => cloudApi.disconnect(), 'Sync turned off. Everything on this computer is kept.'));
-  }
-
-  async function copyLink(link: string) {
-    try {
-      await navigator.clipboard.writeText(link);
-      notify({ tone: 'success', message: 'Pairing link copied' });
-    } catch {
-      notify({ tone: 'error', message: 'Couldn’t copy the pairing link. Try again.' });
-    }
   }
 
   const section = (body: ReactNode) => (
@@ -253,16 +226,7 @@ export function CloudSettings() {
       </dl>
     ) : null}
 
-    {pairing && pairLink && pairingQr ? (
-      <div className="form form--settings cloud-settings__pairing">
-        <img src={pairingQr} className="cloud-settings__qr" width={192} height={192} alt="Scan to pair another device with Centre" />
-        <p className="muted">Scan with your other device&rsquo;s camera, or copy the link. It works once and expires at {new Date(pairing.expiresAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.</p>
-        <div className="form__actions">
-          <button type="button" className="button button--quiet button--small" onClick={() => setPairing(null)}>Done</button>
-          <button type="button" className="button button--small" onClick={() => void copyLink(pairLink)}><Copy size={14} /> Copy link</button>
-        </div>
-      </div>
-    ) : null}
+    {status.authenticated ? <div className="cloud-settings__account-pairing"><AccountPairing onSignIn={()=>void signIn()} /></div> : null}
 
     {status.authenticated && confirmDisconnect ? (
       <div className="form form--settings" role="alertdialog" aria-label="Turn off sync">
@@ -276,9 +240,6 @@ export function CloudSettings() {
       </div>
     ) : status.authenticated ? (
       <div className="settings-row__actions">
-        {status.enabled ? <button type="button" className="button button--small" disabled={Boolean(busy)} onClick={() => void run('pair', async () => { const next = await cloudApi.pairing(); if (live.current) setPairing(next); return next; })}>
-          Pair another device
-        </button> : null}
         <button type="button" className="button button--quiet button--small cloud-settings__disconnect" disabled={Boolean(busy)} onClick={() => setConfirmDisconnect(true)}>Disconnect</button>
       </div>
     ) : null}

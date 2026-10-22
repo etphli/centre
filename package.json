@@ -17,7 +17,7 @@
     "package:mac": "npm run build && npm run build:electron && electron-builder --mac --publish never",
     "typecheck": "tsc --noEmit",
     "benchmark:performance": "node scripts/benchmark-performance.mjs",
-    "test": "tsx --test server/*.test.ts electron/*.test.ts scripts/*.test.mjs cloud/*.test.ts",
+    "test": "tsx --test server/*.test.ts electron/*.test.ts scripts/*.test.mjs cloud/*.test.ts cloud-organato/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build",
     "skills:download": "node scripts/download-claude-skills.mjs",
     "postinstall": "npm run skills:download",
@@ -26,7 +26,7 @@
     "cloud:dev": "wrangler dev --config cloud/wrangler.jsonc --local --port 8789",
     "cloud:migrate:local": "wrangler d1 migrations apply centre-production --local --config cloud/wrangler.jsonc",
     "cloud:build": "wrangler deploy --dry-run --config cloud/wrangler.jsonc --outdir .runtime/cloud-build",
-    "test:cloud": "tsx --test cloud/*.test.ts server/cloud-sync.test.ts"
+    "test:cloud": "tsx --test cloud/*.test.ts server/cloud-sync.test.ts cloud-organato/*.test.ts"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
@@ -36,7 +36,7 @@
     "lucide-react": "^0.468.0",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.4.299",
-    "qrcode-generator": "^2.0.4",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",
