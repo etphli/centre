@@ -1,3 +1,4 @@
+import { StudyLogService } from './study-log';
 import { ConnectedFiles } from './connected-files';
 import { editConnectedFileSchema } from '../shared/connected-files';
 import { createServer, type IncomingMessage } from 'node:http';
@@ -78,6 +79,8 @@ export async function createService(options: { port?:number; token?:string; data
   let stopBackground: (() => Promise<void>) | undefined;
   try {
   const store = await Store.open(directory); const credentials = new Credentials(directory); const organato = new Organato(store,credentials); const attachmentStore = new AttachmentStore(directory);
+  const studyLog = new StudyLogService(store);
+  await studyLog.recover(true);
   const connectors = new Connectors(store,credentials);
   const connectedFiles = new ConnectedFiles(store,connectors);
   const questions = new Questions();
@@ -318,6 +321,7 @@ export async function createService(options: { port?:number; token?:string; data
       });
       return { ok:true };
     }
+    if (path === '/api/study-log' || path.startsWith('/api/study-log/')) return studyLog.route(method,path,value);
     if (method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) return visibleState();
     if (method === 'GET' && path === '/api/models') return { models:await codex.models() };
     const fileRefresh = /^\/api\/resources\/([^/]+)\/refresh$/.exec(path);

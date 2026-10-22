@@ -1,3 +1,5 @@
+import { StudyLogProvider } from '../data/useStudyLog';
+import { StudyLogActionNavigation, StudyLogPage, StudyTimer } from './StudyLog';
 import { ArrowLeft, ArrowRight, PanelLeft, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../data/client';
@@ -67,6 +69,9 @@ function Crumbs({ route, state, navigate }: { route: Route; state: Snapshot; nav
     case 'calendar':
       crumbs.push({ label: 'Calendar' });
       break;
+    case 'log':
+      crumbs.push({ label: 'Log' });
+      break;
     case 'review':
       crumbs.push({ label: 'Review' });
       break;
@@ -111,6 +116,8 @@ function Page({ route }: { route: Route }) {
       return <ResourceView resourceId={route.resourceId} />;
     case 'calendar':
       return <CalendarPage />;
+    case 'log':
+      return <StudyLogPage />;
     case 'review':
       return <ReviewPage />;
     case 'settings':
@@ -357,6 +364,8 @@ export default function CentreApp() {
 
   return (
     <CentreContext.Provider value={actions}>
+      <StudyLogProvider>
+      <StudyLogActionNavigation />
       <PreferencesEffect />
       <div className={`app${collapsed ? ' app--collapsed' : ''}`}>
         {!collapsed ? <Sidebar onCollapse={() => setCollapsed(true)} /> : null}
@@ -380,6 +389,7 @@ export default function CentreApp() {
                 </div>
                 <Crumbs route={route} state={actions.state} navigate={navigate} />
                 <div className="topbar__end">
+                  <StudyTimer />
                   {generating.length ? (
                     <span className="topbar__jobs" role="status">
                       <span className="spinner spinner--small" aria-hidden /> Making {generating.length === 1 ? `a ${generating[0]!.label}` : `${generating.length} resources`}
@@ -413,6 +423,7 @@ export default function CentreApp() {
       {modal?.kind === 'feedback' ? <FeedbackDialog resource={modal.resource} initialQuestionIds={modal.questionIds} onClose={closeModal} /> : null}
       {modal?.kind === 'search' ? <SearchPalette onClose={closeModal} /> : null}
       <Toasts toasts={toasts} onDismiss={dismiss} />
+      </StudyLogProvider>
     </CentreContext.Provider>
   );
 }
