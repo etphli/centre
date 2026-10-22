@@ -1128,7 +1128,8 @@ private struct QuizView: View {
             Text(data["title"].string.nonEmpty ?? "Untitled").font(CentreFont.serif(.title))
                 .accessibilityAddTraits(.isHeader)
             let minutes = data["durationMinutes"].int
-            Text(minutes.map { "\(questions.count) questions, suggested time \($0) min" } ?? "\(questions.count) questions")
+            let count = "\(questions.count) \(questions.count == 1 ? "question" : "questions")"
+            Text(minutes.map { "\(count), suggested time \($0) min" } ?? count)
                 .font(.subheadline).foregroundStyle(palette.text2)
         }
         if let latest = attempts.first {
@@ -1536,6 +1537,13 @@ private struct CalendarTab: View {
         let canPlan = hasSnapshot && (state == nil || state == "connected")
         NavigationStack {
             List {
+                if hasSnapshot && model.status.hasPrefix("Offline") {
+                    Section {
+                        Label("Offline. Showing saved plans; changes from other devices may be missing.", systemImage: "wifi.slash")
+                            .font(.subheadline).foregroundStyle(palette.text2)
+                            .accessibilityIdentifier("calendar.offline")
+                    }.centreRow(palette)
+                }
                 if let notice = connectionNotice(state: state, message: connection["message"].string) {
                     Section {
                         Label(notice, systemImage: "exclamationmark.triangle")
@@ -1565,7 +1573,9 @@ private struct CalendarTab: View {
                     }
                 } footer: {
                     if let fetched = When.parse(model.connector["fetchedAt"].string) {
-                        Text("Organato calendar saved \(fetched.formatted(.relative(presentation: .named))).")
+                        Text("Organato calendar saved \(fetched.formatted(.relative(presentation: .named))). Pull to refresh.")
+                    } else if hasSnapshot {
+                        Text("Showing saved plans. Pull to check Organato for changes.")
                     }
                 }
                 .centreRow(palette)
@@ -1593,7 +1603,7 @@ private struct CalendarTab: View {
                         }
                         Section(When.dayTitle(day, tz)) {
                             if dayItems.isEmpty && deadlines.isEmpty {
-                                Text("Nothing planned").foregroundStyle(palette.text3)
+                                Text("No saved plans").foregroundStyle(palette.text3)
                             }
                             ForEach(Array(deadlines.enumerated()), id: \.offset) { _, item in deadlineRow(item) }
                             ForEach(dayItems) { item in planRow(item, tz: tz) }
@@ -1983,6 +1993,7 @@ private struct LogTab: View {
 private struct TimerPanel: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.centre) private var palette
+    @Environment(\.dynamicTypeSize) private var textSize
     @State private var title = ""
     @State private var subjectId: String?
     @State private var acting = false
@@ -2045,7 +2056,10 @@ private struct TimerPanel: View {
                     .buttonStyle(CentrePrimaryButtonStyle()).disabled(acting)
                     .accessibilityIdentifier("timer.confirm")
             }
-            HStack(spacing: 10) {
+            let actions = textSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: 10))
+                : AnyLayout(HStackLayout(spacing: 10))
+            actions {
                 if running {
                     Button("Pause") { run("pause", id: timer.id, title: name, subjectId: data["subjectId"].string) }
                         .buttonStyle(CentreQuietButtonStyle())
@@ -2265,6 +2279,7 @@ private struct SettingsView: View {
                         Text(model.session == nil ? "Unavailable until you connect" : "Llama 3.1 in Centre Cloud")
                             .multilineTextAlignment(.trailing)
                     }
+                    .accessibilityIdentifier("settings.aiProvider")
                     LabeledContent("On your Mac", value: "Codex")
                 } header: { Text("Assistant") } footer: {
                     Text("Messages, recent chat history and written quiz answers are sent to Cloudflare when you request AI. Turning this off pauses waiting requests. Cloud AI has a daily allowance. Your Mac's Codex sign-in does not grant cloud AI access.")
@@ -2305,6 +2320,7 @@ private struct SettingsView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .labeledContentStyle(CentreLabeledContentStyle())
             .background(palette.bg)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -2405,10 +2421,16 @@ private struct ConflictRow: View {
             Text(conflict.remote.map { $0.deleted ? "Deleted on another device." : "Edited on another device \(When.relative($0.updatedAt))." }
                  ?? "The cloud copy is missing.")
                 .font(.footnote).foregroundStyle(palette.text2)
+            if ["attempt", "practice.attempt"].contains(conflict.local.kind) {
+                Text("Marked attempts cannot be changed. Keep the cloud result to continue.")
+                    .font(.footnote).foregroundStyle(palette.text2)
+            }
             HStack(spacing: 8) {
-                Button("Keep this iPhone's") { resolve(useLocal: true) }
-                    .buttonStyle(CentreQuietButtonStyle())
-                    .accessibilityIdentifier("conflict.keepLocal.\(conflict.id)")
+                if !["attempt", "practice.attempt"].contains(conflict.local.kind) {
+                    Button("Keep this iPhone's") { resolve(useLocal: true) }
+                        .buttonStyle(CentreQuietButtonStyle())
+                        .accessibilityIdentifier("conflict.keepLocal.\(conflict.id)")
+                }
                 Button("Keep cloud version") { resolve(useLocal: false) }
                     .buttonStyle(CentreQuietButtonStyle())
                     .accessibilityIdentifier("conflict.keepCloud.\(conflict.id)")

@@ -181,6 +181,23 @@ struct CentreQuietButtonStyle: ButtonStyle {
     }
 }
 
+struct CentreLabeledContentStyle: LabeledContentStyle {
+    @Environment(\.dynamicTypeSize) private var textSize
+    @Environment(\.centre) private var palette
+
+    func makeBody(configuration: Configuration) -> some View {
+        let layout = textSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 16))
+        layout {
+            configuration.label
+            if !textSize.isAccessibilitySize { Spacer(minLength: 12) }
+            configuration.content.foregroundStyle(palette.text2)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 extension View {
     /// Native grouped list on Centre's background with Centre surfaces.
     func centreList(_ palette: CentrePalette) -> some View {
