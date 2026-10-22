@@ -1,3 +1,5 @@
+import { StudyLogService } from './study-log';
+import { logStudy, logStudyInputSchema } from './study-log-tools';
 import { ConnectedFiles } from './connected-files';
 import { editConnectedFileSchema } from '../shared/connected-files';
 import { createServer, type IncomingMessage } from 'node:http';
@@ -80,6 +82,8 @@ export async function createService(options: { port?:number; token?:string; data
   let stopBackground: (() => Promise<void>) | undefined;
   try {
   const store = await Store.open(directory); const credentials = new Credentials(directory); const organato = new Organato(store,credentials); const attachmentStore = new AttachmentStore(directory);
+  const studyLog = new StudyLogService(store);
+  await studyLog.recover(true);
   const searchIndex = new SearchIndex(attachmentStore);
   await searchIndex.rebuild(store.state);
   const connectors = new Connectors(store,credentials);
@@ -134,6 +138,8 @@ export async function createService(options: { port?:number; token?:string; data
   const tools = [
     schemaTool('centre_ask_question','Ask one or more questions in a popup and wait for the student to answer. There is no limit on the number of questions in a call. Offer two to four useful choices or an empty options list for free text. Every question also allows a custom answer. Use whenever the student needs to answer a question, including preferences, confirmations, teaching questions, and popup tests. Full quiz papers belong in resources.',askQuestionSchema),
     schemaTool('centre_get_state','Read subjects, topics, resources, chats, upcoming work, events, study weakness memories and persistent assistantMemories.',z.object({}).strict()),
+    schemaTool('centre_get_study_log','Read actual study sessions and weekly aims, including stable IDs. Calendar plans are separate and do not count as actual study.',z.object({}).strict()),
+    schemaTool('centre_log_study','Record actual completed study only when explicitly requested by the student. Provide actual local start/end dates/times and IANA timeZone; never infer unattended, planned or chat time. Uses the same persisted validation as manual Log entries. Ask for missing actual times first.',logStudyInputSchema),
     schemaTool('centre_remember','Remember a student fact, learning preference or ongoing goal across chats and app restarts. Use a stable descriptive key; reusing that key updates the memory. Save one concise fact per key. Never save secrets or temporary task details.',rememberInputSchema),
     schemaTool('centre_forget_memory','Forget a persistent assistant memory when the student asks. Use its exact ID from assistantMemories in current context or centre_get_state.',forgetMemoryInputSchema),
     schemaTool('centre_edit_connected_file','Edit an existing Google Doc, Sheet or presentation only when the student explicitly requests that edit. Set confirmedByUser=true only for that request. Docs and Slides replace all exact matches and require the latest revision returned by a read. Sheets writes literal values to the specified range. Read first to inspect existing content. Successful reads and edits automatically save or refresh a linked Centre resource. Never repeat an uncertain write. If editing is disabled, explain how to enable it in Settings.',editConnectedFileSchema),
@@ -158,6 +164,12 @@ export async function createService(options: { port?:number; token?:string; data
         return codex.waitForUserInput(threadId,() => questions.ask(chat.id,input));
       }
       case 'centre_get_state': z.object({}).strict().parse(input); return visibleState();
+      case 'centre_get_study_log': z.object({}).strict().parse(input); return studyLog.route('GET','/api/study-log',undefined);
+      case 'centre_log_study': {
+        const chat = requireFound(store.state.chats.find(chat => chat.codexThreadId === threadId && busy.has(chat.id) && !cancelled.has(chat.id)), 'Active chat');
+        if (guidedCreation.has(chat.id)) throw new HttpError(400,'Record study only from a student chat request, not resource generation.');
+        return logStudy(studyLog,input);
+      }
       case 'centre_remember': return remember(store,input);
       case 'centre_forget_memory': return forgetMemory(store,input);
       case 'centre_list_connectors': z.object({}).strict().parse(input); return connectors.status();
@@ -346,6 +358,7 @@ export async function createService(options: { port?:number; token?:string; data
       });
       return { ok:true };
     }
+    if (path === '/api/study-log' || path.startsWith('/api/study-log/')) return studyLog.route(method,path,value);
     if (method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) return visibleState();
     if (method === 'GET' && path === '/api/search') {
       if (searchParams.size !== 1 || !searchParams.has('q')) throw new HttpError(400,'Search requests need one q parameter.');

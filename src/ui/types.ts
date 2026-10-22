@@ -8,6 +8,7 @@ export type Route =
   | { kind: 'topic'; subjectId: string; topicId: string }
   | { kind: 'resource'; resourceId: string; questionId?: string }
   | { kind: 'calendar' }
+  | { kind: 'log' }
   | { kind: 'review' }
   | { kind: 'settings' };
 
@@ -46,6 +47,7 @@ export function routeContext(route: Route, state: Snapshot | null): PageContext 
     case 'home':
     case 'chat':
     case 'resources':
+    case 'log':
     case 'calendar':
     case 'review':
     case 'settings':
