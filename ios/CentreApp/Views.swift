@@ -8,6 +8,7 @@ import CentreCore
 struct CentreRootView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.dynamicTypeSize) private var systemTextSize
     @State private var showSettings = false
 
     init() { CentreFont.configureTitleFonts() }
@@ -37,6 +38,7 @@ struct CentreRootView: View {
         .tint(palette.accent)
         .centreWindowTint(palette.accent)
         .environment(\.centre, palette)
+        .dynamicTypeSize(adjustedTextSize)
         .preferredColorScheme(CentrePalette.preferredScheme(theme: theme))
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -45,6 +47,14 @@ struct CentreRootView: View {
                 .tint(palette.accent)
                 .preferredColorScheme(CentrePalette.preferredScheme(theme: theme))
         }
+    }
+    private var adjustedTextSize: DynamicTypeSize {
+        // Respect all accessibility sizes. Centre's preference only adjusts the ordinary reading sizes.
+        guard !systemTextSize.isAccessibilitySize else { return systemTextSize }
+        let sizes:[DynamicTypeSize]=[.xSmall,.small,.medium,.large,.xLarge,.xxLarge,.xxxLarge]
+        let index=sizes.firstIndex(of:systemTextSize) ?? 3
+        let offset=model.preferences["textSize"].string == "large" ? 1 : model.preferences["textSize"].string == "small" ? -1 : 0
+        return sizes[min(sizes.count-1,max(0,index+offset))]
     }
 }
 
@@ -269,12 +279,11 @@ private struct ChatThreadView: View {
             .sorted { (model.data($0)["createdAt"].string ?? "") < (model.data($1)["createdAt"].string ?? "") }
     }
 
-    /// Built from stored messages and published AI runs. Runs aren't keyed by chat, so a failed run is reported
-    /// without claiming which message it belonged to, and waiting stops spinning after the bounded check.
+    /// Match the durable submission to this exact user message; a failed quiz never changes a chat's state.
     private func replyStatus(_ messages: [CloudRecord]) -> (text: String, working: Bool, failed: Bool)? {
         if sending { return ("Saving your message…", true, false) }
         guard let last = messages.last, model.data(last)["role"].string == "user" else { return nil }
-        if let run = model.aiRuns.last(where: { ["failed", "interrupted"].contains($0.status) }) {
+        if let chatId,let run = model.chatRun(chatId:chatId,messageId:last.id),["failed","interrupted","conflict"].contains(run.status) {
             let reason = run.error?["message"].string.nonEmpty.map { " \($0)" } ?? ""
             return ("Cloud AI couldn't finish a reply.\(reason) Your message is saved on this iPhone.", false, true)
         }
@@ -752,9 +761,9 @@ private enum DiagramDocument {
     static let csp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src 'none'; frame-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'"
 
     private static let palettes: [String: [String: String]] = [
-        "dark": ["bg": "#1b1b1a", "surface": "#20201f", "surface-2": "#262625", "text": "#ecebe7", "text-2": "#a8a7a1", "line": "#3b3b38", "accent": "#8ea6e8"],
-        "light": ["bg": "#f9f9f7", "surface": "#ffffff", "surface-2": "#f3f3f0", "text": "#131313", "text-2": "#7b7974", "line": "#d8d8d5", "accent": "#2a78d6"],
-        "midnight": ["bg": "#101114", "surface": "#18191e", "surface-2": "#202126", "text": "#e8e9ec", "text-2": "#a1a3ac", "line": "#36383f", "accent": "#8ea6e8"],
+        "dark": ["bg": "#1b1b1a", "surface": "#20201f", "surface-2": "#262625", "text": "#ecebe7", "text-2": "#a8a7a1", "line": "#3b3b38", "accent": "#ecebe7"],
+        "light": ["bg": "#f9f9f7", "surface": "#ffffff", "surface-2": "#f3f3f0", "text": "#131313", "text-2": "#7b7974", "line": "#d8d8d5", "accent": "#131313"],
+        "midnight": ["bg": "#101114", "surface": "#18191e", "surface-2": "#202126", "text": "#e8e9ec", "text-2": "#a1a3ac", "line": "#36383f", "accent": "#e8e9ec"],
     ]
 
     static func theme(_ preference: String?, scheme: ColorScheme) -> String {

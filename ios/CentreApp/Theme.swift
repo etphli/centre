@@ -19,19 +19,19 @@ struct CentrePalette: Equatable {
     static let dark = CentrePalette(
         bg: Color(hex: 0x1B1B1A), surface: Color(hex: 0x20201F), surface2: Color(hex: 0x262625),
         line: Color(hex: 0x2D2D2B), text: Color(hex: 0xECEBE7), text2: Color(hex: 0xA8A7A1), text3: Color(hex: 0x8C8B85),
-        accent: Color(hex: 0x8EA6E8), accentInk: Color(hex: 0x121417), warn: Color(hex: 0xD6B46A), danger: Color(hex: 0xE08A7E),
+        accent: Color(hex: 0xECEBE7), accentInk: Color(hex: 0x1B1B1A), warn: Color(hex: 0xD6B46A), danger: Color(hex: 0xE08A7E),
         scheme: .dark)
 
     static let midnight = CentrePalette(
         bg: Color(hex: 0x101114), surface: Color(hex: 0x18191E), surface2: Color(hex: 0x202126),
         line: Color(hex: 0x25272C), text: Color(hex: 0xE8E9EC), text2: Color(hex: 0xA1A3AC), text3: Color(hex: 0x8A8D97),
-        accent: Color(hex: 0x8EA6E8), accentInk: Color(hex: 0x121417), warn: Color(hex: 0xD6B46A), danger: Color(hex: 0xE08A7E),
+        accent: Color(hex: 0xE8E9EC), accentInk: Color(hex: 0x101114), warn: Color(hex: 0xD6B46A), danger: Color(hex: 0xE08A7E),
         scheme: .dark)
 
     static let light = CentrePalette(
         bg: Color(hex: 0xF9F9F7), surface: Color(hex: 0xFFFFFF), surface2: Color(hex: 0xF0EFEC),
         line: Color(hex: 0xE4E4E1), text: Color(hex: 0x131313), text2: Color(hex: 0x383835), text3: Color(hex: 0x6B6964),
-        accent: Color(hex: 0x2A78D6), accentInk: Color(hex: 0xFFFFFF), warn: Color(hex: 0x987431), danger: Color(hex: 0xB35449),
+        accent: Color(hex: 0x131313), accentInk: Color(hex: 0xF9F9F7), warn: Color(hex: 0x987431), danger: Color(hex: 0xB35449),
         scheme: .light)
 
     /// `theme` is the synced preferences value: dark, light, midnight or system.
