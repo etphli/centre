@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import mammoth from 'mammoth';
 import { z } from 'zod';
-import { attachmentSchema, type Attachment } from '../shared/schema';
+import { attachmentSchema, type Attachment, type Chat } from '../shared/schema';
 import { HttpError } from './errors';
 
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -164,6 +164,13 @@ export class AttachmentStore {
   private dataPath(id: string, name: string) { return join(this.directory, `${id}${extname(name).toLowerCase()}`); }
   private validId(id: string) { if (!z.string().uuid().safeParse(id).success) return fail(404, 'Attachment not found.'); }
 
+  assertMessageOwnership(chats: readonly Chat[], attachmentIds: readonly string[], chatId: string): void {
+    const requested = new Set(attachmentIds);
+    if (chats.some(chat => chat.id !== chatId && chat.messages.some(message => message.attachmentIds.some(id => requested.has(id))))) {
+      fail(409, 'This attachment already belongs to another chat. Upload it again to attach a separate copy.');
+    }
+  }
+
   async upload(value: unknown): Promise<Attachment> {
     const input = attachmentUploadSchema.parse(value);
     const extension = extname(input.name).toLowerCase();
@@ -203,6 +210,12 @@ export class AttachmentStore {
   async get(id: string): Promise<Attachment> {
     const stored = await this.getStored(id);
     return publicMetadataSchema.parse(stored);
+  }
+
+  async searchText(id: string): Promise<{ attachment: Attachment; text: string } | undefined> {
+    const stored = await this.getStored(id);
+    if (stored.extractedText === undefined) return undefined;
+    return { attachment: publicMetadataSchema.parse(stored), text: stored.extractedText };
   }
 
   async resolveForMessage(id: string): Promise<ExtractedAttachment> {

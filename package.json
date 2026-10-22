@@ -22,7 +22,8 @@
     "skills:download": "node scripts/download-claude-skills.mjs",
     "postinstall": "npm run skills:download",
     "prebuild": "npm run skills:download",
-    "verify:connectors": "tsx scripts/verify-connectors.mjs"
+    "verify:connectors": "tsx scripts/verify-connectors.mjs",
+    "verify:search": "tsx scripts/verify-search.mjs"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",

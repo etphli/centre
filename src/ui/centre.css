@@ -2395,6 +2395,17 @@ kbd {
   color: var(--text-3);
 }
 
+.palette__item--match { align-items: start; padding-block: 10px; }
+.palette__item--match > svg { flex: none; margin-top: 3px; }
+.palette__match { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.palette__heading { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.palette__heading .palette__label { flex: 1; max-width: none; font-weight: 500; }
+.palette__source { flex: none; color: var(--text-3); font-size: 0.6875rem; }
+.palette__context { color: var(--text-3); font-size: 0.6875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette__snippet { color: var(--text-2); font-size: 0.78125rem; line-height: 1.5; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.palette__snippet mark { color: var(--text); background: var(--surface-4, var(--surface-3)); border-radius: 2px; font-weight: 600; }
+[id^='resource-question-'], [id^='chat-message-'] { scroll-margin-block: 24px; }
+
 /* Forms */
 
 .form {

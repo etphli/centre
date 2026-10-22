@@ -98,7 +98,7 @@ function CodexNotice() {
 }
 
 /** Messages for a chat plus the in-flight turn, if any. */
-export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined; turn: Turn | undefined; compact?: boolean }) {
+export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat | undefined; turn: Turn | undefined; compact?: boolean; messageId?: string }) {
   const { state,send,cancel } = useApp();
   const [preview,setPreview] = useState<Resource|null>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -122,11 +122,14 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
     return () => container.removeEventListener('scroll',onScroll);
   },[]);
   useEffect(() => { if (turn && follow.current) end.current?.scrollIntoView({block:'end'}); },[liveSteps,turn?.id]);
+  useEffect(() => {
+    if (messageId) document.getElementById(`chat-message-${messageId}`)?.scrollIntoView({ block: 'center' });
+  }, [messageId, chat?.id]);
 
   return (
     <div className={`thread${compact ? ' thread--compact' : ''}`} aria-live="polite" aria-busy={turn?.status === 'working'}>
       {messages.map(message => <Fragment key={message.id}>
-        {message.role === 'user' ? <div className="message message--user"><div className="message__bubble">{message.content}</div></div> : <div className="message message--assistant"><ThinkingDetails steps={message.activity} duration={message.responseDurationMs} /><Markdown>{message.content}</Markdown></div>}
+        {message.role === 'user' ? <div id={`chat-message-${message.id}`} className="message message--user"><div className="message__bubble">{message.content}</div></div> : <div id={`chat-message-${message.id}`} className="message message--assistant"><ThinkingDetails steps={message.activity} duration={message.responseDurationMs} /><Markdown>{message.content}</Markdown></div>}
         {message.attachmentIds.length ? <MessageAttachments ids={message.attachmentIds} /> : null}
         {message.resourceIds.length ? <div className="thread-resources">{message.resourceIds.flatMap(id => { const resource = state.resources.find(item => item.id === id); return resource ? [<InlineResourcePreview key={id} resource={resource} onPreview={() => setPreview(resource)} />] : []; })}</div> : null}
       </Fragment>)}
@@ -237,7 +240,7 @@ export function HomeView() {
   );
 }
 
-export function ChatPage({ chatId }: { chatId: string }) {
+export function ChatPage({ chatId, messageId }: { chatId: string; messageId?: string }) {
   const { state, route, send, cancel, openGenerate, turns, navigate } = useApp();
   const chat = state.chats.find((item) => item.id === chatId);
   const turn = turns.find((item) => item.chatId === chatId);
@@ -258,7 +261,7 @@ export function ChatPage({ chatId }: { chatId: string }) {
   return (
     <div className="chat-page">
       <div className="chat-page__scroll">
-        <Thread chat={chat} turn={turn} />
+        <Thread chat={chat} turn={turn} messageId={messageId} />
       </div>
       <div className="chat-page__composer">
         <Composer

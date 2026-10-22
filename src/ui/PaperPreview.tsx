@@ -23,7 +23,7 @@ export function PaperPreview({resource}:{resource:Resource}) {
     </article>
     {sections.map(section => <article className="paper paper--section" key={section.letter} aria-label={`Part ${section.letter}: ${section.name}`}>
       <header className="paper-section__header"><span>Part {section.letter}</span><h3>{section.name}</h3><p>{plural(section.questionCount,'question')}, {plural(section.marks,'mark')}</p></header>
-      <ol className="paper__questions" start={section.startNumber}>{section.questions.map(question => <li key={question.id}><Markdown>{mathText(question.prompt)}</Markdown>{question.responseType === 'multiple_choice' ? <ol className="paper__choices" type="A">{question.choices.map(choice => <li key={choice}><Markdown>{mathText(choice)}</Markdown></li>)}</ol> : <div className={`paper__answer-space paper__answer-space--${question.responseType}`} aria-hidden />}<span className="paper__marks">[{question.marks}]</span></li>)}</ol>
+      <ol className="paper__questions" start={section.startNumber}>{section.questions.map(question => <li key={question.id} id={`resource-question-${question.id}`}><Markdown>{mathText(question.prompt)}</Markdown>{question.responseType === 'multiple_choice' ? <ol className="paper__choices" type="A">{question.choices.map(choice => <li key={choice}><Markdown>{mathText(choice)}</Markdown></li>)}</ol> : <div className={`paper__answer-space paper__answer-space--${question.responseType}`} aria-hidden />}<span className="paper__marks">[{question.marks}]</span></li>)}</ol>
     </article>)}
   </div>;
 }

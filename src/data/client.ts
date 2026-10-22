@@ -1,4 +1,5 @@
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
+import { searchQuerySchema, searchResultsSchema } from '../../shared/search';
 import { z } from 'zod';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
@@ -45,6 +46,7 @@ const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
 export const api = {
   state: () => request('GET', '/state', snapshotSchema),
+  search: (query: string) => request('GET', `/search?q=${encodeURIComponent(searchQuerySchema.parse(query))}`, searchResultsSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),
   forgetMemory: (id:string) => request('POST', `/assistant-memories/${encodeURIComponent(id)}/forget`, okSchema, {}),
   pollState: () => request('GET', '/state/poll', snapshotSchema.nullable()),

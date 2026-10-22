@@ -100,7 +100,7 @@ function Page({ route }: { route: Route }) {
     case 'home':
       return <HomeView />;
     case 'chat':
-      return <ChatPage key={route.chatId} chatId={route.chatId} />;
+      return <ChatPage key={route.chatId} chatId={route.chatId} messageId={route.messageId} />;
     case 'resources':
       return <SubjectsPage />;
     case 'subject':
@@ -108,7 +108,7 @@ function Page({ route }: { route: Route }) {
     case 'topic':
       return <TopicPage subjectId={route.subjectId} topicId={route.topicId} />;
     case 'resource':
-      return <ResourceView resourceId={route.resourceId} />;
+      return <ResourceView resourceId={route.resourceId} questionId={route.questionId} />;
     case 'calendar':
       return <CalendarPage />;
     case 'review':
@@ -167,6 +167,7 @@ export default function CentreApp() {
   const go = useCallback((step: number) => setHistory((current) => ({ ...current, index: Math.min(current.stack.length - 1, Math.max(0, current.index + step)) })), []);
 
   useEffect(() => {
+    if ((route.kind === 'chat' && route.messageId) || (route.kind === 'resource' && route.questionId)) return;
     main.current?.scrollTo({ top: 0 });
   }, [route]);
 

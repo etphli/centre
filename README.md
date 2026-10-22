@@ -45,6 +45,8 @@ Pin chats or place them in folders. Open the side chat beside a page, including 
 
 Attach text, PDFs, DOCX files or images with the paperclip or by dragging files into the message bar. Expand the thinking row to see public reasoning summaries, progress updates, and tool activity. The row keeps the varied thinking phrases and shows elapsed time. Clarification questions open in a popup with suggested choices and a custom answer field. Your answer resumes the same response. **Stop response** cancels the question and the response.
 
+Open **Search** or press **⌘K** to find saved resource bodies, quiz and test questions, explanations, flashcards, connected-file content, and extracted PDF, DOCX and text attachments alongside chats, subjects, topics and calendar work. Results show the source and highlighted text. Open a hit to reach its resource, question or owning message. Search works locally, and deleted resources and chats stay hidden. See [local search](docs/search.md) for limits and the sync boundary.
+
 Resources normally belong to the matching school subject and topic. For learning outside school, choose **Personal learning** in the resource dialog or ask chat to save without a subject. Find those resources under **Resources > Personal learning**. **Move** can file them into a subject later. **Delete** on a resource page or card removes it from the library and Review. Use **Undo** in the confirmation toast to restore it, including its saved attempts and review history.
 
 The school-year profile defaults to Year 9 NSW. If a subject name includes a year, such as `Year 10 Mathematics`, that year takes priority. For supported NSW Mathematics, English, and Science syllabuses through Year 10, Centre tries to fetch official NESA evidence. If it cannot retrieve official evidence, it marks syllabus alignment as unverified. It does not guess school sequencing or Core and Path choices.
@@ -99,6 +101,7 @@ npm run build:electron
 node scripts/verify-flows.mjs
 node scripts/verify-interactions.mjs
 npm run verify:connectors
+npm run verify:search
 ```
 
 With a signed-in Codex account, run `npx tsx server/live-interaction-check.ts` to check real-model checklist, quiz, plain-text and personal-resource behaviour in temporary local data. Generated checklist HTML is retained under `.runtime/live-interactions/` for browser checks.
