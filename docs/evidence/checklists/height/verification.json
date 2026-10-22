@@ -1,0 +1,48 @@
+{
+  "finding": "COMBINED-CHECK-1",
+  "status": "fixed and root rendered rechecked",
+  "codeCommit": "e94ac9438ce0d1184201833c656693d1d4ccb43d",
+  "reproduction": {
+    "nativeFailedBefore": true,
+    "failedAssertion": "A minimally styled checklist keeps its final checkbox visible",
+    "rendererErrors": 0
+  },
+  "after": {
+    "nativeChecks": 46,
+    "passed": true,
+    "rendererErrors": 0,
+    "shutdownIpcErrors": [],
+    "themes": "Dark and live Light without reloading; interaction retained"
+  },
+  "browser": [
+    {
+      "width": 1280,
+      "textSize": "large",
+      "theme": "light",
+      "innerHeight": 136,
+      "lastCheckboxBottom": 135
+    },
+    {
+      "width": 960,
+      "textSize": "large",
+      "theme": "light",
+      "innerHeight": 155,
+      "lastCheckboxBottom": 154
+    },
+    {
+      "width": 760,
+      "textSize": "large",
+      "theme": "light",
+      "innerHeight": 174,
+      "lastLabelBottom": 173
+    }
+  ],
+  "focusedTests": 11,
+  "typecheck": "pass",
+  "iosParity": {
+    "source": "ios/CentreApp/Views.swift:767,868",
+    "reason": "Native diagrams fill a SwiftUI layout with a scrollable WKWebView and disabled JavaScript. They have no nested iframe auto-height bridge. This sizing fix is desktop-only; the existing static-diagram limitation remains documented. Native PR13 tint correction still unverified."
+  },
+  "codeModel": "gpt-6.1-sol",
+  "reviewerModel": "gpt-6.1-sol medium Fast"
+}
