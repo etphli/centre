@@ -101,7 +101,7 @@ function runner(config) {
         await wait("document.querySelectorAll('.palette__item--match').length === 4");
         const sources = await evaluate("[...document.querySelectorAll('.palette__source')].map(item=>item.textContent)");
         check('Body, prompt, saved connected file and extracted PDF appear together', ['Notes content', 'Quiz prompt', 'Saved Google Docs', 'PDF attachment'].every(source => sources.includes(source)), sources);
-        check('Matched terms are highlighted', await evaluate("[...document.querySelectorAll('.palette__item--match')].every(row=>row.querySelectorAll('mark').length>=2)"));
+        check('Matched terms are highlighted', await evaluate("[...document.querySelectorAll('.palette__item--match')].every(row=>[...row.querySelectorAll('mark')].some(mark=>/electron\\s+transport/i.test(mark.textContent)))"));
         const first = await evaluate("document.querySelector('.palette__item[aria-selected=true]')?.textContent");
         window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Down' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Down' });
         await pause(80);
@@ -115,6 +115,7 @@ function runner(config) {
         window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
         await wait("Boolean(document.getElementById('resource-question-q2'))");
         check('Explanation result opens question two', await evaluate("document.querySelector('.quiz__count').textContent.includes('Question 2 of 3')"));
+        check('Question target is visibly marked', await evaluate("document.getElementById('resource-question-q2').classList.contains('search-target')"));
         await screenshot('search-question-target');
         await query('electron transport');
         await wait("Boolean([...document.querySelectorAll('.palette__source')].find(item=>item.textContent==='PDF attachment'))");
@@ -124,7 +125,17 @@ function runner(config) {
         await pause(200);
         const target = await evaluate("(()=>{const r=document.getElementById('chat-message-message-10').getBoundingClientRect();const file=[...document.querySelectorAll('.message-file')].find(item=>item.textContent.includes('Cell worksheet.pdf')).getBoundingClientRect();return {top:r.top,bottom:r.bottom,visible:r.top>=48&&r.bottom<innerHeight-100&&file.top>=48&&file.bottom<innerHeight-100,attachments:document.querySelectorAll('.message-file').length}})()");
         check('Attachment result anchors its owning message in a long chat', target.visible, target);
+        check('Message destination is visibly marked', await evaluate("document.getElementById('chat-message-message-10').classList.contains('search-target')"));
         await screenshot('search-attachment-target');
+        window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' }); window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+        await wait("!document.querySelector('.search-target')");
+        check('Destination marker clears on next interaction', true);
+        await evaluate("document.querySelector('.main__content').scrollTo({top:0})");
+        await query('electron transport');
+        await wait("Boolean([...document.querySelectorAll('.palette__source')].find(item=>item.textContent==='PDF attachment'))");
+        await evaluate("[...document.querySelectorAll('.palette__item')].find(item=>item.textContent.includes('PDF attachment')).click()");
+        await wait("document.getElementById('chat-message-message-10').classList.contains('search-target')");
+        check('Reopening the same hit marks and scrolls it again', await evaluate("document.getElementById('chat-message-message-10').getBoundingClientRect().top > 48"));
         await query('Walking on imported air');
         await wait("document.querySelector('.palette__source')?.textContent === 'DOCX attachment'");
         check('DOCX sidecar has a clear attachment label', await evaluate("document.querySelector('.palette__label').textContent === 'Class reading.docx'"));

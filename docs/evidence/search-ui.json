@@ -32,14 +32,30 @@
       "passed": true
     },
     {
+      "name": "Question target is visibly marked",
+      "passed": true
+    },
+    {
       "name": "Attachment result anchors its owning message in a long chat",
       "passed": true,
       "details": {
         "top": 402.5,
         "bottom": 445,
         "visible": true,
-        "attachments": 0
+        "attachments": 2
       }
+    },
+    {
+      "name": "Message destination is visibly marked",
+      "passed": true
+    },
+    {
+      "name": "Destination marker clears on next interaction",
+      "passed": true
+    },
+    {
+      "name": "Reopening the same hit marks and scrolls it again",
+      "passed": true
     },
     {
       "name": "DOCX sidecar has a clear attachment label",
