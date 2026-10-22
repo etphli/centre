@@ -6,9 +6,9 @@ import { paperTemplate } from './test-paper';
 
 type TestQuestion = Resource['questions'][number];
 
-const question: TestQuestion = {
+const question: TestQuestion = {concept:'',
   id: 'triangle',
-  concept:'', responseType: 'multiple_choice',
+  responseType: 'multiple_choice',
   choices: [
     'x = √(13² + 5²)',
     'x = 13 − 5',

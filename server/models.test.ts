@@ -37,7 +37,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const grading = Boolean(params.outputSchema?.properties?.feedback);
     const prompt = params.input?.[0]?.text ?? '';
     const test = prompt.includes('Create a complete test') || prompt.includes('Create a complete flashcards');
-    const text = params.outputSchema?.properties?.response ? JSON.stringify({response:{kind:'message',content:'Fixture response'}}) : params.outputSchema ? JSON.stringify(grading ? {score:1,total:1,feedback:[{questionId:'q-one',score:1,maxScore:1,feedback:'Correct.',needsReview:false}]} : test ? {title:'Timed test',content:'',questions:[{concept:'',responseType:'short_response',choices:[],prompt:'Solve $2x=8$.',answer:'$x=4$.',explanation:'Divide by 2.',marks:1}]} : {title:'Selected model notes',content:'Study equations.',questions:[]}) : 'Fixture response';
+    const text = params.outputSchema?.properties?.response ? JSON.stringify({response:{kind:'message',content:'Fixture response'}}) : params.outputSchema ? JSON.stringify(grading ? {score:1,total:1,feedback:[{questionId:'q-one',score:1,maxScore:1,feedback:'Correct.',needsReview:false}]} : test ? {title:'Timed test',content:'',questions:[{responseType:'short_response',choices:[],prompt:'Solve $2x=8$.',answer:'$x=4$.',explanation:'Divide by 2.',marks:1}]} : {title:'Selected model notes',content:'Study equations.',questions:[]}) : 'Fixture response';
     const complete = () => {
       send({method:'item/completed',params:{threadId:params.threadId,item:{id:'answer',type:'agentMessage',phase:'final_answer',text}}});
       send({method:'turn/completed',params:{threadId:params.threadId,turn:{status:'completed'}}});
@@ -50,7 +50,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
   const store = await Store.open(directory);
   store.state.subjects.push({id:'math',name:'Year10Maths',shortName:null,color:'#fff',icon:'book'});
   store.state.topics.push({id:'algebra',subjectId:'math',name:'Algebra',description:''});
-  store.state.resources.push({id:'quiz',subjectId:'math',topicId:'algebra',title:'Quiz',kind:'quiz',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),completedAt:null,content:'',questions:[{id:'q-one',concept:'',responseType:'short_response',choices:[],prompt:'1+1',answer:'2',explanation:'Addition.',marks:1}],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null});
+  store.state.resources.push({practiceFocus:[],id:'quiz',subjectId:'math',topicId:'algebra',title:'Quiz',kind:'quiz',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),completedAt:null,content:'',questions:[{concept:'',id:'q-one',responseType:'short_response',choices:[],prompt:'1+1',answer:'2',explanation:'Addition.',marks:1}],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null});
   await store.save();
   let service = await createService({dataDir:directory});
   const request = async (path: string,method = 'GET',body?: unknown) => {
