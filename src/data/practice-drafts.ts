@@ -9,6 +9,7 @@ type Progress = {
   started: boolean;
   saving: boolean;
   marking: boolean;
+  markingError: string | null;
   error: string | null;
 };
 
@@ -40,7 +41,7 @@ class PracticeDraft {
       id: recovery?.id ?? saved?.id ?? crypto.randomUUID(),
       answers: recovery?.answers ?? saved?.answers ?? {},
       currentQuestion: recovery?.currentQuestion ?? saved?.currentQuestion ?? 0,
-      started: Boolean(recovery || saved), saving: false, marking: false, error: null,
+      started: Boolean(recovery || saved), saving: false, marking: false, markingError: null, error: null,
     };
     this.dirty = Boolean(recovery && !matches);
   }
@@ -69,7 +70,8 @@ class PracticeDraft {
     void this.flush().catch(() => undefined);
   }
 
-  setMarking(marking: boolean) { this.publish({ marking }); }
+  setMarking(marking: boolean) { this.publish({ marking, ...(marking ? {markingError:null} : {}) }); }
+  setMarkingError(markingError: string | null) { this.publish({ markingError }); }
 
   flush(): Promise<{ id: string; revision: number }> {
     if (this.pending) return this.pending;
@@ -114,7 +116,7 @@ class PracticeDraft {
   clear() {
     this.dirty = false;
     this.revision = null;
-    this.publish({ id: crypto.randomUUID(), answers: {}, currentQuestion: 0, started: false, saving: false, marking: false, error: null });
+    this.publish({ id: crypto.randomUUID(), answers: {}, currentQuestion: 0, started: false, saving: false, marking: false, markingError: null, error: null });
     this.cache();
   }
 

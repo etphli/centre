@@ -78,7 +78,7 @@ function markTone(mark: Mark | undefined) {
 }
 
 function Quiz({ resource }: { resource: Resource }) {
-  const { state, act, notify, refresh } = useApp();
+  const { state, refresh } = useApp();
   const latest = state.attempts
     .filter((attempt) => attempt.resourceId === resource.id)
     .reduce<(typeof state.attempts)[number] | undefined>((best, attempt) => (!best || attempt.createdAt > best.createdAt ? attempt : best), undefined);
@@ -92,6 +92,7 @@ function Quiz({ resource }: { resource: Resource }) {
   const [working, setBusy] = useState(false);
   const busy = working || progress.marking;
   const [error, setError] = useState<string | null>(null);
+  const visibleError = error ?? progress.markingError;
   const [confirmReset, setConfirmReset] = useState<'start-over' | 'reload' | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const optionsId = useId();
@@ -99,8 +100,11 @@ function Quiz({ resource }: { resource: Resource }) {
   const confirmTarget = useRef<HTMLButtonElement | null>(null);
   const focusTarget = useRef<HTMLElement | null>(null);
   const moved = useRef(false);
+  const mounted = useRef(true);
   const questions = resource.questions;
   const question = questions[Math.min(index, questions.length - 1)];
+
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
     if (draft.getSnapshot().started) void draft.flush().catch(() => undefined);
@@ -144,18 +148,18 @@ function Quiz({ resource }: { resource: Resource }) {
     setError(null);
     try {
       const saved = await draft.flush();
-      const graded = await act(() => api.gradeQuiz(resource.id, answers, { draftId: saved.id, expectedDraftRevision: saved.revision }));
-      if (graded) {
+      const graded = await api.gradeQuiz(resource.id, answers, { draftId: saved.id, expectedDraftRevision: saved.revision });
+      await refresh();
+      draft.clear();
+      if (mounted.current) {
         moved.current = true;
         setResultAnswers(answers);
-        draft.clear();
         setResult(graded);
         setMarkedIndex(0);
-        notify({ tone: 'success', message: `Marked: ${graded.score} out of ${graded.total}` });
         document.querySelector('.main__content')?.scrollTo({ top: 0 });
-      } else setError('Grading didn’t finish. Your answers are still here, so you can try again.');
-    } catch (failure) {
-      setError(errorMessage(failure));
+      }
+    } catch {
+      draft.setMarkingError(draft.getSnapshot().error ? null : 'Grading didn’t finish. Your answers are still here, so you can try again.');
     } finally {
       draft.setMarking(false);
       setBusy(false);
@@ -202,7 +206,7 @@ function Quiz({ resource }: { resource: Resource }) {
       {resource.practiceFocus.length ? <p className="quiz__focus">Practice focus from recent feedback: {resource.practiceFocus.join(', ')}.</p> : null}
       {result ? (
         <div className="score" role="status">
-          <span className="score__number">{result.score}<span className="score__total">/{result.total}</span></span>
+          <span className="score__number">{result.score}<span className="score__total"> of {plural(result.total, 'mark')}</span></span>
           <span className="score__text">{flagged ? `${plural(flagged, 'question')} flagged for review.` : 'Nothing flagged for review.'}</span>
           <button type="button" className="button button--quiet button--small" onClick={tryAgain}>
             <RotateCcw size={14} /> Try again
@@ -266,7 +270,7 @@ function Quiz({ resource }: { resource: Resource }) {
             </div>
             {mark ? (
               <div className="question__feedback">
-                <p className="question__score">{mark.score}/{mark.maxScore}{mark.needsReview ? ', review recommended' : ''}</p>
+                <p className="question__score">{mark.score} of {plural(mark.maxScore, 'mark')}{mark.needsReview ? ', review recommended' : ''}</p>
                 <Markdown>{mark.feedback}</Markdown>
               </div>
             ) : null}
@@ -304,7 +308,7 @@ function Quiz({ resource }: { resource: Resource }) {
       ) : null}
 
       <div className="quiz__nav">
-        {error ? <p className="form__error" role="alert">{error}</p> : null}
+        {visibleError ? <p className="form__error" role="alert">{visibleError}</p> : null}
         <button type="button" className="button button--quiet" onClick={() => go(index - 1)} disabled={index === 0 || busy}>
           <ChevronLeft size={16} aria-hidden /> Back
         </button>
