@@ -16,7 +16,7 @@ export function validOrganatoBase(value:string) {
   if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname)))) throw new HttpError(400,'Organato URL must use HTTPS, or localhost HTTP for development.');
   return url.href.replace(/\/$/,'');
 }
-const mapItem = (value:z.infer<typeof item>,timeZone:string) => assignmentSchema.parse({id:value.id,title:value.displayName,kind:value.kind,subjectId:value.subjectId,dueDate:calendarDate(value.dueAt,value.dueDateLocal,timeZone)?.date ?? null,status:value.workingStatus,version:value.version});
+const mapItem = (value:z.infer<typeof item>,timeZone:string) => assignmentSchema.parse({id:value.id,title:value.displayName,kind:value.kind,subjectId:value.subjectId,dueDate:calendarDate(value.dueAt,value.dueDateLocal,timeZone)?.date ?? null,dueAt:value.dueAt,status:value.workingStatus,version:value.version});
 
 export class Organato {
   constructor(private readonly store:Store,private readonly credentials:Credentials) {}

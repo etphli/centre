@@ -49,7 +49,8 @@ function itemsByDay(state: Snapshot): Map<string, DayItem[]> {
   for (const item of state.assignments) {
     if (linked.has(item.id)) continue;
     if (!item.dueDate) continue;
-    push(item.dueDate.slice(0, 10), { kind: 'assignment', id: item.id, title: item.title, done: /done|complete|submitted/i.test(item.status), color: color(item.subjectId), status: item.status, type: item.kind });
+    const dueDate = item.dueAt ? Temporal.Instant.from(item.dueAt).toZonedDateTimeISO(state.settings.timeZone).toPlainDate().toString() : item.dueDate.slice(0,10);
+    push(dueDate, { kind: 'assignment', id: item.id, title: item.title, done: /done|complete|submitted/i.test(item.status), color: color(item.subjectId), status: item.status, type: item.kind });
   }
   for (const list of map.values()) list.sort((a, b) => Number(a.done) - Number(b.done) || (a.kind === 'event' && b.kind === 'event' ? (a.time ?? '').localeCompare(b.time ?? '') : 0));
   return map;
