@@ -1,5 +1,9 @@
 appId: au.com.centre.desktop
 productName: Centre
+protocols:
+  - name: Centre actions
+    schemes:
+      - centre
 directories:
   output: release
 files:
