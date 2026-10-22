@@ -221,27 +221,25 @@ test('imported paused timers cannot create a second running timer and overlappin
 });
 
 test('a rejected study commit cannot leak into a concurrent unrelated save, and successful commits stay saved', async () => {
-  const { symlink } = await import('node:fs/promises');
-  const { unlinkSync } = await import('node:fs');
-  const f = await fixture();
+  const {writeStateFile} = await import('./store');
+  const directory = await mkdtemp(join(tmpdir(),'centre-study-writer-'));
+  let fail = false;
+  const store = await Store.open(directory,async (directory,content)=>{
+    if (fail) { fail=false; throw new Error('rejected study write'); }
+    await writeStateFile(directory,content);
+  });
+  const service = new StudyLogService(store);
   try {
-    await f.store.save();
-    const temporary = join(f.directory, 'state.json.tmp');
-    await symlink(join(f.directory, 'missing-directory', 'file'), temporary);
-    const commit = f.store.saveStudyLog.bind(f.store);
-    let concurrent: Promise<void> = Promise.resolve();
-    f.store.saveStudyLog = next => {
-      const pending = commit(next);
-      void pending.catch(() => unlinkSync(temporary));
-      concurrent = f.store.save();
-      return pending;
-    };
-    await assert.rejects(f.call('/timer/start', { id: randomUUID(), ...tags }));
-    await concurrent;
-    assert.equal(f.store.state.studyLog.sessions.length, 0);
-    assert.equal((await Store.open(f.directory)).state.studyLog.sessions.length, 0);
-    await f.call('/timer/start', { id: randomUUID(), ...tags }); await concurrent;
-    assert.equal(f.store.state.studyLog.sessions.length, 1);
-    assert.equal((await Store.open(f.directory)).state.studyLog.sessions.length, 1);
-  } finally { await f.cleanup(); }
+    await store.save();
+    fail=true;
+    const rejected=service.route('POST','/api/study-log/timer/start',{id:randomUUID(),...tags});
+    const concurrent=store.save();
+    await assert.rejects(rejected,/rejected study write/); await concurrent;
+    assert.equal(store.state.studyLog.sessions.length,0);
+    assert.equal((await Store.open(directory)).state.studyLog.sessions.length,0);
+    const committed=service.route('POST','/api/study-log/timer/start',{id:randomUUID(),...tags});
+    const saved=store.save(); await committed; await saved;
+    assert.equal(store.state.studyLog.sessions.length,1);
+    assert.equal((await Store.open(directory)).state.studyLog.sessions.length,1);
+  } finally { await rm(directory,{recursive:true,force:true}); }
 });

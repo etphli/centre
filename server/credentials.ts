@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 
 const execute = promisify(execFile);
-export type CredentialName = 'organatoApiKey' | 'googleClientSecret' | `connector-${ConnectorId}`;
+export type CredentialName = 'organatoApiKey' | 'googleClientSecret' | 'cloudSession' | `connector-${ConnectorId}`;
 /** Credentials never enter state.json. Explicit test data directories use an isolated Keychain account. */
 export class Credentials {
   private readonly service: string;

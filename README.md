@@ -1,6 +1,6 @@
 # Centre
 
-Centre is a private macOS study app with a chat-first workspace. It connects to your installed Codex CLI and Organato account. Study data stays on your computer.
+Centre is a private macOS study app with a chat-first workspace. It connects to your installed Codex CLI and Organato account. Study data stays on your computer unless you explicitly enable optional Centre cloud sync.
 
 ## Run Centre
 
@@ -59,7 +59,7 @@ For PDF papers, install [Tectonic](https://tectonic-typesetting.github.io/). Its
 
 ## Google sign-in
 
-Centre provides one **Sign in with Google** button. It opens the system browser and uses a loopback callback with PKCE. Google sign-in identifies your local account; it does not upload study data.
+Google sign-in opens the system browser and uses a loopback callback with PKCE. App connections identify your local account without uploading study data. Optional Centre cloud sign-in is separate: it uploads no study records until you choose **Import and enable sync** in Connections. That action creates a local backup, then syncs validated study records with Centre's own Worker and D1 database. Credentials, Codex continuation IDs and derived search data stay local. Cloud infrastructure must be configured and deployed before it is available; see [the cloud protocol and rollout plan](docs/cloud/README.md).
 
 The desktop app includes its OAuth client. To use your own Google Cloud project, enter its Desktop OAuth client ID and secret under **Settings > Connections > Google connection setup**. A desktop build reads both environment variables or the installed-app JSON file. The build validates the input and writes an ignored config file. Electron Builder places that file in the app's resources. Never commit the source JSON or OAuth values.
 

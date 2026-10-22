@@ -12,6 +12,8 @@ const routes = [
   ['GET', /^\/api\/models$/],
   ['GET', /^\/api\/search$/],
   ['GET', /^\/api\/skills$/],
+  ['GET', /^\/api\/cloud\/status$/],
+  ['POST', /^\/api\/cloud\/(configure|sign-in|import|sync|pairing|disconnect|conflicts\/resolve)$/],
   ['PATCH', /^\/api\/assistant-memories\/[0-9a-f-]{36}$/],
   ['POST', /^\/api\/assistant-memories\/[0-9a-f-]{36}\/forget$/],
   ['GET', /^\/api\/connectors$/],

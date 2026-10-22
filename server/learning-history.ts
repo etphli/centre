@@ -12,12 +12,13 @@ export function updateLearningNeedFromGrade(input: {
   attemptId: string;
   topicName: string;
   now: string;
+  createId?: () => string;
 }): LearningNeed | undefined {
   const transition = applyGradeEvidence({ learningNeeds: input.state.learningNeeds,
     subjectId: input.resource.subjectId, topicId: input.resource.topicId, resourceId: input.resource.id,
     questionId: input.question.id, questionConcept: input.question.concept, concept: input.feedback.concept,
     topicName: input.topicName, feedback: input.feedback, attemptId: input.attemptId, now: input.now,
-    createId: randomUUID });
+    createId: input.createId ?? randomUUID });
   input.state.learningNeeds = transition.learningNeeds;
   return transition.updatedNeed;
 }
@@ -28,10 +29,11 @@ export function recordReviewResolution(input: {
   learningNeedId: string | null;
   resourceId: string;
   now: string;
+  createId?: () => string;
 }): void {
   const transition = applyReviewEvidence({ learningNeeds: input.state.learningNeeds,
     memoryId: input.memoryId, learningNeedId: input.learningNeedId, resourceId: input.resourceId,
-    now: input.now, createId: randomUUID });
+    now: input.now, createId: input.createId ?? randomUUID });
   input.state.learningNeeds = transition.learningNeeds;
 }
 

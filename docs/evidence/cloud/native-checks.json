@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "checks": [
+    "Production desktop page loads with an isolated renderer",
+    "Connections menu includes all 15 services and excludes Gmail",
+    "App search filters the menu",
+    "Service detail offers optional editing permission",
+    "Connected filter shows only connected services",
+    "Notion shows saved workspace without exposing its token",
+    "Ten downloaded Claude skills appear in the offline catalog",
+    "Google document opens inside Centre with readable content",
+    "Google Sheet renders as an in-app grid",
+    "Slide navigation updates the embedded presentation",
+    "Connection rows stay within the settings content at a narrow desktop width",
+    "Renderer has no runtime errors"
+  ],
+  "errors": []
+}
