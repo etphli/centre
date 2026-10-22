@@ -5,6 +5,7 @@
   "browser": "Playwright + installed Chrome after T3 preview and CUA unavailable",
   "steps": [
     "adaptive focus is backed by actual fixture grade and generation",
+    "draft options shows a full ellipsis icon with an accessible name and tooltip",
     "different resources retain separate answers and question positions",
     "reload resumes the durable draft at question two",
     "failed saves preserve local inputs across navigation and reload",
