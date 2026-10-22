@@ -1235,7 +1235,9 @@ async function snapshot(ctx: OrganatoContext, c: Connection) {
     if (record.deleted || event.deletedAt) continue;
     const upstream = remotes.get(link.organato_id);
     let projection =
-      upstream && !blocked.has(event.id) ? projected(upstream, event) : event;
+      upstream && upstream.version > (event.organatoVersion ?? 0) && !blocked.has(event.id)
+        ? projected(upstream, event)
+        : event;
     // Refresh the canonical remote version after an external edit, so a new command
     // can use the current Organato CAS version. Unresolved operations keep their plan.
     if (

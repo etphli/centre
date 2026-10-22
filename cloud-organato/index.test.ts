@@ -93,6 +93,35 @@ test('cloud Organato contract against actual migration and isolated SQLite',asyn
     assert.equal(f.writes.length,0);assert.equal(f.externalWrites().length,0);
   });
 
+  await t.test('snapshot captured upstream v1 preserves canonical v2 after a concurrent PATCH completes',async () => {
+    await f.connect();const created=await f.create({...session(),time:'16:00:37.125',startAt:'2026-10-21T05:00:37.125Z'});assert.equal(created.result.status,200);const initial=eventOf(created.result.body);
+    let release:() => void=() => {};let captured:() => void=() => {};
+    const gate=new Promise<void>(resolve => {release=resolve;});const upstreamCaptured=new Promise<void>(resolve => {captured=resolve;});
+    f.intercept=async request => {
+      if (request.method !== 'GET' || !new URL(request.url).pathname.endsWith('/items')) return null;
+      const stalePage=Response.json({items:structuredClone([...f.items.values()]),nextCursor:null});captured();await gate;return stalePage;
+    };
+    const pendingSnapshot=f.request('/snapshot');await upstreamCaptured;
+    let latest:CalendarEvent | undefined;let latestRecord:unknown;
+    try {
+      const changed=await f.request(`/sessions/${initial.id}`,'PATCH',{...command(created.result.body),patch:{title:'Canonical v2 title',notes:'Canonical v2 notes',plannedDurationMinutes:60}});assert.equal(changed.status,200);
+      latest=eventOf(changed.body);latestRecord=await f.context().entities.get('calendarEvent',initial.id);assert.equal(latest.revision,2);assert.equal(latest.organatoVersion,2);
+    } finally {release();}
+    const beforeWrites=f.writes.length;const snapshot=await pendingSnapshot;assert.equal(snapshot.status,200);assert.ok(latest);
+    const returned=z.array(eventSchema).parse(snapshot.body.events).find(event => event.origin === 'centre' && event.id === initial.id);assert.ok(returned);assert.deepEqual(returned,latest);
+    assert.equal(returned.time,'16:00:37.125');assert.equal(returned.startAt,'2026-10-21T05:00:37.125Z');
+    assert.deepEqual(await f.context().entities.get('calendarEvent',initial.id),latestRecord);assert.equal(f.writes.length,beforeWrites);assert.equal(f.externalWrites().length,2);
+  });
+
+  await t.test('equal upstream version preserves exact canonical planned time precision instead of reprojecting',async () => {
+    await f.connect();const data=await desktop(f,{time:'16:00:37.1250',startAt:'2026-10-21T05:00:37.125Z'});
+    const linked=await f.request(`/sessions/${data.id}/link`,'POST',{expectedVersion:1,expectedRevision:1});assert.equal(linked.status,200);
+    const saved=await f.context().entities.get('calendarEvent',data.id);assert.ok(saved);const beforeWrites=f.writes.length;
+    const snapshot=await f.request('/snapshot');assert.equal(snapshot.status,200);
+    const returned=z.array(eventSchema).parse(snapshot.body.events).find(event => event.origin === 'centre' && event.id === data.id);assert.ok(returned);assert.deepEqual(returned,data);assert.equal(returned.time,'16:00:37.1250');
+    assert.deepEqual(await f.context().entities.get('calendarEvent',data.id),saved);assert.equal(f.writes.length,beforeWrites);assert.equal(f.externalWrites().length,0);
+  });
+
   await t.test('snapshot stale ledger link A cannot overwrite canonical remote B even when A has a newer version',async () => {
     await f.connect();const created=await f.create();const original=eventOf(created.result.body);assert.ok(original.organatoId);
     const stale=f.items.get(original.organatoId);assert.ok(stale);stale.version=99;stale.displayName='Old A must not replace B';stale.notesMarkdown='Obsolete remote content';
