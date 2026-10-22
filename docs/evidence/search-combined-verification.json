@@ -1,0 +1,23 @@
+{
+  "combinedCommit": "c1a4cfef89b3a4e60f28cef582316e28a33b82b9",
+  "searchParent": "ee946902b76b8d71528a65429dd821e87970e942",
+  "chatParent": "2150871",
+  "verificationOwner": "coordinator",
+  "typecheck": "passed",
+  "tests": {
+    "passed": 137,
+    "failed": 0
+  },
+  "productionRenderer": "passed",
+  "electronBuild": "passed",
+  "searchUI": {
+    "checks": 15,
+    "rendererErrors": 0
+  },
+  "nativeFlows": {
+    "checks": 45,
+    "rendererErrors": 0
+  },
+  "integrationFix": "Successful continued-branch save now refreshes SearchIndex; actual service/store/attachment regression passed after failing before fix. Immediate prompt and attachment hits remain available with an archived parent and active child. This integration is owned by full chat PR14 and is not included in search PR11.",
+  "provenanceDirectory": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification"
+}
