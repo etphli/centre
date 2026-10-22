@@ -171,6 +171,8 @@ try {
   report.design={savedCaption:await saved.textContent()};
   await page.screenshot({path:join(evidence,'saved-caption.png'),fullPage:true});
   await page.waitForTimeout(2300);report.design.savedRemoved=await saved.count()===0;assert.equal(report.design.savedRemoved,true);
+  const restartConnection={port:service.port,token:service.token};
+  await service.close();service=await createService({dataDir,...restartConnection});
   const reloaded=await loaded();assert.equal(await reloaded.inner.getByRole('checkbox').isChecked(),true);
   await reloaded.inner.locator('#self-assign').focus();await page.keyboard.press('Shift+Tab');
   report.design.checkbox=await reloaded.inner.getByRole('checkbox').evaluate(input=>({appearance:getComputedStyle(input).appearance,fill:getComputedStyle(input).backgroundColor,checkmarkOpacity:getComputedStyle(input,'::after').opacity,focusVisible:input.matches(':focus-visible'),outline:getComputedStyle(input).outline}));
@@ -180,7 +182,7 @@ try {
   report.design.forcedColorsAppearance=await reloaded.inner.getByRole('checkbox').evaluate(input=>getComputedStyle(input).appearance);
   assert.equal(report.design.forcedColorsAppearance,'auto');
   await page.screenshot({path:join(evidence,'forced-colors.png'),fullPage:true});
-  report.persistence={trustedClickSaved:true,diskCheckedItemIds:state.interactiveResourceProgress[0].checkedItemIds,reloadChecked:true,saveRequests:saves-before};
+  report.persistence={trustedClickSaved:true,diskCheckedItemIds:state.interactiveResourceProgress[0].checkedItemIds,reloadChecked:true,serviceRestartChecked:true,saveRequests:saves-before};
   if(report.failures.length)process.exitCode=1;
 } catch(error) {report.failures.push(String(error));process.exitCode=1;}
 finally {
