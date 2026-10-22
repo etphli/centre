@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "tests": {
     "command": "npm test",
-    "passed": 235,
+    "passed": 236,
     "failed": 0,
     "inference": "simulated",
     "organatoUpstream": "simulated"
@@ -34,13 +34,14 @@
       "pairing",
       "disconnect"
     ],
-    "independentRecheck": "pending"
+    "independentRecheck": "passed: coordinator actual live fixture, report in recheck/report.json"
   },
   "production": "not deployed or verified",
-  "testedHead": "79932a8",
+  "testedHead": "5a194a0",
   "ci": {
     "previousVerifiedHead": "2874db8f5a5feb67f55b02014640262d026b15b4",
     "previousResult": "Desktop checks passed on push and PR",
     "currentStatus": "See PR #19 checks for the current head"
-  }
+  },
+  "base": "b8ea9dd"
 }
