@@ -1,0 +1,147 @@
+{
+  "source": "integration/feature-program-final",
+  "coreCandidate": "0e690d4d15358bc86f5f8b832d61d4404ca8a96e",
+  "typecheck": "pass",
+  "productionRendererBuild": "pass",
+  "electronBuild": "pass",
+  "nodeTests": 366,
+  "nativeFlows": {
+    "passed": true,
+    "exitCode": 0,
+    "checks": 46,
+    "rendererErrors": 0,
+    "shutdownIpcErrors": [],
+    "log": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/full-program/.runtime/clean-shutdown/native.log"
+  },
+  "studyLogUi": {
+    "initial": 29,
+    "restart": 5,
+    "rendererErrors": 0
+  },
+  "aiLogUi": {
+    "checks": 5,
+    "rendererErrors": 0,
+    "inference": "deterministic CLI boundary fixture; real registered tools, service, disk and UI"
+  },
+  "searchUi": {
+    "checks": 15,
+    "rendererErrors": 0
+  },
+  "textSizes": "small/default/large and persisted Large after reload passed",
+  "packagedOsUi": {
+    "passed": true,
+    "bundleId": "au.com.centre.desktop.shortcutsverification",
+    "checks": [
+      {
+        "name": "Renderer comes from the packaged ASAR",
+        "passed": true
+      },
+      {
+        "name": "Cold macOS URL delivery opens the real manual Log form",
+        "passed": true
+      },
+      {
+        "name": "New chat icon contains its exact allowed URL",
+        "passed": true
+      },
+      {
+        "name": "Setup creates an individually named native Internet Location",
+        "passed": true
+      },
+      {
+        "name": "System URL handler is this isolated verification bundle",
+        "passed": true
+      },
+      {
+        "name": "Opening the actual icon routes to and focuses New chat",
+        "passed": true
+      },
+      {
+        "name": "Warm macOS URL delivery reuses the running app",
+        "passed": true
+      },
+      {
+        "name": "Log study icon contains its exact allowed URL",
+        "passed": true
+      },
+      {
+        "name": "System URL handler is this isolated verification bundle",
+        "passed": true
+      },
+      {
+        "name": "Actual Log study icon opens the canonical focused controls",
+        "passed": true
+      },
+      {
+        "name": "Log study launch alone preserves persisted study time",
+        "passed": true
+      },
+      {
+        "name": "Saving through the icon form persists one completed hour",
+        "passed": true
+      },
+      {
+        "name": "This week\u2019s study icon contains its exact allowed URL",
+        "passed": true
+      },
+      {
+        "name": "System URL handler is this isolated verification bundle",
+        "passed": true
+      },
+      {
+        "name": "Actual This week\u2019s study icon opens the canonical focused controls",
+        "passed": true
+      },
+      {
+        "name": "This week\u2019s study launch alone preserves persisted study time",
+        "passed": true
+      },
+      {
+        "name": "Summary icon displays the hour explicitly saved through Log study",
+        "passed": true
+      },
+      {
+        "name": "Study timer icon contains its exact allowed URL",
+        "passed": true
+      },
+      {
+        "name": "System URL handler is this isolated verification bundle",
+        "passed": true
+      },
+      {
+        "name": "Actual Study timer icon opens the canonical focused controls",
+        "passed": true
+      },
+      {
+        "name": "Study timer launch alone preserves persisted study time",
+        "passed": true
+      },
+      {
+        "name": "Summary and timer icons preserve the saved hour without starting a timer",
+        "passed": true
+      }
+    ],
+    "limitations": [
+      "Unsigned local bundle with verification-only bundle ID; signing, notarization and release installation are not verified."
+    ],
+    "screenshot": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/full-program/.runtime/shortcuts-packaged-newchat.png"
+  },
+  "productionDependencyAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "workerDryRun": "pass; no deployment or remote migration",
+  "visualReview": "Independent GPT-6.1 Sol medium Fast final combined pass; COMBINED-CHECK-1 fixed and root rendered rechecked at1280/960/760 Large. No remaining confirmed desktop findings in examined coverage. Native tint verification remains held.",
+  "limitations": [
+    "Synthetic isolated profiles and disposable Desktop only.",
+    "Unsigned verification bundle; no signing/notarization proof.",
+    "Hosted inference and upstream writes are simulated.",
+    "Current GitHub jobs blocked before steps by account billing/spending limits.",
+    "iOS final tint correction and public distribution remain unverified.",
+    "Feature5 explicitly held."
+  ]
+}

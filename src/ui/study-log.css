@@ -59,7 +59,7 @@
 .study-timer__panel p { color: var(--text-2); }
 .study-timer__panel .link-button { display: block; margin-top: 12px; }
 .study-timer__error, .study-error { color: var(--danger); font-size: 0.75rem; }
-.study-timer__error { margin-left: 6px; }
+.study-timer__error { margin-left: 6px; flex-shrink: 0; white-space: nowrap; }
 .study-form { display: grid; gap: 16px; }
 .study-form label, .study-form__field { display: grid; gap: 6px; font-size: 0.8125rem; }
 .study-form label > .muted { display: contents; }

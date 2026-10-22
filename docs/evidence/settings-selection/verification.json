@@ -1,0 +1,27 @@
+{
+  "finding": "BASE-1",
+  "surface": "Real Centre Settings, T3 collaborative browser",
+  "fixture": "Synthetic isolated local cloud service, desktop renderer from fix/settings-selection",
+  "dark1280": {
+    "selectedBackground": "rgb(46, 46, 44)",
+    "selectedFontWeight": "550",
+    "hoverBackground": "rgb(38, 38, 37)",
+    "hoverFontWeight": "400",
+    "hovered": true
+  },
+  "light960large": {
+    "selectedBackground": "rgb(231, 230, 225)",
+    "selectedFontWeight": "550",
+    "hoverBackground": "rgb(240, 239, 236)",
+    "hoverFontWeight": "400",
+    "hovered": true,
+    "horizontalOverflow": false
+  },
+  "build": "pass including TypeScript",
+  "tests": {
+    "passed": 117,
+    "failed": 0
+  },
+  "author": "GPT-6.1 Sol",
+  "iosParityReviewer": "GPT-6 Luna, max reasoning, read-only; no iOS change needed"
+}
