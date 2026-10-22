@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { desktopActionRequestSchema, type DesktopActionRequest } from '../shared/desktop-actions';
 
 let nativeTitlebar = process.platform === 'darwin';
 function syncWindowChrome() {
@@ -12,6 +13,22 @@ ipcRenderer.on('centre:window-chrome', (_event, value: unknown) => {
 });
 
 contextBridge.exposeInMainWorld('centre', {
+  launchers: {
+    list: () => ipcRenderer.invoke('centre:launchers:list'),
+    change: (action: string, operation: string) => ipcRenderer.invoke('centre:launchers:change', action, operation),
+  },
+  actions: {
+    subscribe: (listener: (request: DesktopActionRequest) => void) => {
+      const receive = (_event: Electron.IpcRendererEvent, value: unknown) => {
+        const request = desktopActionRequestSchema.safeParse(value);
+        if (request.success) listener(request.data);
+      };
+      ipcRenderer.on('centre:actions:request', receive);
+      return () => { ipcRenderer.removeListener('centre:actions:request', receive); };
+    },
+    ready: (): Promise<void> => ipcRenderer.invoke('centre:actions:ready'),
+    acknowledge: (id: string): Promise<void> => ipcRenderer.invoke('centre:actions:acknowledge', id),
+  },
   request: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('centre:request', method, path, body),
   chooseFiles: () => ipcRenderer.invoke('centre:choose-files'),
   openDiagram: (input:{id:string;theme:string}) => ipcRenderer.invoke('centre:open-diagram',input),
