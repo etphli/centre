@@ -16,6 +16,7 @@ import { CloudSync } from './cloud-sync';
 import type { CredentialName, Credentials } from './credentials';
 import { Store, writeStateFile } from './store';
 import { StudyLogService } from './study-log';
+import { interactiveResourceProgressId, interactiveResourceProgressSchema } from '../shared/checklist-progress';
 
 const instant = '2026-10-22T00:00:00.000Z';
 type Harness = Awaited<ReturnType<typeof createCloudTestHarness>>;
@@ -609,4 +610,66 @@ test('removing the only attachment message cancels an interrupted stage and rele
   assert.equal(cloud.db.sqlite.prepare('SELECT attachment_bytes FROM centre_workspace_usage WHERE workspace=?').get(workspaceId)?.attachment_bytes, 0);
   assert.equal(cloud.db.sqlite.prepare('SELECT count(*) AS count FROM centre_chunk WHERE workspace=? AND id=?').get(workspaceId, attachment.id)?.count, 0);
   await assert.rejects(reopened.attachments.exportContent(attachment.id), /deleted/);
+});
+
+test('two-device checklist conflicts keep domain revisions independent of transport versions', async t => {
+  const cloud = await backend(t), a = await device(t, cloud);
+  const documentRevision = 'a'.repeat(64);
+  const id = await interactiveResourceProgressId('checklist-resource', documentRevision);
+  const initial = interactiveResourceProgressSchema.parse({ schemaVersion: 1, id, revision: 1, resourceId: 'checklist-resource', documentRevision, checkedItemIds: [], createdAt: instant, updatedAt: instant, deletedAt: null });
+  await a.store.update(state => {
+    state.resources.push(resource('checklist-resource'));
+    state.interactiveResourceProgress.push(initial);
+  });
+  assert.equal((await a.sync.enableImport()).error, null);
+  const b = await device(t, cloud);
+  assert.equal((await b.sync.enableImport()).error, null);
+  assert.deepEqual(b.store.state.interactiveResourceProgress, [initial]);
+  // A timestamp-only retry makes no domain edit and must accept canonical timestamps.
+  const progress = a.store.state.interactiveResourceProgress[0];
+  assert.ok(progress);
+  progress.updatedAt = '2026-10-22T00:00:30.000Z';
+  await a.store.save();
+  const retry = await a.sync.sync();
+  assert.equal(retry.error, null);
+  assert.equal(retry.pending, 0);
+  assert.equal(a.store.state.interactiveResourceProgress[0]?.updatedAt, instant);
+  assert.equal((await Store.open(a.directory)).state.interactiveResourceProgress[0]?.updatedAt, instant);
+  const retriedRecord = (await changes(cloud, a)).find(value => value.kind === 'interactiveProgress' && value.id === id);
+  assert.ok(retriedRecord);
+  assert.equal(retriedRecord.version, 2);
+  assert.equal(retriedRecord.data?.revision, 1);
+  assert.equal(retriedRecord.data?.updatedAt, instant);
+  assert.equal((await b.sync.sync()).error, null);
+  await a.store.update(state => {
+    const progress = state.interactiveResourceProgress[0];
+    assert.ok(progress);
+    progress.revision = 2; progress.checkedItemIds = ['alpha']; progress.updatedAt = '2026-10-22T00:01:00.000Z';
+  });
+  await b.store.update(state => {
+    const progress = state.interactiveResourceProgress[0];
+    assert.ok(progress);
+    progress.revision = 2; progress.checkedItemIds = ['beta']; progress.updatedAt = '2026-10-22T00:02:00.000Z';
+  });
+  assert.equal((await a.sync.sync()).error, null);
+  const conflicted = await b.sync.sync();
+  assert.deepEqual(conflicted.conflicts.map(({ kind, id: valueId }) => ({ kind, id: valueId })), [{ kind: 'interactiveProgress', id }]);
+  assert.deepEqual(b.store.state.interactiveResourceProgress[0]?.checkedItemIds, ['beta']);
+  assert.equal(b.store.state.interactiveResourceProgress[0]?.revision, 2);
+  await b.sync.resolve('interactiveProgress', id, 'local');
+  assert.equal(b.store.state.interactiveResourceProgress[0]?.revision, 3);
+  const resolved = await b.sync.sync();
+  assert.equal(resolved.error, null);
+  assert.deepEqual(resolved.conflicts, []);
+  assert.equal(resolved.pending, 0);
+  const remote = (await changes(cloud, b)).find(value => value.kind === 'interactiveProgress' && value.id === id);
+  assert.ok(remote);
+  assert.equal(remote.version, 4);
+  assert.equal(remote.data?.revision, 3);
+  assert.deepEqual(remote.data?.checkedItemIds, ['beta']);
+  assert.equal((await a.sync.sync()).error, null);
+  const reopened = await reopen(b);
+  assert.deepEqual(reopened.store.state.interactiveResourceProgress, a.store.state.interactiveResourceProgress);
+  assert.deepEqual(reopened.store.state.interactiveResourceProgress[0], remote.data);
+  assert.equal((await reopened.sync.sync()).pending, 0);
 });

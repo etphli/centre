@@ -111,7 +111,7 @@ export class CloudSync {
       const local = this.desiredLocal().get(key);
       const data = local?.data ?? remote.data;
       const label = z.object({title:z.string().optional(),name:z.string().optional(),weekStart:z.string().optional()}).safeParse(data);
-      return {kind:mutation?.kind ?? remote.kind,id:mutation?.id ?? remote.id,label:label.success ? (label.data.title ?? label.data.name ?? (label.data.weekStart ? `Study goal for ${label.data.weekStart}` : 'Study item')).slice(0,100) : 'Study item',canKeepLocal:!(remote.kind==='practice.attempt' && mutation && mutation.id!==remote.id)};
+      return {kind:mutation?.kind ?? remote.kind,id:mutation?.id ?? remote.id,label:label.success ? (label.data.title ?? label.data.name ?? (label.data.weekStart ? `Study goal for ${label.data.weekStart}` : 'Study item')).slice(0,100) : 'Study item',canKeepLocal:!['attempt','practice.attempt'].includes(remote.kind)};
     });
     return {baseUrl:this.journal.baseUrl,workspaceId:this.journal.workspaceId,authenticated,enabled:this.journal.enabled,pending,conflicts,lastSyncedAt:this.journal.lastSyncedAt,error:this.journal.error,
       phase:this.running ? 'syncing' : !this.journal.enabled ? 'local' : Object.keys(this.journal.conflicts).length ? 'conflict' : this.journal.error ? pending ? 'pending' : 'error' : pending ? 'pending' : 'ready'};
@@ -169,6 +169,16 @@ export class CloudSync {
         try {
           const reply = z.object({record:cloudRecordSchema}).parse(await this.request('/v1/records','POST',mutation));
           if (reply.record.kind !== mutation.kind || reply.record.id !== mutation.id) throw new Error('Cloud returned a different record.');
+          if (!sameRecord(reply.record,mutation)) {
+            const acknowledgedAt=Date.now();
+            await this.importAtomic(current=>{
+              // Accept server canonicalization only while this exact local edit is
+              // still current. A later edit keeps its own pending mutation.
+              const local=this.desiredLocal(current).get(key);
+              if (!sameRecord(local,mutation)) return {value:undefined,apply:null};
+              return {value:undefined,apply:(state:Snapshot)=>{applyStudyRecord(state,reply.record,acknowledgedAt,this.journal.shadow);}};
+            });
+          }
           this.journal.shadow[key] = reply.record;
           if (!this.journal.materialized.includes(key)) this.journal.materialized.push(key);
           this.journal.outbox = this.journal.outbox.filter(value=>value.mutationId !== mutation.mutationId);
@@ -360,6 +370,16 @@ export class CloudSync {
         await this.importAtomic(()=>({value:undefined,apply:(state:Snapshot)=>{state.attempts = state.attempts.filter(attempt=>attempt.id!==id); applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);}}));
       } else throw new HttpError(409,'These records have different identities. Use the saved cloud result or review the domain record before retrying.');
     } else if (choice==='cloud') await this.importAtomic(()=>({value:undefined,apply:(state:Snapshot)=>{applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);}}));
+    else if (choice==='local' && ['studySession','studyGoal','practice.draft','practice.learningNeed','interactiveProgress','calendarEvent'].includes(kind)) {
+      await this.importAtomic(current=>{
+        const local=this.desiredLocal(current).get(key);
+        if (!local || local.deleted || !local.data) return {value:undefined,apply:null};
+        const revision=z.object({revision:z.number().int().positive()}).parse(local.data).revision;
+        const remoteRevision=z.object({revision:z.number().int().positive()}).safeParse(remote.data);
+        const chosen={...remote,deleted:false,data:{...local.data,revision:Math.max(revision,remoteRevision.success ? remoteRevision.data.revision : 0)+1,updatedAt:new Date(resolvedAt).toISOString()}};
+        return {value:undefined,apply:(state:Snapshot)=>{applyStudyRecord(state,chosen,resolvedAt,this.journal.shadow);}};
+      });
+    }
     this.journal.shadow[remoteKey] = remote;
     if (!this.journal.materialized.includes(remoteKey)) this.journal.materialized.push(remoteKey);
     delete this.journal.conflicts[key];
