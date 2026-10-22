@@ -151,11 +151,13 @@ export default function CentreApp() {
   const [generating, setGenerating] = useState<{ id: number; label: string }[]>([]);
   const [sideChat, setSideChat] = useState<SideChatState>({ open: false, chatId: null });
   const [homeVisit,setHomeVisit] = useState(0);
+  const [navigationId, setNavigationId] = useState(0);
   const seq = useRef(0);
   const stopped = useRef(new Set<number>());
   const main = useRef<HTMLDivElement>(null);
 
   const navigate = useCallback((next: Route) => {
+    setNavigationId(value => value + 1);
     if (next.kind === 'home') setHomeVisit(value => value + 1);
     setHistory((current) => {
       const here = current.stack[current.index];
@@ -331,9 +333,9 @@ export default function CentreApp() {
   const actions = useMemo<CentreActions | null>(
     () =>
       state
-        ? { state,draftModelSelection,selectModel, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating }
+        ? { state,draftModelSelection,selectModel, route, navigationId, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating }
         : null,
-    [state,draftModelSelection,selectModel, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating],
+    [state,draftModelSelection,selectModel, route, navigationId, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating],
   );
 
   if (!actions) {

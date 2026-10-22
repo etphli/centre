@@ -3190,3 +3190,12 @@ textarea:disabled {
 .page--review-empty .resolved-list{text-align:left;margin-top:20px}
 
 .personal-resources{margin-top:32px}.personal-resources>h2{font-size:1.125rem;font-weight:500;margin:0 0 6px}.personal-resources>.muted{margin:0 0 18px}
+
+.search-target {
+  box-shadow: -3px 0 0 var(--text-3);
+  border-radius: 4px;
+  animation: search-target-arrival 3s ease-out;
+}
+.message.search-target + .message-files .message-file { background: var(--surface-2); }
+@keyframes search-target-arrival { from { background: var(--surface-2); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .search-target { animation: none; background: var(--surface-2); } }

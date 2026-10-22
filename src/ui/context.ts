@@ -27,6 +27,7 @@ export interface CentreActions {
   draftModelSelection:ModelSelection|null;
   selectModel:(chatId:string|null,selection:ModelSelection) => Promise<unknown>;
   route: Route;
+  navigationId: number;
   navigate: Navigate;
   refresh: () => Promise<void>;
   /** Runs a mutation, refreshes, and reports failures as a toast. Resolves undefined on failure. */

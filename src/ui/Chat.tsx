@@ -8,6 +8,7 @@ import { kindIcons, kindLabels } from './icons';
 import { Markdown } from './Markdown';
 import { InlineResourcePreview, ResourcePreviewDialog } from './ResourcePreview';
 import { routeContext, type CreateKind, type Route } from './types';
+import { useSearchTarget } from './useSearchTarget';
 import './thinking.css';
 import './side-chat.css';
 
@@ -122,9 +123,7 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
     return () => container.removeEventListener('scroll',onScroll);
   },[]);
   useEffect(() => { if (turn && follow.current) end.current?.scrollIntoView({block:'end'}); },[liveSteps,turn?.id]);
-  useEffect(() => {
-    if (messageId) document.getElementById(`chat-message-${messageId}`)?.scrollIntoView({ block: 'center' });
-  }, [messageId, chat?.id]);
+  useSearchTarget(messageId ? `chat-message-${messageId}` : undefined);
 
   return (
     <div className={`thread${compact ? ' thread--compact' : ''}`} aria-live="polite" aria-busy={turn?.status === 'working'}>

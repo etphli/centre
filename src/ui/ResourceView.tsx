@@ -12,6 +12,7 @@ import { kindIcons, kindLabels } from './icons';
 import { Markdown } from './Markdown';
 import { Missing, SubjectBadge } from './Resources';
 import './quiz.css';
+import { useSearchTarget } from './useSearchTarget';
 import { MoveResource } from './MoveResource';
 import { PaperPreview } from './PaperPreview';
 import { DiagramFrame,OpenDiagramButton } from './DiagramFrame';
@@ -95,9 +96,7 @@ function Quiz({ resource, questionId }: { resource: Resource; questionId?: strin
   useEffect(() => {
     if (questionId) setIndex(targetIndex);
   }, [questionId, targetIndex]);
-  useEffect(() => {
-    if (questionId) document.getElementById(`resource-question-${questionId}`)?.scrollIntoView({ block: 'center' });
-  }, [questionId, index]);
+  useSearchTarget(questionId && index === targetIndex ? `resource-question-${questionId}` : undefined);
 
   useEffect(() => {
     // Only move focus after the student navigates, never on first load.
@@ -292,9 +291,7 @@ function Flashcards({ resource, questionId }: { resource: Resource; questionId?:
   useEffect(() => {
     if (questionId) { setIndex(targetIndex); setFlipped(false); }
   }, [questionId, targetIndex]);
-  useEffect(() => {
-    if (questionId) document.getElementById(`resource-question-${questionId}`)?.scrollIntoView({ block: 'center' });
-  }, [questionId, index]);
+  useSearchTarget(questionId && index === targetIndex ? `resource-question-${questionId}` : undefined);
 
   const move = useCallback((step: number) => {
     setIndex((current) => Math.min(cards.length - 1, Math.max(0, current + step)));
@@ -370,9 +367,7 @@ export function ResourceView({ resourceId, questionId }: { resourceId: string; q
   const [printing, setPrinting] = useState(false);
   const [moving,setMoving] = useState(false);
   const resource = state.resources.find((item) => item.id === resourceId);
-  useEffect(() => {
-    if (questionId) document.getElementById(`resource-question-${questionId}`)?.scrollIntoView({ block: 'center' });
-  }, [resourceId, questionId]);
+  useSearchTarget(resource?.kind === 'test' && questionId ? `resource-question-${questionId}` : undefined);
   if (!resource) return <Missing what="resource" />;
   const subject = state.subjects.find((item) => item.id === resource.subjectId);
   const topic = state.topics.find((item) => item.id === resource.topicId);
