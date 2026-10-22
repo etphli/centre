@@ -2,6 +2,11 @@ import { z } from 'zod';
 
 const routes = [
   ['POST', /^\/api\/cloud\/pairing$/],
+  ['GET', /^\/api\/study-log$/],
+  ['POST', /^\/api\/study-log\/(sessions|goals|timer\/start)$/],
+  ['PATCH', /^\/api\/study-log\/sessions\/[0-9a-f-]{36}$/],
+  ['POST', /^\/api\/study-log\/sessions\/[0-9a-f-]{36}\/delete$/],
+  ['POST', /^\/api\/study-log\/timer\/[0-9a-f-]{36}\/(heartbeat|pause|resume|stop|confirm)$/],
   ['GET', /^\/api\/state$/],
   ['GET', /^\/api\/state\/poll$/],
   ['GET', /^\/api\/models$/],

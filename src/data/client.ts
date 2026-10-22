@@ -1,3 +1,4 @@
+import { studyLogSchema, type StudyTags, type StudySegment, type TimerAction } from '../../shared/study-log';
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { z } from 'zod';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
@@ -45,6 +46,13 @@ const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
 export const api = {
   mobilePairing: () => request('POST', '/cloud/pairing', z.object({code:z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/),expiresAt:z.string().datetime(),baseUrl:z.string().url()}), {}),
+  studyLog: () => request('GET', '/study-log', studyLogSchema),
+  createStudy: (input: StudyTags & {id:string;segments:StudySegment[]}) => request('POST', '/study-log/sessions', studyLogSchema, input),
+  editStudy: (id:string,input:StudyTags & {expectedRevision:number;segments:StudySegment[]}) => request('PATCH', `/study-log/sessions/${encodeURIComponent(id)}`, studyLogSchema, input),
+  deleteStudy: (id:string,expectedRevision:number) => request('POST', `/study-log/sessions/${encodeURIComponent(id)}/delete`, studyLogSchema, {expectedRevision}),
+  startStudy: (input:StudyTags & {id:string}) => request('POST', '/study-log/timer/start', studyLogSchema, input),
+  timerStudy: (id:string,action:TimerAction,expectedRevision:number,activity = false) => request('POST', `/study-log/timer/${encodeURIComponent(id)}/${action}`, studyLogSchema, {expectedRevision,activity}),
+  saveStudyGoal: (input:{id:string;weekStart:string;timeZone:string;targetMinutes:number;expectedRevision?:number}) => request('POST', '/study-log/goals', studyLogSchema, input),
   state: () => request('GET', '/state', snapshotSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),
   forgetMemory: (id:string) => request('POST', `/assistant-memories/${encodeURIComponent(id)}/forget`, okSchema, {}),
