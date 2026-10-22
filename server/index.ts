@@ -212,7 +212,9 @@ export async function createService(options: { port?:number; token?:string; data
     const reserved: string[] = [];
     try {
       attachmentStore.assertMessageOwnership(store.state.chats,input.attachmentIds,id);
+      const ownedAttachmentIds = new Set(store.state.chats.flatMap(chat => chat.messages.flatMap(message => message.attachmentIds)));
       for (const attachmentId of input.attachmentIds) {
+        if (ownedAttachmentIds.has(attachmentId)) continue;
         if (reservedAttachmentIds.has(attachmentId)) throw new HttpError(409,'This attachment is being added to another chat. Upload it again to attach a separate copy.');
         reservedAttachmentIds.add(attachmentId); reserved.push(attachmentId);
       }

@@ -1,10 +1,11 @@
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { extname, join, resolve } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import mammoth from 'mammoth';
 import { z } from 'zod';
 import { attachmentSchema, type Attachment, type Chat } from '../shared/schema';
+import { canShareChatAttachment } from '../shared/chat-lineage';
 import { HttpError } from './errors';
 
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -158,16 +159,20 @@ async function extractDocxText(bytes: Buffer): Promise<string> {
 
 export class AttachmentStore {
   readonly directory: string;
-  constructor(dataDirectory: string) { this.directory = join(dataDirectory, 'attachments'); }
+  constructor(dataDirectory: string, readonly workspaceId = `desktop:${createHash('sha256').update(resolve(dataDirectory)).digest('hex')}`) { this.directory = join(resolve(dataDirectory), 'attachments'); }
 
   private metadataPath(id: string) { return join(this.directory, `${id}.json`); }
   private dataPath(id: string, name: string) { return join(this.directory, `${id}${extname(name).toLowerCase()}`); }
   private validId(id: string) { if (!z.string().uuid().safeParse(id).success) return fail(404, 'Attachment not found.'); }
 
   assertMessageOwnership(chats: readonly Chat[], attachmentIds: readonly string[], chatId: string): void {
-    const requested = new Set(attachmentIds);
-    if (chats.some(chat => chat.id !== chatId && chat.messages.some(message => message.attachmentIds.some(id => requested.has(id))))) {
-      fail(409, 'This attachment already belongs to another chat. Upload it again to attach a separate copy.');
+    const scopedChats = chats.map(chat => ({ workspaceId: this.workspaceId, chat }));
+    const target = { workspaceId: this.workspaceId, chatId };
+    for (const attachmentId of attachmentIds) {
+      const owners = chats.filter(chat => chat.messages.some(message => message.attachmentIds.includes(attachmentId)));
+      if (owners.some(chat => !canShareChatAttachment(scopedChats, attachmentId, { workspaceId: this.workspaceId, chatId: chat.id }, target))) {
+        fail(409, 'This attachment is not retained in this chat. Upload it again to attach a separate copy.');
+      }
     }
   }
 

@@ -19,7 +19,7 @@ function resource(id: string, fields: Partial<Resource> = {}): Resource {
 function chat(id: string, attachmentIds: string[] = [], fields: Partial<Chat> = {}): Chat {
   return chatSchema.parse({ id, title: 'Study conversation', createdAt: now, updatedAt: now, messages: [{ id: `${id}-message`, role: 'user', content: 'Study material', attachmentIds, createdAt: now }], ...fields });
 }
-const noAttachments = { searchText: async () => undefined };
+const noAttachments = { workspaceId: 'test-workspace', searchText: async () => undefined };
 
 // Generate a real one-page PDF, matching the attachment extraction fixture.
 function pdfWithText(text: string): Buffer {
@@ -126,7 +126,7 @@ test('real PDF and DOCX extraction sidecars survive missing original bytes and q
     snapshot.chats.push(chat('documents', [pdf.id, docx.id]));
     let reads = 0;
     const restarted = new AttachmentStore(directory);
-    const index = new SearchIndex({ searchText: async id => { reads += 1; return restarted.searchText(id); } });
+    const index = new SearchIndex({ workspaceId: 'test-workspace', searchText: async id => { reads += 1; return restarted.searchText(id); } });
     await index.rebuild(snapshot);
     assert.equal(reads, 2);
     assert.deepEqual(index.search('orphanclassified'), []);
@@ -147,7 +147,7 @@ test('deleted owners and attachment IDs shared with archived chats never leak', 
   const ambiguousFile = '22222222-2222-4222-8222-222222222222';
   snapshot.chats.push(chat('hidden', [hiddenFile], { title: 'chatclassified', deletedAt: now }), chat('active', [ambiguousFile]), chat('archived', [ambiguousFile], { deletedAt: now }));
   const loaded: string[] = [];
-  const index = new SearchIndex({ searchText: async id => { loaded.push(id); return { attachment: { id, name: 'private.txt', mimeType: 'text/plain', size: 20 }, text: 'attachmentclassified' }; } });
+  const index = new SearchIndex({ workspaceId: 'test-workspace', searchText: async id => { loaded.push(id); return { attachment: { id, name: 'private.txt', mimeType: 'text/plain', size: 20 }, text: 'attachmentclassified' }; } });
   await index.rebuild(snapshot);
   assert.deepEqual(loaded, []);
   for (const query of ['resourceclassified', 'chatclassified', 'attachmentclassified']) assert.deepEqual(index.search(query), []);
@@ -296,7 +296,7 @@ test('240 resources and 120 twenty-KB attachment sidecars remain queryable witho
   const text = `attachmentbenchmark ${'extracted '.repeat(2048)}`.slice(0, 20 * 1024);
   assert.equal(Buffer.byteLength(text), 20 * 1024);
   let reads = 0;
-  const index = new SearchIndex({ searchText: async id => {
+  const index = new SearchIndex({ workspaceId: 'test-workspace', searchText: async id => {
     reads += 1;
     return { attachment: { id, name: `${id}.txt`, mimeType: 'text/plain', size: Buffer.byteLength(text) }, text };
   } });
@@ -409,7 +409,7 @@ test('deleted content disappears even while an attachment rebuild is waiting on 
   snapshot.resources.push(hiddenResource);
   snapshot.chats.push(hiddenChat);
   let release: (() => void) | undefined;
-  const index = new SearchIndex({ searchText: async id => new Promise(resolve => {
+  const index = new SearchIndex({ workspaceId: 'test-workspace', searchText: async id => new Promise(resolve => {
     release = () => resolve({ attachment: { id, name: 'new.txt', mimeType: 'text/plain', size: 4 }, text: 'new content' });
   }) });
   await index.rebuild(snapshot);

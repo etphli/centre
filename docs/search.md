@@ -10,7 +10,7 @@ Queries use Unicode letters, numbers and combining marks. Case, accents and punc
 
 Resources and their question records appear only while the resource is active. A question hit opens its exact quiz question, flashcard or test question. Other resource hits open the resource. Connected files open their saved Centre resource.
 
-Attachments have one owning chat, including archived chats. Retrying or reusing an attachment within that chat is allowed. A new message cannot reuse another chat's attachment ID. Legacy IDs referenced by several chats are omitted from search because their ownership is ambiguous. Orphan uploads and attachments owned only by deleted chats produce no results. Archive and restore rebuild the searchable documents. Attachment hits open the first referencing message in the owning chat; existing sidecars contain no page map, so PDF page anchors are unavailable.
+Attachments retain immutable IDs through verified chat branches. Same-chat retries and retained parent, child, sibling and nested branch associations are allowed without copying bytes. Every persisted owner, including archived ancestors, must authorize each active target through the canonical lineage helper. Unrelated roots, forged or disconnected references, invalid ancestry and attachments beyond a checkpoint fail closed. Orphan uploads and deleted-only owners produce no results. Archive and restore rebuild the searchable documents. Attachment hits open the first referencing message in each authorized active chat; existing sidecars contain no page map, so PDF page anchors are unavailable.
 
 Subjects and topics open their existing pages. Calendar events and assignments open the calendar context.
 
@@ -22,7 +22,11 @@ Queries read postings and token positions in memory. They do not scan attachment
 
 The index is disposable derived data. It adds no search records to persisted snapshots or Centre's independent Cloudflare D1 database. Future sync code must refresh the index after applying source changes to the caller's local Store. A hosted or mobile search equivalent must enforce account/workspace visibility, deletion and attachment ownership in Centre's own Worker and D1. Desktop search has no dependency on that later implementation or on a cloud search service.
 
-Feature 10 intentionally shares immutable attachment IDs through retained branch history. After the coordinator integrates that feature, search must import `canShareChatAttachment` from its canonical `shared/chat-lineage.ts`. The helper receives all persisted chats, including archived owners. Each target must be authorized against every owner; one disconnected owner keeps the attachment suppressed. Validation follows retained parent/source/checkpoint edges carrying that attachment, rather than a shared family ID. The independent search PR keeps unrelated cross-chat reuse blocked until that integration step.
+Search and `AttachmentStore.assertMessageOwnership` consume `canShareChatAttachment` from the canonical `shared/chat-lineage.ts`. Each persisted owner authorizes the requested active target. Checks are directional because an archived owner may remain a valid source while an archived target is forbidden. One disconnected owner keeps the attachment suppressed. Validation follows retained parent/source/checkpoint edges carrying that attachment, rather than a shared family ID.
+
+`AttachmentStore` derives a stable desktop scope from its trusted data directory and uses separate storage and caches per local workspace. Requests cannot supply a workspace ID. A later authenticated service may pass a verified workspace ID to the constructor. It must preserve the same storage isolation and pass only that caller's scoped records.
+
+The canonical-only dependency is [PR 12](https://github.com/etphli/centre/pull/12), commit `98d76b06637517657ba9c56064e3c0b592d5a17e`. Search [PR 11](https://github.com/etphli/centre/pull/11) is stacked on `feat/chat-lineage-contract`. PR 12 must merge first, then PR 11 can target `main`. Feature 10's server and UI implementation is a separate change.
 
 ## Verification
 

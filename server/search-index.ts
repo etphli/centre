@@ -1,5 +1,6 @@
 import { extname } from 'node:path';
 import { connectorCatalog } from '../shared/connectors';
+import { canShareChatAttachment } from '../shared/chat-lineage';
 import type { SearchResult, SearchTarget } from '../shared/search';
 import { MAX_SEARCH_RESULTS, MAX_SEARCH_SNIPPET_LENGTH } from '../shared/search';
 import type { Chat, Resource, Snapshot } from '../shared/schema';
@@ -204,7 +205,7 @@ export class SearchIndex {
   private activeAttachmentDocumentIds = new Set<string>();
   private rebuildVersion = 0;
 
-  constructor(private readonly attachments: Pick<AttachmentStore, 'searchText'>) {}
+  constructor(private readonly attachments: Pick<AttachmentStore, 'searchText' | 'workspaceId'>) {}
 
   async rebuild(snapshot: Snapshot): Promise<void> {
     const version = ++this.rebuildVersion;
@@ -242,7 +243,11 @@ export class SearchIndex {
     for (const event of snapshot.events) add({ id: `event:${event.id}`, kind: 'event', label: event.title, sourceLabel: 'Calendar event', contextLabel: event.date, text: [event.title, event.notes].filter(Boolean).join('\n'), target: { kind: 'calendar' } });
     for (const assignment of snapshot.assignments) add({ id: `assignment:${assignment.id}`, kind: 'assignment', label: assignment.title, sourceLabel: 'Assignment', contextLabel: assignment.dueDate ? `Due ${assignment.dueDate}` : assignment.status, text: assignment.title, target: { kind: 'calendar' } });
 
-    const owners = [...attachmentOwners.entries()].flatMap(([id, candidates]) => candidates.length === 1 ? candidates.filter(owner => !owner.chat.deletedAt).map(owner => [id, owner] as const) : []);
+    const workspaceId = this.attachments.workspaceId;
+    const scopedChats = snapshot.chats.map(chat => ({ workspaceId, chat }));
+    const owners = [...attachmentOwners.entries()].flatMap(([id, candidates]) => candidates
+      .filter(target => !target.chat.deletedAt && candidates.every(owner => canShareChatAttachment(scopedChats, id, { workspaceId, chatId: owner.chat.id }, { workspaceId, chatId: target.chat.id })))
+      .map(owner => [id, owner] as const));
     this.activeAttachmentDocumentIds = new Set(owners.map(([id, owner]) => `attachment:${owner.chat.id}:${owner.messageId}:${id}`));
     for (let offset = 0; offset < owners.length; offset += 16) {
       const batch = owners.slice(offset, offset + 16);
