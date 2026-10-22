@@ -15,13 +15,26 @@ export class Store {
     return new Store(directory, state);
   }
   save(): Promise<void> {
-    const content = JSON.stringify(snapshotSchema.parse(this.state), null, 2);
     const write = this.queue.then(async () => {
-      const temporary = join(this.directory, 'state.json.tmp');
-      await writeFile(temporary, content, { mode: 0o600 });
-      await rename(temporary, join(this.directory, 'state.json'));
+      await this.persist(this.state);
     });
     this.queue = write.catch(() => undefined);
     return write;
+  }
+  update<K extends keyof Snapshot>(key:K, change:(current:Snapshot[K]) => Snapshot[K]|undefined):Promise<void> {
+    const write = this.queue.then(async () => {
+      const next = change(structuredClone(this.state[key]));
+      if (next === undefined) return;
+      await this.persist({...this.state,[key]:next});
+      this.state[key] = next;
+    });
+    this.queue = write.catch(() => undefined);
+    return write;
+  }
+  private async persist(state:Snapshot) {
+    const content = JSON.stringify(snapshotSchema.parse(state),null,2);
+    const temporary = join(this.directory,'state.json.tmp');
+    await writeFile(temporary,content,{mode:0o600});
+    await rename(temporary,join(this.directory,'state.json'));
   }
 }

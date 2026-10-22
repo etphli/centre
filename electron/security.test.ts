@@ -14,6 +14,9 @@ test('IPC accepts only service routes and their intended methods', () => {
   assert.equal(validateRequest('POST','/api/attachments',{ data:'x'.repeat(2_000_001) }).method,'POST');
   assert.throws(() => validateRequest('POST','/api/attachments',{ data:'x'.repeat(30_000_001) }));
   assert.throws(() => validateRequest('GET','/api/attachments/not-a-uuid',undefined));
+  assert.equal(validateRequest('POST','/api/resources/diagram_1/checklist-progress',{documentRevision:'a'.repeat(64),itemId:'one',checked:true}).method,'POST');
+  assert.throws(() => validateRequest('GET','/api/resources/diagram_1/checklist-progress',undefined));
+  assert.throws(() => validateRequest('POST','/api/resources/diagram_1/checklist-progress',{extra:'x'.repeat(16_384)}));
 });
 
 test('system browser rejects file, script, credential, and arbitrary localhost URLs', () => {

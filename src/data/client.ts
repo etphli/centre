@@ -1,5 +1,6 @@
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { z } from 'zod';
+import { checklistProgressUpdateSchema, diagramPreviewSchema } from '../../shared/checklist-progress';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
 
@@ -69,7 +70,8 @@ export const api = {
   moveResource: (id:string,location:{subjectId:string|null;topicId:string|null}) => request('PATCH',`/resources/${encodeURIComponent(id)}/location`,resourceSchema,location),
   exportResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/export`, exportSchema),
   refreshConnectedFile: (id:string) => request('POST', `/resources/${encodeURIComponent(id)}/refresh`,resourceSchema,{}),
-  previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, z.object({ url: z.string().url() })),
+  previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, diagramPreviewSchema),
+  saveChecklistProgress: (id:string,documentRevision:string,itemId:string,checked:boolean) => request('POST',`/resources/${encodeURIComponent(id)}/checklist-progress`,okSchema,checklistProgressUpdateSchema.parse({documentRevision,itemId,checked})),
   saveFeedback: (id: string, notes: string, questionIds: string[] = [], confident = false) => request('POST', `/resources/${encodeURIComponent(id)}/feedback`, okSchema, { notes, questionIds, confident }),
   gradeQuiz: (resourceId: string, answers: Record<string, string>) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers }),
   createEvent: (input: Pick<StudyEvent, 'title' | 'date'> & Partial<Pick<StudyEvent, 'time' | 'subjectId' | 'notes'>>) => request('POST', '/events', eventSchema, input),
