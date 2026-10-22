@@ -6,7 +6,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { z, ZodError } from 'zod';
-import { rememberInputSchema,modelSelectionSchema, askQuestionSchema, resourceLocationSchema, messageSchema, chatSchema, contextSchema, createResourceSchema, createResourceToolVariants, feedbackSchema, gradeSchema, topicSchema, eventSchema, reasoningEffortSchema,preferencesSchema, type Activity, type Chat, type PageContext } from '../shared/schema';
+import { rememberInputSchema,modelSelectionSchema, askQuestionSchema, resourceKindSchema, resourceLocationSchema, messageSchema, chatSchema, contextSchema, createResourceSchema, createResourceToolVariants, feedbackSchema, gradeSchema, topicSchema, eventSchema, reasoningEffortSchema,preferencesSchema, type Activity, type Chat, type PageContext } from '../shared/schema';
 import { Store } from './store';
 import { Questions } from './questions';
 import { chatResponseSchema,chatResponseInstructions,questionRoutingInstructions } from './chat-response';
@@ -26,6 +26,7 @@ import { calendarInputSchema,calendarPatchSchema } from './calendar';
 import { errorMessage, HttpError, requireFound } from './errors';
 import { AttachmentStore, MAX_ATTACHMENTS_PER_MESSAGE } from './attachments';
 import { remember,updateMemory,forgetMemory,forgetMemoryInputSchema } from './assistant-memory';
+import { structuredOutputSchema } from './structured-output';
 
 const topicInput = z.object({ subjectId:z.string(), name:z.string().trim().min(1).max(200), description:z.string().max(10000).default('') }).strict();
 const eventInput = calendarInputSchema;
@@ -81,6 +82,7 @@ export async function createService(options: { port?:number; token?:string; data
   const connectedFiles = new ConnectedFiles(store,connectors);
   const questions = new Questions();
   const busy = new Map<string,number>(); const cancelled = new Set<string>();
+  const guidedCreation = new Set<string>();
   const pending = new Set<Promise<unknown>>();
   function track<T>(work: () => Promise<T>): Promise<T> {
     const result = work(); pending.add(result);
@@ -147,9 +149,10 @@ export async function createService(options: { port?:number; token?:string; data
       case 'centre_read_curriculum': return readCurriculum(z.object({ url:z.string().url().max(2048) }).strict().parse(input).url);
       case 'centre_create_topic': return createTopic(input);
       case 'centre_save_resource': {
+        const chat = threadId ? store.state.chats.find(chat => chat.codexThreadId === threadId) : undefined;
+        if (chat && guidedCreation.has(chat.id)) throw new HttpError(400,'For this guided request, return the complete resource using the output schema. The app saves it automatically.');
         const value = saveResourceInput.parse(input);
         const resource = await resources.saveGenerated(value,value.generated);
-        const chat = threadId ? store.state.chats.find(chat => chat.codexThreadId === threadId) : undefined;
         const request = chat?.messages.at(-1);
         if (request?.role === 'user') { request.resourceIds.push(resource.id); await store.save(); }
         return resource;
@@ -181,8 +184,9 @@ export async function createService(options: { port?:number; token?:string; data
     const resourceIds = new Set(resources.map(resource => resource.id));
     return { ...store.state,resources,memories:store.state.memories.filter(memory => resourceIds.has(memory.resourceId)),attempts:store.state.attempts.filter(attempt => resourceIds.has(attempt.resourceId)),chats:store.state.chats.filter(chat => !chat.deletedAt),codex:{ ...codex.status },pendingQuestions:questions.list(),activeResponses:[...busy].map(([chatId,startedAt]) => ({chatId,startedAt,status:cancelled.has(chatId) ? 'stopping' : 'working'})) }; }
   async function sendMessage(id: string, value: unknown) {
-    const input = z.object({ content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]) }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
+    const input = z.object({ content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]), resourceRequest:createResourceSchema.optional() }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
     const content = input.content.trim();
+    const commandKind = resourceKindSchema.safeParse(/^\/(\w+)\b/.exec(content)?.[1]);
     const chat = requireFound(store.state.chats.find(x => x.id === id && !x.deletedAt),'Chat');
     if (busy.has(id)) throw new HttpError(409,'This conversation already has a response in progress.');
     busy.set(id,Date.now()); cancelled.delete(id);
@@ -192,6 +196,7 @@ export async function createService(options: { port?:number; token?:string; data
       const totalBytes = attachedFiles.reduce((total, file) => total + file.attachment.size,0);
       if (totalBytes > 30 * 1024 * 1024) throw new HttpError(413,'Attachments in one message must total 30 MB or less.');
       const now = new Date().toISOString(); chat.activity = [];
+      const requestIndex = chat.messages.length;
       chat.messages.push(messageSchema.parse({ id:randomUUID(), role:'user', content, createdAt:now, attachmentIds:input.attachmentIds })); chat.updatedAt = now;
       if (chat.messages.length === 1 && chat.title === 'New chat') chat.title = (content || `Review ${attachedFiles[0]?.attachment.name ?? 'attached file'}`).slice(0,60);
       await store.save();
@@ -209,12 +214,65 @@ export async function createService(options: { port?:number; token?:string; data
       const responseStartedAt = Date.now();
       let nextPrompt = prompt;
       let response:string;
+      let responseResourceIds:string[] = [];
       let imagePaths = attachedFiles.flatMap(file => file.imagePath ? [file.imagePath] : []);
-      while (true) {
+      let repairs = 0;
+      if (input.resourceRequest) {
+        guidedCreation.add(id);
+        const resource = await resources.generate(input.resourceRequest,{
+          threadId:chat.codexThreadId,selection:{model,effort},context:prompt,imagePaths,
+          checkActive:() => { if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.'); },
+        });
+        const request = chat.messages.at(-1);
+        if (request?.role === 'user') request.resourceIds.push(resource.id);
+        response = `Saved **${resource.title}**. Open it below or find it again in Resources.`;
+      } else while (true) {
         if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.');
-        const raw = await codex.run(chat.codexThreadId,nextPrompt,model,z.toJSONSchema(chatResponseSchema),effort,imagePaths);
-        const reply = chatResponseSchema.parse(JSON.parse(raw)).response;
-        if (reply.kind === 'message') { response = reply.content; break; }
+        const raw = await codex.run(chat.codexThreadId,nextPrompt,model,structuredOutputSchema(chatResponseSchema),effort,imagePaths);
+        let reply:z.infer<typeof chatResponseSchema>['response'];
+        try {
+          reply = chatResponseSchema.parse(JSON.parse(raw)).response;
+          if (reply.kind === 'resource') {
+            const generated = reply.generated;
+            const resourceRequest = createResourceSchema.parse({...reply.request,title:reply.request.title ?? undefined});
+            if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.');
+            const request = chat.messages.at(-1);
+            const linkedIds = new Set(chat.messages.slice(requestIndex).flatMap(message => message.resourceIds));
+            const existing = store.state.resources.find(resource => linkedIds.has(resource.id) && !resource.deletedAt && resource.kind === resourceRequest.kind);
+            const resource = existing ?? await resources.saveGenerated(resourceRequest,generated);
+            if (request?.role === 'user' && !request.resourceIds.includes(resource.id)) request.resourceIds.push(resource.id);
+            response = `Saved **${resource.title}**. Open it below or find it again in Resources.`;
+            break;
+          }
+        } catch (error) {
+          const invalidOutput = error instanceof ZodError || error instanceof SyntaxError || (error instanceof HttpError && error.status === 422);
+          if (!invalidOutput || repairs >= 1) throw error;
+          repairs++;
+          nextPrompt = `${chatResponseInstructions}\n\nYour output could not be saved. Correct this validation error and return the complete response again: ${errorMessage(error)}. Preserve the student's original request and chosen format.`;
+          continue;
+        }
+        if (reply.kind === 'message') {
+          const resourceIds = [...new Set(reply.resourceIds)];
+          if (resourceIds.some(resourceId => !store.state.resources.some(resource => resource.id === resourceId && !resource.deletedAt))) {
+            if (repairs >= 1) throw new HttpError(422,'A referenced resource is no longer available. Please try again.');
+            repairs++;
+            nextPrompt = `${chatResponseInstructions}\n\nA resource ID in your message does not exist or was deleted. Use only current saved resource IDs. Read centre_get_state if necessary, and return the corrected message.`;
+            continue;
+          }
+          if (commandKind.success) {
+            const linkedIds = new Set(chat.messages.slice(requestIndex).flatMap(message => message.resourceIds));
+            const saved = store.state.resources.some(resource => linkedIds.has(resource.id) && !resource.deletedAt && resource.kind === commandKind.data);
+            if (!saved) {
+              if (repairs >= 1) throw new HttpError(422,`The ${commandKind.data} was not created. Please try again.`);
+              repairs++;
+              nextPrompt = `${chatResponseInstructions}\n\nThe student explicitly requested a saved ${commandKind.data}. No matching resource has been saved in this response. Return the complete resource using response.kind="resource" now instead of an offer or claim that it is ready. Original student message: ${content}`;
+              continue;
+            }
+          }
+          const alreadyLinked = new Set(chat.messages.slice(requestIndex).flatMap(message => message.resourceIds));
+          responseResourceIds = resourceIds.filter(resourceId => !alreadyLinked.has(resourceId));
+          response = reply.content; break;
+        }
         if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.');
         const activityId = `question:${randomUUID()}`;
         appendActivity(chat,{id:activityId,kind:'tool',text:'Waiting for your answer',state:'working'});
@@ -229,11 +287,11 @@ export async function createService(options: { port?:number; token?:string; data
         }
       }
       finishActivity(chat);
-      chat.messages.push(messageSchema.parse({ id:randomUUID(), role:'assistant', content:response,responseDurationMs:Date.now() - responseStartedAt, createdAt:new Date().toISOString(), activity:chat.activity }));
+      chat.messages.push(messageSchema.parse({ id:randomUUID(), role:'assistant', content:response,resourceIds:responseResourceIds,responseDurationMs:Date.now() - responseStartedAt, createdAt:new Date().toISOString(), activity:chat.activity }));
       chat.activity = []; chat.updatedAt = new Date().toISOString(); return chat;
     } finally {
       try { questions.cancel(id); unsubscribeActivity?.(); finishActivity(chat); await store.save(); }
-      finally { busy.delete(id); cancelled.delete(id); }
+      finally { busy.delete(id); cancelled.delete(id); guidedCreation.delete(id); }
     }
   }
   async function studyContext(context: PageContext) {
@@ -241,7 +299,8 @@ export async function createService(options: { port?:number; token?:string; data
     const topic = store.state.topics.find(x => x.id === (context.topicId ?? resource?.topicId));
     const subject = store.state.subjects.find(x => x.id === (context.subjectId ?? topic?.subjectId ?? resource?.subjectId));
     const {nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty} = store.state.settings;
-    return { page:context, subject, topic, resource,learnerPreferences:{nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty},curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel), subjects:store.state.subjects, topics:store.state.topics, memories:store.state.memories.filter(x => !x.resolvedAt), assistantMemories:store.state.assistantMemories, upcomingWork:store.state.assignments.filter(x => !['completed','submitted'].includes(x.status)), studyEvents:store.state.events.filter(x => !x.completedAt), attempts:store.state.attempts.filter(x => x.resourceId === context.resourceId),availableConnectors:connectors.status().connectors,availableSkills:await listSkills(), date:new Date().toISOString() };
+    const savedResources = store.state.resources.filter(resource => !resource.deletedAt).map(({id,title,kind,subjectId,topicId,createdAt,completedAt}) => ({id,title,kind,subjectId,topicId,createdAt,completedAt}));
+    return { page:context, subject, topic, resource,savedResources,learnerPreferences:{nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty},curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel), subjects:store.state.subjects, topics:store.state.topics, memories:store.state.memories.filter(x => !x.resolvedAt), assistantMemories:store.state.assistantMemories, upcomingWork:store.state.assignments.filter(x => !['completed','submitted'].includes(x.status)), studyEvents:store.state.events.filter(x => !x.completedAt), attempts:store.state.attempts.filter(x => x.resourceId === context.resourceId),availableConnectors:connectors.status().connectors,availableSkills:await listSkills(), date:new Date().toISOString() };
   }
   async function route(method: string, path: string, value: unknown) {
     const organization = await chatOrganizationRoute(store,method,path,value);

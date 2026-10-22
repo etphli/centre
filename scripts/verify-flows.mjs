@@ -257,7 +257,9 @@ app.on('browser-window-created', (_event, createdWindow) => {
       await screenshot('models');
 
       await clickByText('nav[aria-label="Main"] button', 'Resources', 'Resources navigation');
-      await waitFor("document.querySelector('.subject-tile')", 'Resources subject list');
+      await waitFor("document.querySelector('.resource-library')", 'Saved resource library');
+      await clickSelector('.library-subjects summary', 'browse subjects');
+      await waitFor("document.querySelector('.library-subjects[open] .subject-tile')", 'Resources subject list');
       await clickByText('.subject-tile', 'Synthetic Mathematics', 'synthetic subject');
       await waitFor("document.querySelector('.topic-row')", 'subject topic list');
       await clickByText('.topic-row', 'Linear equations', 'synthetic topic');

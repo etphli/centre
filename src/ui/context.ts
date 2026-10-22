@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ModelSelection, PageContext, Resource, Snapshot } from '../../shared/schema';
+import type { CreateResource, ModelSelection, PageContext, Resource, Snapshot } from '../../shared/schema';
 import type { GenerateRequest, Navigate, Route, ToastInput } from './types';
 
 export type TurnStatus = 'working' | 'stopping' | 'error';
@@ -9,6 +9,7 @@ export interface Turn {
   chatId: string | null;
   content: string;
   attachmentIds: string[];
+  resourceRequest?: CreateResource;
   context: PageContext;
   status: TurnStatus;
   startedAt: number;
@@ -36,13 +37,13 @@ export interface CentreActions {
   openFeedback: (resource: Resource, questionIds?: string[]) => void;
   openSearch: () => void;
   /** Sends a chat message. chatId null starts a new chat. Resolves with the chat id used. */
-  send: (content: string, context: PageContext, chatId: string | null, onCreated?: (chatId: string) => void, attachmentIds?:string[]) => Promise<string | null>;
+  send: (content: string, context: PageContext, chatId: string | null, onCreated?: (chatId: string) => void, attachmentIds?:string[], resourceRequest?:CreateResource) => Promise<string | null>;
   cancel: (chatId: string) => Promise<void>;
   /**
    * Sends where the user already is, without leaving the page: into the open chat on a chat page,
    * the side panel on other pages (opening it), or a new full chat from home.
    */
-  askHere: (content: string, context: PageContext,attachmentIds?:string[]) => void;
+  askHere: (content: string, context: PageContext,attachmentIds?:string[], resourceRequest?:CreateResource) => void;
   sideChat: SideChatState;
   /** Opens the side panel. Pass a chat id to show it, null for a new chat, or nothing to keep the current one. */
   openSideChat: (chatId?: string | null) => void;

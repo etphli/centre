@@ -24,6 +24,8 @@ Google sign-in stores the selected account on this computer. Centre has no cloud
 
 The model catalog does not prove that an account can use each model. A completed turn is the check for access. The Codex app-server uses the existing CLI sign-in. Centre disables shell, terminal, and unrelated configured integrations, then exposes only its validated app tools.
 
+Guided resource submissions send a validated `resourceRequest` alongside the chat message and attachments. `Resources.generate` uses that chat's model and thread to request structured educational content, validates it, and saves it directly. Invalid generated output receives one repair attempt; transport and disk errors are not retried. The normal chat save tool is blocked during guided generation to prevent duplicate saves. Cancellation is checked before each turn and before saving. The renderer retains the structured request for a failed turn's retry. Ordinary chat can also return `response.kind="resource"` with a creation request and complete generated content. The service validates and saves that result, attaches it to the conversation, and repairs invalid output once. This route supports every resource kind, including `/diagram`, without requiring a save-tool call. `structuredOutputSchema` converts Zod's discriminated unions to the `anyOf` syntax accepted by strict model output, while runtime validation retains the original schema.
+
 ## Curriculum and skills
 
 The learner profile defaults to Year 9 NSW. If a subject name contains a year from 7 to 12, that year overrides the profile year for the request. Through Year 10, Centre retrieves official NESA curriculum pages for supported Mathematics, English, and Science syllabuses in `server/curriculum.ts`. It caches successful reads in memory for 15 minutes. The assistant must cite fetched official evidence for exact outcomes or dates and say when alignment is unverified. It does not infer school sequencing or Core and Path choices.
@@ -80,6 +82,8 @@ Review notes preserve the student's description of difficult questions. Quiz mar
 ## Questions and response activity
 
 Chat completions use `server/chat-response.ts` to distinguish messages from questions. A structured question opens the popup even when the model does not call `centre_ask_question`. The service keeps the Centre response open while the student answers, then starts a continuation turn using the returned answer. The question tool remains available and suspends its current Codex turn until answered.
+
+Message responses can include `resourceIds` to display existing work. Chat context supplies saved resource summaries, and the service checks every referenced ID against visible resources before attaching it to the assistant message. IDs already shown during that turn are omitted to avoid duplicate cards. Showing a saved resource does not create another copy.
 
 Both routes create in-memory requests in `server/questions.ts`. The authenticated state response exposes pending requests to the renderer. The popup submits validated answers to `/api/questions/:id/answer`. The service saves the answer in chat history before continuing. Cancellation and shutdown clear both request types. Renderer reloads recover pending questions from the service; restarting the service clears them. Model execution timeouts do not run while a structured question waits, and the question tool pauses its turn timer.
 

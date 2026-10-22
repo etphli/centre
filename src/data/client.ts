@@ -52,7 +52,7 @@ export const api = {
   createChat: (modelSelection:ModelSelection|null = null) => request('POST', '/chats', chatSchema, {modelSelection}),
   selectChatModel: (id:string,selection:ModelSelection) => request('PATCH',`/chats/${encodeURIComponent(id)}/model`,chatSchema,modelSelectionSchema.parse(selection)),
   organizeChat: (chatId: string, input: { pinned?: boolean; folderId?: string | null; beforeChatId?: string | null }) => request('PATCH', `/chats/${encodeURIComponent(chatId)}/organize`, chatSchema, input),
-  sendMessage: (chatId: string, content: string, context: PageContext, attachmentIds: string[] = []) => request('POST', `/chats/${encodeURIComponent(chatId)}/messages`, chatSchema, { content, context, attachmentIds }),
+  sendMessage: (chatId: string, content: string, context: PageContext, attachmentIds: string[] = [], resourceRequest?:CreateResource) => request('POST', `/chats/${encodeURIComponent(chatId)}/messages`, chatSchema, { content, context, attachmentIds, resourceRequest }),
   uploadAttachment: (file: AttachmentUploadInput): Promise<Attachment> => request('POST','/attachments',attachmentSchema,file),
   getAttachment: (id: string): Promise<Attachment> => request('GET',`/attachments/${encodeURIComponent(id)}`,attachmentSchema),
   answerQuestion: (id:string,answers:Record<string,string>) => request('POST',`/questions/${encodeURIComponent(id)}/answer`,okSchema,{answers}),

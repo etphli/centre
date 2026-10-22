@@ -153,9 +153,15 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
           `Create and save the full ${noun}.`,
         ].filter(Boolean).join('\n\n');
     const chatContext = personal ? {page:'personal-learning'} : { ...routeContext(route, state), subjectId, ...(resolvedTopic ? { topicId: resolvedTopic } : {}) };
+    const base = { subjectId:personal ? null : subjectId,topicId:resolvedTopic,instructions:notes,difficulty,...(title.trim() ? {title:title.trim()} : {}) };
+    const resourceRequest:CreateResource|undefined = kind === 'plan' ? undefined
+      : kind === 'quiz' ? {...base,kind,questionCount:count,questionTypes}
+      : kind === 'test' ? {...base,kind,testLength:testMode === 'time' ? {mode:'time',minutes:duration} : {mode:'questions',questionCount:count},questionTypes}
+      : kind === 'flashcards' ? {...base,kind,questionCount:autoCount ? 'auto' : count}
+      : {...base,kind};
     onClose();
     // Stays on the current page: the request goes to the open chat, the side chat, or a new chat from home.
-    askHere(message, chatContext,request.attachmentIds);
+    askHere(message, chatContext,request.attachmentIds,resourceRequest);
   }
 
   if (isPlan && state.subjects.length === 0) {

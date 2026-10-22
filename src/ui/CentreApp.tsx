@@ -190,14 +190,14 @@ export default function CentreApp() {
     }
   }, [notify, quietRefresh]);
 
-  const send = useCallback(async (content: string, context: PageContext, chatId: string | null, onCreated?: (chatId: string) => void, attachmentIds:string[] = []): Promise<string | null> => {
+  const send = useCallback(async (content: string, context: PageContext, chatId: string | null, onCreated?: (chatId: string) => void, attachmentIds:string[] = [], resourceRequest?:CreateResource): Promise<string | null> => {
     if (inFlight.current.has(chatId) || state?.activeResponses.some(response => response.chatId === chatId)) return chatId;
     inFlight.current.add(chatId);
     seq.current += 1;
     const id = seq.current;
     const update = (patch: Partial<Turn>) => setTurns((list) => list.map((turn) => (turn.id === id ? { ...turn, ...patch } : turn)));
     const remove = () => setTurns((list) => list.filter((turn) => turn.id !== id));
-    setTurns((list) => [...list.filter((turn) => turn.chatId !== chatId), { id, chatId, content, context, attachmentIds, status: 'working', startedAt: Date.now() }]);
+    setTurns((list) => [...list.filter((turn) => turn.chatId !== chatId), { id, chatId, content, context, attachmentIds, resourceRequest, status: 'working', startedAt: Date.now() }]);
     let target = chatId;
     try {
       if (!target) {
@@ -210,7 +210,7 @@ export default function CentreApp() {
         await quietRefresh();
         onCreated?.(target);
       }
-      await api.sendMessage(target, content, context,attachmentIds);
+      await api.sendMessage(target, content, context,attachmentIds,resourceRequest);
       await quietRefresh();
       remove();
     } catch (failure) {
@@ -251,21 +251,23 @@ export default function CentreApp() {
   const openSideChat = useCallback((chatId?: string | null) => setSideChat((current) => ({ open: true, chatId: chatId === undefined ? current.chatId : chatId })), []);
   const closeSideChat = useCallback(() => setSideChat((current) => ({ ...current, open: false })), []);
 
-  const askHere = useCallback((content: string, context: PageContext,attachmentIds:string[] = []) => {
+  const askHere = useCallback((content: string, context: PageContext,attachmentIds:string[] = [], resourceRequest?:CreateResource) => {
     if (route.kind === 'chat') {
-      void send(content, context, route.chatId,undefined,attachmentIds);
+      const busy = inFlight.current.has(route.chatId) || turns.some(turn => turn.chatId === route.chatId && turn.status !== 'error');
+      if (busy) void send(content,context,null,chatId => navigate({kind:'chat',chatId}),attachmentIds,resourceRequest);
+      else void send(content, context, route.chatId,undefined,attachmentIds,resourceRequest);
       return;
     }
     if (!dockedRoutes.includes(route.kind)) {
-      void send(content, context, null, (chatId) => navigate({ kind: 'chat', chatId }),attachmentIds);
+      void send(content, context, null, (chatId) => navigate({ kind: 'chat', chatId }),attachmentIds,resourceRequest);
       return;
     }
     // Start a fresh chat if the panel's chat was deleted, or if a reply already running there would block this one.
     const exists = state?.chats.some((chat) => chat.id === sideChat.chatId) ?? false;
-    const busy = turns.some((turn) => turn.chatId === sideChat.chatId && turn.status !== 'error');
+    const busy = inFlight.current.has(sideChat.chatId) || turns.some((turn) => turn.chatId === sideChat.chatId && turn.status !== 'error');
     const chatId = exists && !busy ? sideChat.chatId : null;
     setSideChat({ open: true, chatId });
-    void send(content, context, chatId, (created) => setSideChat((current) => (current.chatId === null ? { ...current, chatId: created } : current)),attachmentIds);
+    void send(content, context, chatId, (created) => setSideChat((current) => (current.chatId === null ? { ...current, chatId: created } : current)),attachmentIds,resourceRequest);
   }, [route, state, send, navigate, turns, sideChat.chatId]);
 
   const generate = useCallback(async (input: CreateResource): Promise<Resource | undefined> => {

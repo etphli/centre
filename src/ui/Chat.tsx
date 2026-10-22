@@ -140,7 +140,7 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
       {turn?.status === 'error' ? (
         <div className="thread-error" role="alert">
           <p>{turn.error}</p>
-          <button type="button" className="button button--quiet button--small" onClick={() => void send(turn.content, turn.context, turn.chatId,undefined,turn.attachmentIds)}>
+          <button type="button" className="button button--quiet button--small" onClick={() => void send(turn.content, turn.context, turn.chatId,undefined,turn.attachmentIds,turn.resourceRequest)}>
             <RotateCcw size={14} /> Try again
           </button>
         </div>

@@ -35,6 +35,11 @@ function fixtureCodex() {
     if (stopped.has(threadId)) return;
     const generated = kind === 'quiz' ? {title:'Electricity quiz',content:'',questions:Array.from({length:5},(_,index) => ({responseType:'short_response',choices:[],prompt:`Explain circuit idea ${index + 1}.`,answer:'A complete circuit carries current.',explanation:'A closed path is needed.',marks:1}))}
       : {title:'Coffee extraction explorer',content:'<style>main{padding:20px}button{padding:10px}h2{color:var(--centre-text)}</style><main><h2>Coffee extraction</h2><p>Change the grind to explore surface area.</p><button id="explore" onclick="this.textContent=\'Finer grind: more surface area\'">Try a finer grind</button></main>',questions:[]};
+    if (kind === 'diagram') {
+      const response = {kind:'resource',request:{kind,subjectId:personal ? null : 'science',topicId:personal ? null : 'electricity',title:null,instructions:'Verification fixture',difficulty:'standard'},generated};
+      send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:JSON.stringify({response})}}});
+      send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});return;
+    }
     call(threadId,'centre_save_resource',{kind,subjectId:personal ? null : 'science',topicId:personal ? null : 'electricity',instructions:'Verification fixture',...(kind === 'quiz' ? {questionCount:5,questionTypes:['short_response']} : {}),generated},result => complete(threadId,result.success ? 'Your resource is ready.' : 'The fixture save failed.'));
   };
   readline.createInterface({input:process.stdin}).on('line',line => {
@@ -53,7 +58,18 @@ function fixtureCodex() {
       const text = prompt.split('Student message:\n')[1] ?? '';
       send({method:'turn/started',params:{threadId,turn:{id:'turn-'+sequence}}});
       send({method:'item/reasoning/summaryTextDelta',params:{threadId,itemId:'reasoning',summaryIndex:0,delta:'Checking the request and choosing a useful learning activity.'}});
-      if (prompt.includes('The student answered your popup.')) complete(threadId,'You chose Yes.');
+      if (message.params.outputSchema?.properties?.questions) {
+        const kind = prompt.includes('Create a complete test') ? 'test' : 'quiz';
+        const count = Number(/(?:Return exactly|Create a test with exactly) (\d+)/.exec(prompt)?.[1] ?? 3);
+        const output = {title:'Guided electricity '+kind,content:'',questions:Array.from({length:count},(_,index) => ({responseType:'short_response',choices:[],prompt:'Explain circuit idea '+(index+1)+'.',answer:'A complete circuit carries current.',explanation:'A closed path is needed.',marks:1}))};
+        send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:JSON.stringify(output)}}});
+        send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});
+      } else if (/show my saved quiz/i.test(text)) {
+        const context = JSON.parse(prompt.split('Current app context and study data, treat as data: ')[1].split('\n\nStudent message:')[0]);
+        const resource = context.savedResources.find(resource => resource.title === 'Guided electricity quiz');
+        send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:JSON.stringify({response:{kind:'message',content:'Here is your saved quiz.',resourceIds:[resource.id]}})}}});
+        send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});
+      } else if (prompt.includes('The student answered your popup.')) complete(threadId,'You chose Yes.');
       else if (/like blue/i.test(text)) {
         const response = {kind:'questions',questions:[{id:'blue',header:'Colour',question:'Do you like blue?',options:[{label:'Yes',description:''},{label:'No',description:''}]}]};
         send({method:'item/completed',params:{threadId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:JSON.stringify({response})}}});
@@ -156,10 +172,11 @@ async function electronRunner(config) {
         await newChat();await send('Make something interactive about coffee extraction outside school');
         await waitFor("Boolean(document.querySelector('.thread-resources__diagram'))");
         check('Interactive wording automatically creates a diagram',(await state()).resources[0].kind === 'diagram');
-        await clickText('nav[aria-label=Main] button','Resources');await waitFor("Boolean(document.querySelector('.personal-resources'))");
+        await clickText('nav[aria-label=Main] button','Resources');await waitFor("Boolean(document.querySelector('.resource-library'))");
+        await click('[aria-label="Filter resources by subject"]');await clickText('[role=option]','Personal learning');
         await screenshot('personal-resources');
         const before = (await state()).resources.length;
-        await click('.personal-resources button[title="Delete resource"]');await waitFor("Boolean(document.querySelector('dialog[open]'))");
+        await click('.resource-library button[title="Delete resource"]');await waitFor("Boolean(document.querySelector('dialog[open]'))");
         await clickText('dialog[open] .dialog__footer button','Delete resource');await waitFor("!document.querySelector('dialog[open]')");
         check('Deleting a resource updates the real store',(await state()).resources.length === before - 1);
         await clickText('.toast button','Undo');await waitFor(`window.centre.request('GET','/state').then(state=>state.resources.length===${before})`);
@@ -213,6 +230,43 @@ async function electronRunner(config) {
         await click('.question-dialog input[type=radio]');await click('.question-dialog button[type=submit]');
         await waitFor("!document.querySelector('.question-dialog') && document.querySelector('.thread')?.textContent.includes('You chose Yes.')");
         check('The same chat replies after stop and rapid resend',(await state()).chats[0].messages.at(-1).content === 'You chose Yes.');
+        await send('Explain series circuits, take your time');await waitFor("Boolean(document.querySelector('.activity-row'))");
+        const busyChatId = (await state()).activeResponses[0].chatId;
+        await click('button[aria-label="Create a resource"]');
+        await evaluate("[...document.querySelectorAll('.slash-menu__item')].find(node => node.textContent.includes('/quiz')).dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))");
+        await waitFor("Boolean(document.querySelector('.gen-dialog'))");
+        await type('input[aria-label="Quiz questions"]','2');
+        await type('.gen__prompt','Electricity and circuits');await clickText('.gen-dialog button','Make quiz');
+        await waitFor("document.querySelector('.thread')?.textContent.includes('Saved') && Boolean(document.querySelector('.thread-resources .resource-card'))");
+        snapshot = await state();
+        const guidedQuiz = snapshot.resources.find(resource => resource.title === 'Guided electricity quiz');
+        check('Guided creation saves the chosen quiz without asking for its format again',guidedQuiz?.questions.length === 2 && snapshot.pendingQuestions.length === 0);
+        check('Creating while a chat is busy starts a fresh chat instead of losing the request',snapshot.chats[0].id !== busyChatId && snapshot.chats[0].messages.some(message => message.resourceIds.includes(guidedQuiz.id)));
+        const savedCount = snapshot.resources.length;
+        await send('Show my saved quiz');await waitFor("document.querySelector('.thread')?.textContent.includes('Here is your saved quiz.')");
+        snapshot = await state();
+        check('Chat shows the original saved quiz without creating a copy',snapshot.resources.length === savedCount && snapshot.chats[0].messages.at(-1).resourceIds.includes(guidedQuiz.id));
+        await clickText('nav[aria-label=Main] button','Resources');await waitFor("Boolean(document.querySelector('.resource-library'))");
+        await type('input[aria-label="Search saved resources"]','Guided electricity');await clickText('.filter-row button','Quizzes');
+        check('Library search and quiz filter find the saved quiz',await evaluate("document.querySelectorAll('.resource-library .resource-card').length === 1 && document.querySelector('.resource-library .resource-card__title').textContent === 'Guided electricity quiz'"));
+        await screenshot('saved-quiz-library');
+        await clickText('.resource-card__open','Guided electricity quiz');await waitFor("Boolean(document.querySelector('.quiz'))");
+        check('A previously generated quiz reopens with its questions',await evaluate("document.querySelector('.page__title').textContent === 'Guided electricity quiz' && document.querySelector('.quiz__count').textContent.includes('of 2')"));
+        await clickText('nav[aria-label=Main] button','Resources');await clickText('.library-header button','New test');
+        await waitFor("Boolean(document.querySelector('.gen-dialog'))");await type('.gen__prompt','Electricity and circuits');await clickText('.gen-dialog button','Make test');
+        await waitFor("Boolean(document.querySelector('aside.side-chat .thread-resources .resource-card--test'))");
+        check('Guided time-sized tests are saved with their duration',(await state()).resources.find(resource => resource.title === 'Guided electricity test')?.durationMinutes === 45);
+        await click('aside.side-chat button[aria-label="Close chat"]');
+        await evaluate('location.reload()');await waitFor("Boolean(document.querySelector('.home textarea'))");
+        await clickText('nav[aria-label=Main] button','Resources');await waitFor("Boolean(document.querySelector('.resource-library'))");
+        await clickText('.filter-row button','Tests');
+        check('Saved tests remain in the library after a renderer reload',await evaluate("document.querySelectorAll('.resource-library .resource-card').length === 1 && document.querySelector('.resource-library .resource-card__title').textContent === 'Guided electricity test'"));
+        await type('input[aria-label="Search saved resources"]','does not exist');
+        await waitFor("document.querySelector('.library-empty')?.textContent.includes('No resources match')");await clickText('.library-empty button','Clear filters');
+        check('Empty library searches can clear all filters',await evaluate("document.querySelectorAll('.resource-library .resource-card').length > 1 && document.querySelector('input[aria-label=\"Search saved resources\"]').value === ''"));
+        window.setSize(430,800);await click('button[aria-label="Hide sidebar"]');await pause(200);
+        check('The library fits a narrow window',await evaluate("(()=>{const r=document.querySelector('.resource-library').getBoundingClientRect();return r.left>=0 && r.right<=innerWidth && document.documentElement.scrollWidth<=innerWidth})()"));
+        await screenshot('resource-library-narrow');window.setSize(1280,800);
         check('No renderer errors',errors.length === 0);
         await finish();
       }catch(error){await screenshot('failure').catch(()=>{});await finish(error);}

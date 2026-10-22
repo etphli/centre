@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp,rm } from 'node:fs/promises';
+import { mkdir,mkdtemp,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resourceSchema,snapshotSchema } from '../shared/schema';
@@ -8,6 +8,25 @@ import { createService } from './index';
 import { Store } from './store';
 import { Resources } from './resources';
 import { Codex } from './codex';
+
+test('a failed disk save leaves no resource behind and a retry saves exactly one',async () => {
+  const directory = await mkdtemp(join(tmpdir(),'centre-resource-disk-failure-'));
+  const store = await Store.open(directory);
+  const codex = new Codex(directory,[],async () => undefined);
+  const resources = new Resources(store,codex);
+  const input = {kind:'notes',subjectId:null,topicId:null,instructions:'',difficulty:'standard'} as const;
+  const generated = {title:'Circuits',content:'A closed circuit carries current.',questions:[]};
+  try {
+    await store.save();
+    await mkdir(join(directory,'state.json.tmp'));
+    await assert.rejects(resources.saveGenerated(input,generated),{code:'EISDIR'});
+    assert.equal(store.state.resources.length,0);
+    assert.equal((await Store.open(directory)).state.resources.length,0);
+    await rm(join(directory,'state.json.tmp'),{recursive:true});
+    await resources.saveGenerated(input,generated);
+    assert.equal((await Store.open(directory)).state.resources.length,1);
+  } finally { await codex.close(); await rm(directory,{recursive:true,force:true}); }
+});
 
 test('personal resources save, export, move into subjects and delete with recoverable history',async () => {
   const directory = await mkdtemp(join(tmpdir(),'centre-resource-lifecycle-'));

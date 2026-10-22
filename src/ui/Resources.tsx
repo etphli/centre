@@ -1,4 +1,4 @@
-import { ChevronRight, Link2, Plus, RefreshCw } from 'lucide-react';
+import { ChevronRight, Link2, Plus, RefreshCw, Search } from 'lucide-react';
 import { useId, useMemo, useState, type FormEvent } from 'react';
 import { api } from '../data/client';
 import type { ResourceKind, Snapshot, Subject } from '../../shared/schema';
@@ -6,6 +6,8 @@ import { useApp } from './context';
 import { addDays, formatTime, plural, relativeDay, timeAgo, todayKey } from './format';
 import { kindIcons, kindLabels, resourceKinds, subjectIcon, subjectTint } from './icons';
 import { ResourceCard, ResourcePreviewDialog } from './ResourcePreview';
+import { Select } from './Select';
+import './resource-library.css';
 
 export function SubjectBadge({ subject, size = 'md' }: { subject: Subject | undefined; size?: 'sm' | 'md' | 'lg' }) {
   const Icon = subject ? subjectIcon(subject) : kindIcons.notes;
@@ -53,19 +55,48 @@ export function OrganatoEmpty({ state }: { state: Snapshot }) {
 }
 
 export function SubjectsPage() {
-  const { state, navigate } = useApp();
+  const { state, navigate, openGenerate } = useApp();
   const [preview,setPreview] = useState<string|null>(null);
-  const personal = state.resources.filter(resource => resource.subjectId === null);
+  const [query,setQuery] = useState('');
+  const [kind,setKind] = useState<ResourceKind|'all'>('all');
+  const [location,setLocation] = useState('all');
+  const subjects = new Map(state.subjects.map(subject => [subject.id,subject.name]));
+  const topics = new Map(state.topics.map(topic => [topic.id,topic.name]));
+  const search = query.trim().toLocaleLowerCase();
+  const shown = state.resources.filter(resource =>
+    (kind === 'all' || resource.kind === kind) &&
+    (location === 'all' || (location === 'personal' ? resource.subjectId === null : resource.subjectId === location)) &&
+    (!search || [resource.title,subjects.get(resource.subjectId ?? ''),topics.get(resource.topicId ?? ''),kindLabels[resource.kind]].some(value => value?.toLocaleLowerCase().includes(search))),
+  ).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+  const filtered = Boolean(search || kind !== 'all' || location !== 'all');
   const previewing = state.resources.find(resource => resource.id === preview);
   return (
     <div className="page">
-      <header className="page__header">
-        <h1 className="page__title">Resources</h1>
-        <p className="page__lede">Pick a subject to see its topics and everything you&rsquo;ve made for them.</p>
+      <header className="page__header library-header">
+        <div><h1 className="page__title">Resources</h1>
+        <p className="page__lede">Reopen quizzes, tests and everything you&rsquo;ve made. Your saved work stays here.</p></div>
+        <div className="library-header__actions"><button type="button" className="button button--primary button--small" onClick={() => openGenerate({kind:'quiz'})}><Plus size={14} aria-hidden /> New quiz</button><button type="button" className="button button--quiet button--small" onClick={() => openGenerate({kind:'test'})}>New test</button></div>
       </header>
-      {state.subjects.length === 0 && personal.length === 0 ? (
-        <OrganatoEmpty state={state} />
-      ) : (
+      <section aria-label="Saved resources" className="resource-library">
+        <div className="library-tools">
+          <label className="library-search"><Search size={15} aria-hidden /><input type="search" aria-label="Search saved resources" placeholder="Search by title, subject or topic" value={query} onChange={event => setQuery(event.target.value)} /></label>
+          <Select label="Filter resources by subject" value={location} onChange={setLocation} options={[{value:'all',label:'All subjects'},{value:'personal',label:'Personal learning'},...state.subjects.map(subject => ({value:subject.id,label:subject.name}))]} />
+        </div>
+        <div className="filter-row" role="group" aria-label="Filter saved resources by kind">
+          {(['all',...resourceKinds] as const).map(value => <button type="button" key={value} className={`chip${kind === value ? ' is-selected' : ''}`} aria-pressed={kind === value} onClick={() => setKind(value)}>{value === 'all' ? 'All' : value === 'quiz' ? 'Quizzes' : value === 'test' ? 'Tests' : kindLabels[value]}</button>)}
+        </div>
+        <p className="library-count" role="status">{plural(shown.length,'saved resource')}{filtered ? ` of ${state.resources.length}` : ''}{shown.length ? ', newest first' : ''}</p>
+        {shown.length ? <ul className="resource-grid">{shown.map(resource => <li key={resource.id}>
+          <ResourceCard resource={resource} onPreview={() => setPreview(resource.id)} />
+          <p className="library-location">{resource.subjectId === null ? 'Personal learning' : [subjects.get(resource.subjectId) ?? 'Subject',topics.get(resource.topicId ?? '')].filter(Boolean).join(' / ')}</p>
+        </li>)}</ul> : <div className="library-empty">
+          <h2>{filtered ? 'No resources match' : 'Your saved work starts here'}</h2>
+          <p>{filtered ? 'Try a different search or clear the filters.' : 'Make a quiz or test above. Once saved, you can open it here any time.'}</p>
+          {filtered ? <button type="button" className="button button--small" onClick={() => {setQuery('');setKind('all');setLocation('all');}}>Clear filters</button> : null}
+        </div>}
+      </section>
+      {state.subjects.length ? <details className="library-subjects" open={state.resources.length === 0}>
+        <summary>Browse by subject <span>{plural(state.subjects.length,'subject')}</span></summary>
         <ul className="subject-grid">
           {state.subjects.map((subject) => {
             const topics = state.topics.filter((topic) => topic.subjectId === subject.id).length;
@@ -87,8 +118,7 @@ export function SubjectsPage() {
             );
           })}
         </ul>
-      )}
-      {personal.length ? <section className="personal-resources" aria-labelledby="personal-resources-heading"><h2 id="personal-resources-heading">Personal learning</h2><p className="muted">Resources outside your school subjects.</p><ul className="resource-grid">{personal.map(resource => <li key={resource.id}><ResourceCard resource={resource} onPreview={() => setPreview(resource.id)} /></li>)}</ul></section> : null}
+      </details> : null}
       {previewing ? <ResourcePreviewDialog resource={previewing} onClose={() => setPreview(null)} /> : null}
     </div>
   );
