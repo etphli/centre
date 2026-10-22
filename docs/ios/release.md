@@ -48,7 +48,7 @@ Cloudflare access is needed to create bindings, set secrets, deploy, and use an 
 
 The app target and unsigned Release build are prepared. Remaining distribution setup is:
 
-- An Apple Developer Program team with signing/provisioning access and an App Store Connect application.
+- An Apple Developer Program team with signing/provisioning access and an App Store Connect application. [Apple lists 99 USD per membership year](https://developer.apple.com/programs/enroll/), with regional pricing and eligible fee waivers. No membership purchase has been made by this work.
 - Actual iOS Google client settings and approved Centre Cloud configuration.
 - Review metadata, a real privacy-policy URL, export-compliance answers, age rating, and access for Apple's reviewers.
 - A decision on the applicable [login-service requirements](https://developer.apple.com/app-store/review/guidelines/#login-services). This private allowlisted app does not assume a Google-only public release is exempt from guideline 4.8. Resolve that before external submission.

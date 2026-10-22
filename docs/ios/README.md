@@ -31,7 +31,7 @@ One atomic replica file belongs to one HTTPS server and workspace. It holds the 
 
 `CloudRecord.version` is transport CAS. Domain `data.revision` remains separate. The optional `createdCursor` is retained through pending edits. Equal-timestamp messages sort by its arbitrary-precision numeric value; records without it retain their tie-group positions.
 
-A sent mutation keeps the same UUID and body through lost acknowledgements. Later edits become successors whose expected version changes only after acknowledgement. A conflict preserves both sides until an explicit choice. No timestamps choose the winner.
+A sent mutation keeps the same UUID and body through lost acknowledgements. Later edits become successors whose expected version changes only after acknowledgement. A conflict preserves both sides until an explicit choice. Keeping the iPhone copy advances the domain revision above both copies and uses the cloud transport version separately. Keeping an owned running timer also preserves its lease, state, and segments. Choosing cloud data still imports running timers paused at their checkpoint, and an ordinary restart still recovers them paused. Marked attempts are immutable and only offer the cloud copy. No timestamps choose the winner.
 
 Calendar writes use a separate journal. An uncertain sent operation only polls its receipt. An authenticated `operation_not_found` enables **Try saved change**, which resends the exact original method, route, operation ID, and body. It never creates new preconditions or silently closes the operation. The hosted ledger prevents concurrent copies of that same request from repeating an upstream write. Existing `pending` or `unknown` receipts require explicit reconciliation.
 
@@ -39,7 +39,7 @@ Sign-out blocks producers, cancels scheduled sync, invalidates retained actors, 
 
 ## Contracts and integration dependencies
 
-[contract.json](contract.json) records the exact API and owner boundaries. Required companions are Centre cloud feature 3 and the hosted connector in calendar PR 17. This branch does not create another database, auth service, Organato connector, or Organato repository change.
+[contract.json](contract.json) records the exact API and owner boundaries. Required companions are [Centre cloud PR 19](https://github.com/etphli/centre/pull/19) and the hosted connector in [calendar PR 17](https://github.com/etphli/centre/pull/17). This branch does not create another database, auth service, Organato connector, or Organato repository change.
 
 Canonical sources are:
 
@@ -47,7 +47,7 @@ Canonical sources are:
 | --- | --- |
 | Study Log | Main `9064c7f`, `shared/study-log.ts`, `shared/study-log-sync.ts`, and copied fixture `34f6d14a…` |
 | Practice | `8095205` and `9ec445d`, included `shared/practice.ts`; portable question concepts and `practiceFocus` added from PR 16 |
-| Cloud authority | `65ba298`, `cloud/worker.ts`; atomic `putMessage`, `commit`, `getPracticeAttempt`, and `resolveReview` |
+| Cloud authority | `65ba298` plus retained-history fix `b48b673`, `cloud/worker.ts`; atomic `putMessage`, `commit`, `getPracticeAttempt`, and `resolveReview` |
 | Calendar | PR 17 portable `5d3946d`, `603ec3b`, `2d96ba0`; hosted `f4b3131`, `bf25350`, `7e357ac`, `b1a1394` |
 | Chat ancestry | `98d76b0`, exact portable chat/message projections; feature 10 PR 14 |
 | Checklist progress | PR 15 `shared/checklist-progress.ts`; deterministic resource/document UUID v8; retained without script execution |
@@ -58,7 +58,7 @@ The hosted AI source is `cloud-ai/index.ts` and `cloud-ai/grade.ts`. It mounts a
 
 The fixed provider model is [`@cf/meta/llama-3.1-8b-instruct-fp8`](https://developers.cloudflare.com/workers-ai/models/llama-3.1-8b-instruct-fp8/). It is a small hosted Llama tutor, with different quality and capabilities from desktop Codex. It does not run desktop tools or arbitrary actions. A Codex or ChatGPT subscription does not authorize this API path.
 
-The server loads bounded saved messages, accepts no model or provider URL from clients, limits admissions, and stores durable results before assistant publication or grading commits. Provider timeouts and expired computation leases never silently restart inference. Retries can finish a saved result or prepared atomic commit. Written grading uses canonical validation and evidence transitions; objective questions are graded deterministically.
+The server loads bounded saved messages, accepts no model or provider URL from clients, limits admissions, and stores durable results before assistant publication or grading commits. Provider timeouts and expired computation leases never silently restart inference. Retries can finish a saved result or prepared atomic commit. Written grading uses canonical validation and evidence transitions; objective questions are graded deterministically. Saved question concepts remain authoritative. The 500-record Learning Need cap includes transport tombstones: an existing concept can still evolve at the cap, while a new concept is skipped without blocking the attempt.
 
 Chat limits are 20 admissions per workspace per UTC day, 120 globally, and 2/16 active. Chat inputs are at most 8,000 characters plus 20 saved messages bounded to 8,000 history characters; output is capped at 1,024 tokens. Grading limits are 10 admissions per workspace per day, 60 globally, and 2/8 active, with 30 questions and 20,000 quiz/answer characters. Written output is capped at 4,096 tokens. Provider waits end after 45 seconds.
 
@@ -78,4 +78,4 @@ npx tsx scripts/verify-mobile-cloud.mjs --database-checkout /path/to/database-ow
 
 The integration script executes the real central auth/router/entity code, AI handlers, and hosted Organato module against isolated SQLite. Identity signing keys, inference, and upstream responses are explicitly simulated. It asserts workspace isolation, one-use pairing, exactly-once grading, encrypted connector credentials, calendar ambiguity rules, and inherited attachment access. It never contacts production or the desktop service. It is not live Workers AI proof.
 
-The local machine has Swift and XcodeGen but no Xcode application or T3 iOS simulator. The standalone `CentreCoreVerify` executable exercises real filesystem reopen, stable lost-ACK retries, conflicts, timer recovery, and DST. XCTest and actual iOS UI proof come from the PR's macOS CI. See the evidence README for actual results and outstanding gates.
+The local machine has Swift and XcodeGen but no Xcode application or T3 iOS simulator. The standalone `CentreCoreVerify` executable exercises real filesystem reopen, stable lost-ACK retries, conflicts, timer recovery, and DST. XCTest and actual iOS UI proof come from the PR's macOS CI. See the [evidence record](../evidence/ios/README.md) for actual results and outstanding gates.

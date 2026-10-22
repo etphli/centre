@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "owner": "ios",
-  "status": "implemented-draft-verification",
+  "status": "implemented-native-verification",
   "baseCommit": "a9634ae467ee127468daa6813a5e745d1a8bd8a4",
   "databaseDirection": "Latest user steering 2026-10-22 supersedes original shared Organato database instruction: database owner building independent Centre D1 and Worker. Keep Organato connector for subjects/items/calendar only. No shared Organato DB routes will be added by iOS.",
   "architecture": "Native iOS-only SwiftUI app, iOS 17+, Swift package CentreCore for Codable domain, atomic workspace-scoped disk cache, durable idempotent pending changes, optimistic concurrency and conflict handling. URLSession HTTPS calls to database-owner Worker only. Keychain credentials. No local desktop endpoint/runtime requirement.",
@@ -11,8 +11,8 @@
   "hostedAI": {
     "owner": "ios",
     "module": "cloud-ai/index.ts#handleAiRequest(request,context):Promise<Response|null>",
-    "sourceCommit": "79c693b",
-    "context": "After central auth. env.DB + optional env.AI. auth.workspaceId/deviceId. entities.get, putMessage required for assistant, commit/getPracticeAttempt/listLearningNeeds for grades, listMessages<=20. putMessage atomically rejects archived target.",
+    "sourceCommit": "79c693b chat guard; 331513b canonical concepts; e0b107d retained-history boundary, exact70fbc19 module path",
+    "context": "After central auth. env.DB + optional env.AI. auth.workspaceId/deviceId. entities.get, putMessage required for assistant, commit/getPracticeAttempt/listLearningNeeds for grades, listMessages<=20. listLearningNeeds returns ALL retained<=500 including transport tombstones; existing concepts evolve at cap, new concepts skipped. putMessage atomically rejects archived target.",
     "provider": "Cloudflare Workers AI binding env.AI, fixed @cf/meta/llama-3.1-8b-instruct-fp8. Free-plan only. No desktop Codex/ChatGPT entitlement or client provider secret.",
     "routes": {
       "POST /v1/ai/runs": "{id:UUID,chatId,messageId}; prompt/history loaded from authenticated saved records; no client content/model/tools/providerURL",
@@ -28,19 +28,20 @@
     "verification": "Real central auth/router/entity/atomic-grade/connector/attachments paths pass in isolated SQLite with signed identity fixtures, SIMULATED inference and Organato upstream. No hosted WorkersAI or production proof."
   },
   "installation": "Desktop Settings mobile section. Only validated real https://testflight.apple.com/join/<code> or apps.apple.com app URL produces install QR. Empty config honestly says distribution not yet available. Installation QR never contains account tokens. Separate account sign-in/pairing uses backend-authorized one-time flow, not raw IPA installation.",
-  "verification": "Local portable Swift verifier passes. Actual macOS CI core tests and desktop typecheck/tests/build/Electron/package passed on24ed328. Unsigned iOS Release built; UI flows failed due actual launch compatibility320x480. Fixed generator plist+passive input observer; real simulator rerun on43a75c4 pending. Local Xcode/T3device unavailable. Desktop real preview dark/light-large signedout pairing verified; IOS1 fbd922e plus38c6c54 corrected. No downloadable release or live provider claim.",
-  "approval": "Implementation/push/PR allowed. Never merge, deploy, migrate production, purchase or upload TestFlight/App Store without later green light.",
-  "headCommit": "43a75c4",
+  "verification": "Implementation ebdaf47: actual macOS native CI39767722272 unsigned iOS ReleasePASS,63portableXCTestPASS,10/10iPhone16ProUItestsPASS. Corrected native screenshots independently rechecked: no remaining screenshot-backedP1/P2. DesktopCI39767722350 typecheck162tests productionrenderer/Electron/unsignedpackagePASS. Extra Review+lightthemerestart test62a16b9 is being checked by nativeCI; PR/evidence record holds its actual result. LocalXcode/T3device unavailable; localElectronflow scripts blocked missingFramework/symlinkpermission. Actual central auth/router/isolatedSQLite proof passes withSIMULATEDinference/upstream only. No downloadable release/liveprovider proof.",
+  "approval": "Coordinator owns serial main merges after current user authorization. This iOS owner never merges independently. Deployments, production migrations, purchases and TestFlight/App Store uploads still require separate green light.",
+  "headCommit": "62a16b9c642095599c2ed5988104cfcc19a14c73",
   "reviewPR": "https://github.com/etphli/centre/pull/13",
   "canonicalDependencies": {
     "studyLog": "main 9064c7f; fixture copied unchanged SHA256 34f6d14ab3c66cd98053ee21cfe59b055086626544a6860f85798c3b60922a18",
     "practice": "8095205 + 9ec445d included",
-    "database": "65ba298; EntityStore.putMessage/commit/getPracticeAttempt/listMessages/listLearningNeeds/resolveReview",
+    "database": "PR19; core65ba298+mount67b12b2+retained helperb48b673. EntityStore.putMessage/commit/getPracticeAttempt/listMessages/listLearningNeeds/resolveReview; module grade70fbc19 integrated as e0b107d.",
     "calendar": "PR17 portable5d3946d+603ec3b+2d96ba0; module f4b3131+bf25350+7e357ac+b1a1394",
     "chat": "portable projection/lineage98d76b0, feature10 PR14; exact fields only, no Codex continuation metadata",
     "checklists": "canonical shared/checklist-progress.ts 9fcf6bd; interactiveProgress retained, no mobile script execution or invented progress schema"
   },
   "calendar": "Native uses exact cloud-organato routes/DTOs. Separate durable command journal stores original method/path/operationId/body before send. Pending/unknown only poll receipt. Authenticated operation_not_found enables explicit Try saved change with EXACT original command, never a new ID, and never local discard solely404. Handler ledger deduplicates concurrent retry before external writes. /link and reconciliation explicit read-only verification. Connection credentials entered on phone sent only to encrypted hosted connector, never cached.",
   "attachments": "Read-only authenticated metadata/chunks with ?chatId=activeTarget. Server canonical ancestry gate uses all persisted chats/messages including archived ancestors. Mobile active association required. Size/chunk/base64/SHA256 verified before atomic publication, 20MiB/file and100MiB cache, partition by server/workspace/target. MIME-based safe extensions; cached reading offline; sign-out invalidates/erases actors.",
-  "review": "Ordinary generic reviewMemory resolvedAt write persists offline. Central resolveReview derives canonical linked learningNeed evidence atomically using stable resolvedAt, no alternate endpoint. Hosted grading raw atomic commit does not double-derive review evidence."
+  "review": "Ordinary generic reviewMemory resolvedAt write persists offline. Central resolveReview derives canonical linked learningNeed evidence atomically using stable resolvedAt, no alternate endpoint. Hosted grading raw atomic commit does not double-derive review evidence.",
+  "conflicts": "Explicit keep-local uses max(local,remote) domain revision+1, remote.version as transport CAS. Immutable attempt/practice.attempt conflicts offer cloud copy only; actor rejects keep-local before mutation. Canonical checklist server rejects domain revision regression/equal divergent state; no timestamp LWW."
 }
