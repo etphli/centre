@@ -78,7 +78,7 @@ function markTone(mark: Mark | undefined) {
 }
 
 function Quiz({ resource, questionId }: { resource: Resource; questionId?: string }) {
-  const { state, act, notify } = useApp();
+  const { state, act, notify, navigationId } = useApp();
   const latest = state.attempts
     .filter((attempt) => attempt.resourceId === resource.id)
     .reduce<(typeof state.attempts)[number] | undefined>((best, attempt) => (!best || attempt.createdAt > best.createdAt ? attempt : best), undefined);
@@ -95,7 +95,7 @@ function Quiz({ resource, questionId }: { resource: Resource; questionId?: strin
 
   useEffect(() => {
     if (questionId) setIndex(targetIndex);
-  }, [questionId, targetIndex]);
+  }, [questionId, targetIndex, navigationId]);
   useSearchTarget(questionId && index === targetIndex ? `resource-question-${questionId}` : undefined);
 
   useEffect(() => {
@@ -278,7 +278,7 @@ function TestPaper({ resource }: { resource: Resource }) {
 }
 
 function Flashcards({ resource, questionId }: { resource: Resource; questionId?: string }) {
-  const { openFeedback } = useApp();
+  const { openFeedback, navigationId } = useApp();
   const parsed = useMemo(() => readCards(resource), [resource]);
   const [index, setIndex] = useState(() => parsed.ok ? Math.max(0, parsed.cards.findIndex(card => card.id === questionId)) : 0);
   const [flipped, setFlipped] = useState(false);
@@ -290,7 +290,7 @@ function Flashcards({ resource, questionId }: { resource: Resource; questionId?:
 
   useEffect(() => {
     if (questionId) { setIndex(targetIndex); setFlipped(false); }
-  }, [questionId, targetIndex]);
+  }, [questionId, targetIndex, navigationId]);
   useSearchTarget(questionId && index === targetIndex ? `resource-question-${questionId}` : undefined);
 
   const move = useCallback((step: number) => {

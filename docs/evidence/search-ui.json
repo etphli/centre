@@ -36,6 +36,14 @@
       "passed": true
     },
     {
+      "name": "Repeat question hit returns from another question",
+      "passed": true
+    },
+    {
+      "name": "Repeat flashcard hit resets card and answer side",
+      "passed": true
+    },
+    {
       "name": "Attachment result anchors its owning message in a long chat",
       "passed": true,
       "details": {

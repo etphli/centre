@@ -7,10 +7,10 @@ export function useSearchTarget(id: string | undefined) {
     if (!id) return;
     const target = document.getElementById(id);
     if (!target) return;
-    target.classList.add('search-target');
-    target.scrollIntoView({ block: 'center' });
     const clear = () => target.classList.remove('search-target');
     const frame = requestAnimationFrame(() => {
+      target.classList.add('search-target');
+      target.scrollIntoView({ block: 'center' });
       window.addEventListener('pointerdown', clear, { once: true });
       window.addEventListener('keydown', clear, { once: true });
     });
