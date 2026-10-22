@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "tests": {
     "command": "npm test",
-    "passed": 232,
+    "passed": 235,
     "failed": 0,
     "inference": "simulated",
     "organatoUpstream": "simulated"
@@ -37,9 +37,10 @@
     "independentRecheck": "pending"
   },
   "production": "not deployed or verified",
-  "testedHead": "2874db8f5a5feb67f55b02014640262d026b15b4",
+  "testedHead": "79932a8",
   "ci": {
-    "testedHead": "2874db8f5a5feb67f55b02014640262d026b15b4",
-    "result": "Desktop checks passed on push and PR"
+    "previousVerifiedHead": "2874db8f5a5feb67f55b02014640262d026b15b4",
+    "previousResult": "Desktop checks passed on push and PR",
+    "currentStatus": "See PR #19 checks for the current head"
   }
 }
