@@ -1,0 +1,100 @@
+{
+  "environment": "macOS, built Electron main and file:// production renderer, isolated synthetic local study data",
+  "viewport": "Built Electron1280x900 and minimum960x660/960x900. T3 browser760x900 against isolated local service. Dark/light/midnight, standard and large text, compact and comfortable spacing.",
+  "tests": {
+    "command": "npm test",
+    "passed": 95,
+    "failed": 0
+  },
+  "finalTypecheck": {
+    "command": "npm run typecheck",
+    "result": "passed"
+  },
+  "productionBuilds": {
+    "commands": [
+      "npm run build",
+      "npm run build:electron",
+      "npx vite build"
+    ],
+    "result": "passed",
+    "notes": "Latest npm run build and Electron main build pass after adding AI tools. Electron uses nonfunctional local OAuth fixture values, not a verified Google sign-in."
+  },
+  "nativeStudyFlows": {
+    "command": "node scripts/verify-study-log.mjs",
+    "initialChecks": 29,
+    "restartChecks": 5,
+    "rendererErrors": 0,
+    "result": "passed"
+  },
+  "existingFlows": {
+    "command": "node scripts/verify-flows.mjs",
+    "checks": 45,
+    "rendererErrors": 0,
+    "result": "passed"
+  },
+  "textSizes": {
+    "command": "node scripts/verify-text-size.mjs",
+    "sizes": [
+      "small",
+      "standard",
+      "large"
+    ],
+    "persistsAcrossReload": true,
+    "result": "passed"
+  },
+  "independentCorrectnessReview": "GPT-6.1 Sol medium reproduced three persistence/import bugs, all fixed and rechecked. Read-only shared-control pass found focus selection, arbitrary minute choice and viewport clipping issues, all corrected; no repository edits by reviewer.",
+  "visualGate": "Coordinator live T3 recheck cleared charts/date-time/narrow-layout findings. Final shared duration spinner fixed4f192d4; real light capture and numeric semantics verified. User explicitly authorized merge after AI path verification.",
+  "limitations": [
+    "No hosted D1 deployment or production sync verified",
+    "No Google OAuth sign-in verified with local fixture credentials",
+    "No signing, installer or release published",
+    "No linter script is configured in this repository"
+  ],
+  "verificationFailuresResolvedOrExcluded": [
+    "T3 preview host disconnected after live CRUD/timer/action tests",
+    "Transient Electron capture UnknownVizError; final verifier uses software rendering and bounded retries",
+    "Capture before navigation/animation paint corrected by waiting for Log, finite animation completion and compositor frames",
+    "Development-renderer IPC fallback rejected by desktop authority and excluded from passing evidence",
+    "First expanded native verifier had an incorrectly escaped selector expression; corrected verifier passes34checks with0renderer errors.",
+    "Existing45-check flow verifier passes/exit0 with0renderer errors, then emits IPC socket warnings while its temporary service closes during shutdown.",
+    "AI protocol test initially inspected transient chat activity rather than the persisted assistant-message activity; corrected assertion passes.",
+    "Initial new provider prop referenced nullable state; typecheck caught it and it now reads validated actions.state.",
+    "Browser getComputedStyle does not expose the internal WebKit spinner pseudo-element reliably; verification asserts actual input appearance=textfield/type=number and inspects the real light capture."
+  ],
+  "browser760": {
+    "tool": "T3 preview",
+    "url": "http://127.0.0.1:5291/?verification=neutral-chart",
+    "fixture": ".runtime/study-log-data",
+    "trackTopPixels": [
+      533.5,
+      533.5,
+      533.5,
+      533.5,
+      533.5,
+      533.5,
+      533.5
+    ],
+    "nonzeroLabelWidthPixels": 27,
+    "editDeleteTargetHeightPixels": 28,
+    "capture": "browser-760.png"
+  },
+  "sourceFixCommits": [
+    "eb050d86d8283ef628339561764cb5a701e6d619",
+    "faa90f8a7bfb56fac12a391c1a710c84d3a4e554",
+    "4f192d485c908e83843707edb43175c71398ab20",
+    "3254fe13e1022c9023981d83839c7b6fbbb5497a"
+  ],
+  "aiStudyFlows": {
+    "passed": true,
+    "checks": [
+      "Chat completes actual Log tool call",
+      "AI entry appears in real Log without reload",
+      "AI-created entry is confirmed on disk",
+      "Light duration keeps numeric keyboard semantics and removes native spinner chrome",
+      "No renderer console errors"
+    ],
+    "errors": [],
+    "modelBoundary": "Deterministic CLI protocol fixture, real production Electron/IPC/service/disk. Live model reasoning not verified.",
+    "command": "node scripts/verify-study-log-ai.mjs"
+  }
+}
