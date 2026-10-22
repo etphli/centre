@@ -673,3 +673,55 @@ test('two-device checklist conflicts keep domain revisions independent of transp
   assert.deepEqual(reopened.store.state.interactiveResourceProgress[0], remote.data);
   assert.equal((await reopened.sync.sync()).pending, 0);
 });
+
+test('keeping a local running timer conflict preserves its lease until normal restart recovery', async t => {
+  const cloud = await backend(t), a = await device(t, cloud);
+  const id = randomUUID();
+  const initial = studySessionSchema.parse({
+    schemaVersion: 1, id, revision: 1, createdAt: instant, updatedAt: instant, deletedAt: null,
+    subjectId: null, taskId: null, title: 'Local running timer', notes: '', timeZone: 'Australia/Sydney', source: 'timer',
+    segments: [{ start: '2026-10-21T23:59:00.000Z', end: '2026-10-21T23:59:30.000Z' }],
+    state: { kind: 'running', since: instant, checkpointAt: '2026-10-22T00:00:15.000Z', lastActivityAt: instant, confirmedAt: instant },
+  });
+  await a.store.update(state => { state.studyLog.sessions.push(initial); });
+  assert.equal((await a.sync.enableImport()).error, null);
+  const b = await device(t, cloud);
+  assert.equal((await b.sync.enableImport()).error, null);
+  assert.deepEqual(b.store.state.studyLog.sessions[0]?.state, { kind: 'paused', reason: 'recovery' });
+  await b.store.update(state => {
+    const session = state.studyLog.sessions[0];
+    assert.ok(session);
+    session.revision = 3; session.title = 'Remote timer edit'; session.updatedAt = '2026-10-22T00:01:00.000Z';
+  });
+  // The import recovery and subsequent edit are separate durable mutations.
+  assert.equal((await b.sync.sync()).error, null);
+  assert.equal((await b.sync.sync()).error, null);
+  assert.equal((await changes(cloud, b)).find(value => value.kind === 'studySession' && value.id === id)?.data?.revision, 3);
+  await a.store.update(state => {
+    const session = state.studyLog.sessions[0];
+    assert.ok(session);
+    session.revision = 2; session.updatedAt = '2026-10-22T00:00:30.000Z';
+    session.state = { kind: 'running', since: instant, checkpointAt: '2026-10-22T00:00:30.000Z', lastActivityAt: '2026-10-22T00:00:30.000Z', confirmedAt: instant };
+  });
+  const local = structuredClone(a.store.state.studyLog.sessions[0]);
+  assert.ok(local);
+  const conflicted = await a.sync.sync();
+  assert.deepEqual(conflicted.conflicts.map(({ kind, id: valueId }) => ({ kind, id: valueId })), [{ kind: 'studySession', id }]);
+  assert.deepEqual(a.store.state.studyLog.sessions[0], local);
+  await a.sync.resolve('studySession', id, 'local');
+  const resolved = a.store.state.studyLog.sessions[0];
+  assert.ok(resolved);
+  assert.equal(resolved.revision, 4);
+  assert.deepEqual(resolved.state, local.state);
+  assert.deepEqual(resolved.segments, local.segments);
+  const reopened = await reopen(a);
+  assert.equal(reopened.store.state.studyLog.sessions[0]?.revision, 4);
+  assert.deepEqual(reopened.store.state.studyLog.sessions[0]?.state, local.state);
+  assert.deepEqual(reopened.store.state.studyLog.sessions[0]?.segments, local.segments);
+  const service = new StudyLogService(reopened.store, () => Date.parse('2026-10-22T00:02:00.000Z'));
+  const recovered = await service.recover(true);
+  assert.deepEqual(recovered.sessions[0]?.state, { kind: 'paused', reason: 'recovery' });
+  assert.equal(recovered.sessions[0]?.revision, 5);
+  assert.deepEqual(recovered.sessions[0]?.segments, [...local.segments, { start: instant, end: '2026-10-22T00:00:30.000Z' }]);
+  await reopened.sync.close();
+});

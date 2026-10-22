@@ -6,7 +6,7 @@ import { cloudAuthSchema, cloudChangesSchema, cloudMutationSchema, cloudRecordSc
 import { CLOUD_ENTITY_KINDS, cloudAttachmentSchema, parseCloudEntity } from '../shared/cloud-entities';
 import type { CloudStatus } from '../shared/cloud-status';
 import type { Snapshot } from '../shared/schema';
-import { weeklyStudyGoalSchema } from '../shared/study-log';
+import { studySessionSchema, weeklyStudyGoalSchema } from '../shared/study-log';
 import { learningNeedSchema } from '../shared/practice';
 import { canShareChatAttachment } from '../shared/chat-lineage';
 import { Store, type StoreMutation } from './store';
@@ -377,7 +377,13 @@ export class CloudSync {
         const revision=z.object({revision:z.number().int().positive()}).parse(local.data).revision;
         const remoteRevision=z.object({revision:z.number().int().positive()}).safeParse(remote.data);
         const chosen={...remote,deleted:false,data:{...local.data,revision:Math.max(revision,remoteRevision.success ? remoteRevision.data.revision : 0)+1,updatedAt:new Date(resolvedAt).toISOString()}};
-        return {value:undefined,apply:(state:Snapshot)=>{applyStudyRecord(state,chosen,resolvedAt,this.journal.shadow);}};
+        return {value:undefined,apply:(state:Snapshot)=>{
+          if (kind==='studySession') {
+            // This is the local lease the user chose to keep, not a remote import.
+            const session=studySessionSchema.parse(chosen.data);
+            state.studyLog.sessions=[...state.studyLog.sessions.filter(value=>value.id!==id),session];
+          } else applyStudyRecord(state,chosen,resolvedAt,this.journal.shadow);
+        }};
       });
     }
     this.journal.shadow[remoteKey] = remote;

@@ -16,7 +16,7 @@ During web development, Vite proxies `/api` and reads the service token from ign
 
 The service stores local JSON under `~/Library/Application Support/Centre/data` on macOS and writes it atomically. `CENTRE_DATA_DIR` overrides the path for isolated runs. Organato and updater credentials use macOS Keychain. Credential values do not appear in app state responses.
 
-Google sign-in stores the selected account on this computer. Centre has no cloud sync or multi-account workspace switching.
+Google app connections store the selected account on this computer. Optional Centre cloud uses a separate Worker and D1 database with a server-derived private account workspace. It preserves local-first use through an explicit backup/import, durable outbox, compare-and-swap records and deletion tombstones. Account switching never uploads a local library into another workspace. Local and cloud mutations share the staged Store writer queue. See [the cloud foundation](cloud/README.md) for authentication, attachment authorization, domain contracts, exclusions and deployment prerequisites.
 
 ## Codex models
 
@@ -64,7 +64,7 @@ Centre's `/api/events` routes map study sessions to Organato `/items` to-dos wit
 
 Google sign-in uses an app-owned Desktop OAuth client. A developer build reads `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or validates the installed-app JSON at `.runtime/google-oauth-source.json`. `scripts/build-electron.mjs` writes the normalized config to ignored `dist-electron/google-oauth.json`. Electron Builder copies that file into the app's resources, and `electron/main.ts` loads it before starting the service.
 
-The sign-in button opens the system browser and uses a loopback callback with PKCE and state validation. Google identifies the local account. Centre does not upload study data or sync a Google account's files or calendar.
+The sign-in button opens the system browser and uses a loopback callback with PKCE and state validation. Google app connections identify the local account and do not upload study data or sync a Google account's files or calendar. The separate Centre cloud sign-in verifies the identity with the configured Worker; only a later explicit import enables study sync.
 
 ## Papers and review
 
