@@ -112,7 +112,7 @@ test('legacy snapshots open without losing review memories or preferences',async
   try {
     const { assistantMemories:_old,...legacy } = emptySnapshot();
     legacy.settings.nickname = 'Learner';
-    legacy.memories.push({id:'review',subjectId:null,topicId:null,resourceId:'resource',question:'Fractions',note:'Practise',createdAt:new Date().toISOString(),nextReviewAt:new Date().toISOString(),resolvedAt:null});
+    legacy.memories.push({learningNeedId:null,id:'review',subjectId:null,topicId:null,resourceId:'resource',question:'Fractions',note:'Practise',createdAt:new Date().toISOString(),nextReviewAt:new Date().toISOString(),resolvedAt:null});
     await writeFile(join(directory,'state.json'),JSON.stringify(legacy));
     const store = await Store.open(directory);
     assert.deepEqual(store.state.assistantMemories,[]);

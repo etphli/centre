@@ -116,7 +116,7 @@ export class Resources {
     return { ok: true };
   }
   private remember(resource: Resource, question: string, note: string) {
-    const now = new Date(); this.store.state.memories.push({ id: randomUUID(), subjectId: resource.subjectId, topicId: resource.topicId, resourceId: resource.id, question, note, createdAt: now.toISOString(), nextReviewAt: new Date(now.getTime() + 3 * 86400000).toISOString(), resolvedAt: null });
+    const now = new Date(); this.store.state.memories.push({ learningNeedId:null, id: randomUUID(), subjectId: resource.subjectId, topicId: resource.topicId, resourceId: resource.id, question, note, createdAt: now.toISOString(), nextReviewAt: new Date(now.getTime() + 3 * 86400000).toISOString(), resolvedAt: null });
   }
   async grade(resourceId: string, answers: Record<string,string>) {
     const resource = requireFound(this.store.state.resources.find(x => x.id === resourceId && !x.deletedAt), 'Resource');

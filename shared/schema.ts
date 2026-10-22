@@ -64,9 +64,8 @@ export type ChatLineage = z.infer<typeof chatLineageSchema>;
 export type Message = z.infer<typeof messageSchema>;
 export const chatSchema = z.object({ responseError:z.string().nullable().default(null), lineage:chatLineageSchema.default({schemaVersion:1,kind:'root'}), modelSelection:modelSelectionSchema.nullable().default(null), id: z.string(), title: z.string(), createdAt: z.string(), updatedAt: z.string(), deletedAt: z.string().nullable().default(null), codexThreadId: z.string().nullable().default(null), pinnedAt: z.string().nullable().default(null), folderId: z.string().nullable().default(null), sortOrder: z.number().int().default(0), activity:z.array(activitySchema).max(60).default([]), messages: z.array(messageSchema) });
 export const chatFolderSchema = z.object({ id: z.string(), name: z.string(), sortOrder: z.number().int().default(0), collapsed: z.boolean().default(false) });
-export const eventSchema = z.object({ id: z.string(), title: z.string(), date: z.string(), time: z.string().nullable().default(null), subjectId: z.string().nullable().default(null), notes: z.string().default(''), completedAt: z.string().nullable().default(null),organatoId:z.string().nullable().default(null),organatoVersion:z.number().int().positive().nullable().default(null),timeZone:z.string().default('Australia/Sydney') });
 export const calendarTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?$/);
-const calendarProjectionSchema = z.object({
+export const eventSchema = z.object({
   schemaVersion:z.literal(1).default(1), id:z.string(), revision:z.number().int().positive().default(1),
   createdAt:z.iso.datetime().nullable().default(null), updatedAt:z.iso.datetime().nullable().default(null), deletedAt:z.iso.datetime().nullable().default(null),
   origin:z.enum(['centre','organato']).default('organato'), kind:z.enum(['session','deadline']).default('deadline'),
@@ -76,8 +75,7 @@ const calendarProjectionSchema = z.object({
   organatoId:z.string().nullable().default(null), organatoVersion:z.number().int().positive().nullable().default(null),
   timeZone:z.string().default('Australia/Sydney')
 });
-/** Canonical Centre-owned planned calendar record. Imported Organato items are projections, not cloud records. */
-export const calendarEventSchema = calendarProjectionSchema.extend({
+export const calendarEventSchema = eventSchema.extend({
   id:z.string().uuid(), origin:z.literal('centre'), title:z.string().trim().min(1).max(200),
   schemaVersion:z.literal(1), revision:z.number().int().positive(),
   createdAt:z.iso.datetime(), updatedAt:z.iso.datetime(), completedAt:z.iso.datetime().nullable(),
@@ -95,7 +93,7 @@ export const calendarEventSchema = calendarProjectionSchema.extend({
   }
 });
 export type CalendarEvent = z.infer<typeof calendarEventSchema>;
-export const assignmentSchema = z.object({ id: z.string(), title: z.string(), kind: z.enum(['work', 'todo']), subjectId: z.string().nullable(), dueDate: z.string().nullable(), status: z.string(), version: z.number() });
+export const assignmentSchema = z.object({ dueAt:z.string().datetime().nullable().optional(), id: z.string(), title: z.string(), kind: z.enum(['work', 'todo']), subjectId: z.string().nullable(), dueDate: z.string().nullable(), status: z.string(), version: z.number() });
 export const memorySchema = z.object({ learningNeedId:z.string().uuid().nullable().default(null), id: z.string(), subjectId: z.string().nullable(), topicId: z.string().nullable(), resourceId: z.string(), question: z.string(), note: z.string(), createdAt: z.string(), nextReviewAt: z.string(), resolvedAt: z.string().nullable().default(null) });
 export const rememberInputSchema = z.object({ key:z.string().trim().min(1).max(80),content:z.string().trim().min(1).max(1000) }).strict();
 export const assistantMemorySchema = rememberInputSchema.extend({ id:z.string().uuid(),createdAt:z.string().datetime(),updatedAt:z.string().datetime() });
@@ -134,6 +132,7 @@ export type Topic = z.infer<typeof topicSchema>;
 export type Resource = z.infer<typeof resourceSchema>;
 export type Chat = z.infer<typeof chatSchema>;
 export type ChatFolder = z.infer<typeof chatFolderSchema>;
+export type Assignment = z.infer<typeof assignmentSchema>;
 export type StudyEvent = z.infer<typeof eventSchema>;
 export type StudyMemory = z.infer<typeof memorySchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;

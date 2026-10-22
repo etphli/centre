@@ -1968,7 +1968,7 @@ test("review resolution atomically applies linked canonical evidence, replays or
     ...resolution,
     mutationId: crypto.randomUUID(),
     expectedVersion: 2,
-    data: { ...object(saved.value.record).data, note: "Later edit" },
+    data: { ...object(object(saved.value.record).data), note: "Later edit" },
   };
   assert.equal(
     (await h.call("/v1/records", "POST", editedMemory, token)).status,

@@ -27,6 +27,6 @@
     "electron",
     "App.tsx",
     "vite.config.ts",
-    "cloud"
+    "cloud", "cloud-ai", "cloud-organato"
   ]
 }
