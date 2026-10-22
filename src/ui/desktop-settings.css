@@ -1,0 +1,20 @@
+.desktop-settings { max-width: 760px; }
+.desktop-settings__intro { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+.desktop-settings__intro > svg { flex: 0 0 auto; color: var(--text-2); margin-top: 3px; }
+.desktop-settings__intro h2 { margin: 0 0 7px; font-size: 18px; font-weight: 550; letter-spacing: -.02em; }
+.desktop-settings__intro p, .desktop-settings__label p { margin: 0; color: var(--text-2); line-height: 1.5; font-size: 13px; }
+.desktop-settings__intro p { max-width: 48ch; }
+.desktop-settings__note { color: var(--text-3); font-size: 12px; line-height: 1.6; margin: 14px 0; }
+.desktop-settings__tools { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.desktop-settings__tools .button { flex-shrink: 0; }
+.desktop-settings__list { list-style: none; padding: 0; margin: 22px 0 16px; border-top: 1px solid var(--line); }
+.desktop-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 17px 0; border-bottom: 1px solid var(--line); }
+.desktop-settings__label { min-width: 0; }
+.desktop-settings__label h3 { margin: 0 0 3px; font-size: 14px; font-weight: 500; }
+.desktop-settings__status { display: flex; align-items: center; gap: 5px; margin-top: 8px; color: var(--text-3); font-size: 11px; }
+.desktop-settings__status--installed { color: var(--text-2); }
+.desktop-settings__status--conflict { color: var(--text-2); }
+.desktop-settings__actions { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; gap: 8px; min-width: 92px; }
+.desktop-settings__unavailable { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 13px 15px; color: var(--text-2); font-size: 13px; line-height: 1.6; }
+.desktop-settings__label .desktop-settings__conflict { max-width: 44ch; margin-top: 7px; font-size: 12px; }
+@media (max-width: 760px) { .desktop-settings__row { gap: 12px; flex-wrap: wrap; } .desktop-settings__actions { margin-left: auto; } }

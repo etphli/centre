@@ -1,6 +1,8 @@
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { z } from 'zod';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
+import type { DesktopAction, DesktopActionRequest } from '../../shared/desktop-actions';
+import type { LauncherOperation, LauncherList } from '../../shared/desktop-launchers';
 import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
 
 export interface ExportedFile { filename: string; content: string; mimeType: string }
@@ -8,6 +10,15 @@ export interface AttachmentUploadInput { name:string; mimeType:string; data:stri
 export interface UpdateStatus { state: string; message: string; version?: string; downloaded?: boolean; configured?: boolean }
 type Method = 'GET' | 'POST' | 'PATCH';
 export interface DesktopBridge {
+  actions: {
+    subscribe: (listener: (request: DesktopActionRequest) => void) => () => void;
+    ready: () => Promise<void>;
+    acknowledge: (id: string) => Promise<void>;
+  };
+  launchers: {
+    list: () => Promise<LauncherList>;
+    change: (action: DesktopAction, operation: LauncherOperation) => Promise<LauncherList>;
+  };
   request: (method: Method, path: string, body?: unknown) => Promise<unknown>;
   chooseFiles: () => Promise<AttachmentUploadInput[]>;
   openDiagram: (input:{id:string;theme:string}) => Promise<unknown>;

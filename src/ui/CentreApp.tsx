@@ -18,6 +18,7 @@ import { SearchPalette } from './SearchPalette';
 import { SettingsPage } from './Settings';
 import { PreferencesEffect } from './preferences';
 import { Sidebar } from './Sidebar';
+import { DesktopActionBridge } from './DesktopActions';
 import { Toasts, type Toast } from './Toasts';
 import type { GenerateRequest, Route, ToastInput } from './types';
 import './centre.css';
@@ -357,6 +358,7 @@ export default function CentreApp() {
 
   return (
     <CentreContext.Provider value={actions}>
+      <DesktopActionBridge />
       <PreferencesEffect />
       <div className={`app${collapsed ? ' app--collapsed' : ''}`}>
         {!collapsed ? <Sidebar onCollapse={() => setCollapsed(true)} /> : null}
