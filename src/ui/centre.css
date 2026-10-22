@@ -607,12 +607,16 @@ kbd {
 }
 
 .crumbs li + li::before {
+  flex-shrink: 0;
   content: '/';
   margin: 0 8px;
   color: var(--text-3);
 }
 
 .crumbs__link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-2);
   white-space: nowrap;
 }
@@ -1370,6 +1374,7 @@ kbd {
 
 .resource-header__crumbs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   font-size: 0.8125rem;
@@ -1400,6 +1405,8 @@ kbd {
 
 .resource-header__actions {
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 6px;
 }
 

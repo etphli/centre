@@ -1,0 +1,28 @@
+{
+  "method": "Actual T3 browser, 760x900 CSS pixels, dark, Large selected through Settings UI",
+  "scope": "CSS layout only; isolated checklist service predates Log routes and returns Endpoint not found. The visible timer error is intentional fixture mismatch, and also verifies the error stays on one line. No live account or generated checklist changes.",
+  "viewport": 760,
+  "scrollWidth": 760,
+  "resourceHeaderRight": 740,
+  "markDone": {
+    "x": 242,
+    "right": 356.6328125,
+    "y": 218.4375,
+    "height": 28
+  },
+  "allFiveActionsWithinHeader": true,
+  "breadcrumbsNonoverlapping": true,
+  "timerError": {
+    "right": 746,
+    "y": 13.875,
+    "height": 20.25
+  },
+  "themeOptionsWithinContainer": true,
+  "systemThemeWrapped": true,
+  "iosParity": {
+    "platformOnly": true,
+    "reason": "Web breadcrumb/action flex layout and pointer hover have no native counterpart. Native resources use ResourceDetailView/DiagramView navigation and SwiftUI toolbar; Settings uses a Form and native theme picker; timer controls are in TimerPanel rather than the macOS title bar.",
+    "source": "ios/CentreApp/Views.swift#ResourceDetailView,SettingsView,TimerPanel",
+    "nativeFinalTintFixUnverified": true
+  }
+}

@@ -25,7 +25,7 @@
 .preference-choice{display:flex;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--surface);gap:1px}
 .preference-choice button{font-size:0.6875rem;color:var(--text-3);padding:5px 8px;border-radius:4px;white-space:nowrap}
 .preference-choice button[aria-pressed=true]{background:var(--surface-3);color:var(--text)}
-.theme-options{display:flex;gap:9px}
+.theme-options{display:flex;flex-wrap:wrap;gap:9px}
 .theme-option{display:grid;gap:6px;font-size:0.625rem;color:var(--text-3);text-align:left}
 .theme-option[aria-pressed=true]{color:var(--text)}
 .theme-option__preview{display:grid;grid-template-columns:16px 1fr;width:55px;height:36px;border:1px solid #555;border-radius:5px;overflow:hidden;background:#1b1b1a;position:relative}
