@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "tests": {
+    "command": "npm test",
+    "passed": 211,
+    "failed": 0,
+    "inference": "simulated",
+    "organatoUpstream": "simulated"
+  },
+  "typecheck": "passed",
+  "webProductionBuild": "passed, existing >500kB chunk warning",
+  "workerDryRun": "passed; no upload",
+  "wranglerLocalD1": "four migrations passed against fresh .runtime/cloud-final-d1",
+  "electron": {
+    "normalBuild": "blocked: missing real Google Desktop OAuth configuration",
+    "fixtureBuild": "passed with explicit local placeholders",
+    "flow": "npm run verify:connectors: 12 checks passed, zero renderer errors"
+  },
+  "visual": {
+    "tool": "T3 preview",
+    "url": "http://127.0.0.1:14741",
+    "findings": {
+      "CLOUD-1": "2f3bd64",
+      "CLOUD-2": "2f3bd64",
+      "CLOUD-3": "2f3bd64"
+    },
+    "states": [
+      "empty",
+      "authenticated",
+      "ready",
+      "pending",
+      "error",
+      "conflict",
+      "pairing",
+      "disconnect"
+    ],
+    "independentRecheck": "pending"
+  },
+  "production": "not deployed or verified"
+}

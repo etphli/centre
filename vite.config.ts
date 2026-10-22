@@ -20,7 +20,7 @@ export default defineConfig({
         configure(proxy) {
           proxy.on('proxyReq', (req) => {
             try {
-              const connection = connectionSchema.parse(JSON.parse(readFileSync('.runtime/connection.json', 'utf8')));
+              const connection = connectionSchema.parse(JSON.parse(readFileSync(process.env.CENTRE_CONNECTION_FILE ?? '.runtime/connection.json', 'utf8')));
               req.setHeader('Authorization', `Bearer ${connection.token}`);
             } catch {
               req.removeHeader('Authorization');
