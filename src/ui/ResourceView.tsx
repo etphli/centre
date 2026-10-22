@@ -474,7 +474,7 @@ export function ResourceView({ resourceId }: { resourceId: string }) {
         <div className="resource-header__row">
           <span className="resource-header__meta">
             <Icon size={14} aria-hidden /> {resource.connectedFile ? connectorCatalog.find(item => item.id === resource.connectedFile?.connector)?.name : kindLabels[resource.kind]}, made {timeAgo(resource.createdAt)}
-            {resource.completedAt ? <span className="done-pill"><Check size={12} aria-hidden /> {resource.kind === 'quiz' ? 'Last marked' : 'Done'} {timeAgo(resource.completedAt)}</span> : null}
+            {resource.completedAt && resource.kind !== 'quiz' ? <span className="done-pill"><Check size={12} aria-hidden /> Done {timeAgo(resource.completedAt)}</span> : null}
           </span>
           <div className="resource-header__actions">
             <DeleteResource resource={resource} onDeleted={() => navigate({kind:'resources'})} />
