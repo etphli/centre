@@ -30,6 +30,12 @@ const VIEW_KEY = 'centre.calendar.view';
 const activeEvents = (state: Snapshot) => state.events.filter((event) => !event.deletedAt);
 const isPlannedSession = (event: StudyEvent) => event.origin === 'centre' && event.kind === 'session' && !event.deletedAt;
 
+function statusLabel(status:string):string {
+  const labels:Record<string,string> = {not_started:'Not started',in_progress:'In progress',completed:'Completed',submitted:'Submitted'};
+  const words = status.replaceAll('_',' ');
+  return labels[status] ?? words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function itemsByDay(state: Snapshot): Map<string, DayItem[]> {
   const color = (id: string | null) => state.subjects.find((subject) => subject.id === id)?.color;
   const map = new Map<string, DayItem[]>();
@@ -115,7 +121,7 @@ function ItemRow({ item, onOpen }: { item: DayItem; onOpen: (id: string) => void
         <span className="todo__dot" aria-hidden />
         <span className="todo__text">
           <span className="todo__title">{item.title}</span>
-          <span className="todo__detail">{item.type === 'todo' ? 'Organato to do' : 'Organato assignment'}, {item.status}</span>
+          <span className="todo__detail">{item.type === 'todo' ? 'To do' : 'Assignment'} · {statusLabel(item.status)}</span>
         </span>
       </li>
     );
