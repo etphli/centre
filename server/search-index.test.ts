@@ -48,9 +48,9 @@ test('search finds resource body, each question field, and flashcard fronts and 
   const snapshot = emptySnapshot();
   snapshot.resources.push(
     resource('notes', { content: 'A body-only phrase describes mitochondrial inheritance.' }),
-    resource('quiz', { kind: 'quiz', questions: [{ concept: '', id: 'question', responseType: 'short_response', choices: [], marks: 1, prompt: 'Explain osmotic pressure', answer: 'Semipermeable membrane', explanation: 'Water follows a concentration gradient' }] }),
-    resource('cards', { kind: 'flashcards', questions: [{ concept: '', id: 'card', responseType: 'short_response', choices: [], marks: 1, prompt: 'Anterior anatomy', answer: 'Posterior anatomy', explanation: '' }] }),
-    resource('paper', { kind: 'test', questions: [{ concept: '', id: 'paper-question', responseType: 'short_response', choices: [], marks: 1, prompt: 'Describe nuclear division', answer: 'Mitosis', explanation: 'Chromosomes separate during anaphase' }] }),
+    resource('quiz', { kind: 'quiz', questions: [{ id: 'question', concept: '', responseType: 'short_response', choices: [], marks: 1, prompt: 'Explain osmotic pressure', answer: 'Semipermeable membrane', explanation: 'Water follows a concentration gradient' }] }),
+    resource('cards', { kind: 'flashcards', questions: [{ id: 'card', concept: '', responseType: 'short_response', choices: [], marks: 1, prompt: 'Anterior anatomy', answer: 'Posterior anatomy', explanation: '' }] }),
+    resource('paper', { kind: 'test', questions: [{ id: 'paper-question', concept: '', responseType: 'short_response', choices: [], marks: 1, prompt: 'Describe nuclear division', answer: 'Mitosis', explanation: 'Chromosomes separate during anaphase' }] }),
   );
   const index = new SearchIndex(noAttachments);
   await index.rebuild(snapshot);

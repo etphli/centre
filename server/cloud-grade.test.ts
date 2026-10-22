@@ -213,3 +213,24 @@ test('written feedback without a concept uses the saved canonical question conce
   assert.equal((needs[0].data as {conceptLabel:string}).conceptLabel,'Cell respiration');
   assert.equal((await f.post()).status,200);assert.deepEqual(await f.context.entities.listLearningNeeds(),needs);
 });
+
+test('a full retained history including transport tombstones still grades and evolves existing concepts',async()=>{
+  const f=fixture();delete f.context.env.AI;
+  for(let i=0;i<499;i++) {
+    const id=crypto.randomUUID();
+    f.put('practice.learningNeed',id,{schemaVersion:1,id,revision:1,subjectId:null,topicId:null,conceptKey:i===0?'fractions':`retained-${i}`,conceptLabel:i===0?'Fractions':`Retained ${i}`,needScore:2,evidence:[],createdAt:f.draft.createdAt,updatedAt:f.draft.updatedAt,deletedAt:null});
+  }
+  const list=f.context.entities.listLearningNeeds;
+  f.context.entities.listLearningNeeds=async()=>[...await list(),{kind:'practice.learningNeed',id:crypto.randomUUID(),version:2,deleted:true,data:null}];
+  f.put('resource','quiz',{...f.resource,questions:[{...f.resource.questions[0],concept:'Fractions'},{...f.resource.questions[0],id:'q2',concept:'Decimals'}]});
+  f.put('practice.draft',f.input.draftId,{...f.draft,answers:{q1:'B',q2:'B'}});
+  const response=await f.post();assert.equal(response.status,200);
+  const body=await response.json();assert.equal(body.attempt.result.feedback.length,2);
+  const retained=await list();assert.equal(retained.length,499);
+  const fractions=retained.find(record=>(record.data as {conceptKey:string}).conceptKey==='fractions');
+  assert.ok(fractions);assert.equal((fractions.data as {revision:number}).revision,2);
+  assert.equal((fractions.data as {evidence:unknown[]}).evidence.length,1);
+  assert.equal(retained.some(record=>(record.data as {conceptKey:string}).conceptKey==='decimals'),false);
+  assert.equal((await f.post({...f.input,id:crypto.randomUUID()})).status,200);
+  assert.deepEqual(await list(),retained);assert.equal(f.stats().commitCalls,1);
+});

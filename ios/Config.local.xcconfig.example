@@ -1,0 +1,7 @@
+// After approval, use your deployed Centre Worker origin. Escape // in xcconfig URLs.
+// CENTRE_CLOUD_URL = https:/$()/your-approved-centre-worker.workers.dev
+// GOOGLE_IOS_CLIENT_ID = your iOS OAuth client ID
+// GOOGLE_SERVER_CLIENT_ID = your backend OAuth web client ID
+// GOOGLE_REVERSED_CLIENT_ID = the iOS reversed client ID from Google Cloud
+// DEVELOPMENT_TEAM = your Apple Developer team ID
+// Never put provider/API secrets in this file or the app target.

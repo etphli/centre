@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { MAX_SEARCH_QUERY_LENGTH } from '../shared/search';
 
 const routes = [
+  ['GET', /^\/api\/cloud\/status$/],
+  ['POST', /^\/api\/cloud\/pairing$/],
   ['GET', /^\/api\/study-log$/],
   ['POST', /^\/api\/study-log\/(sessions|goals|timer\/start)$/],
   ['PATCH', /^\/api\/study-log\/sessions\/[0-9a-f-]{36}$/],

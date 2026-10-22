@@ -1,4 +1,7 @@
 :root[data-text-size=small]{font-size:14px}
+.mobile-install{display:flex;align-items:center;gap:24px;flex-wrap:wrap}.mobile-install>div{flex:1;min-width:220px}.mobile-install>svg{color:var(--text-2);margin:20px}.mobile-install__qr{background:white;border-radius:var(--radius);max-width:100%;height:auto}.mobile-settings p{max-width:65ch}
+.mobile-settings .settings-section__body>.button{width:auto;height:auto;min-height:32px;white-space:normal;text-align:left;padding:7px 11px}
+.mobile-settings .mobile-install p:first-child{margin-top:0}
 :root[data-text-size=large]{font-size:18px}
 :root[data-theme=midnight]{--bg:#101114;--sidebar:#0b0c0f;--surface:#18191e;--surface-2:#202126;--surface-3:#292b31;--line:#25272c;--line-strong:#36383f;--text:#e8e9ec;--text-2:#a1a3ac;--text-3:#777a85}
 :root[data-theme=light]{color-scheme:light;--bg:#f9f9f7;--sidebar:#f3f3f0;--surface:#ffffff;--surface-2:#f0efec;--surface-3:#e7e6e1;--line:#e4e4e1;--line-strong:#d8d8d5;--text:#131313;--text-2:#383835;--text-3:#7b7974;--accent:#2a78d6;--accent-ink:#fff;--ok:#7b7974;--warn:#987431;--danger:#b35449}

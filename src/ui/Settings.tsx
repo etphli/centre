@@ -1,11 +1,12 @@
 import { Connections } from './Connections';
-import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download, Brain, Monitor } from 'lucide-react';
+import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download, Brain, Smartphone, Monitor } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, openExternal, updates, type UpdateStatus } from '../data/client';
 import { useApp } from './context';
 import { GeneralPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
 import { errorMessage, initials, timeAgo } from './format';
 import { MemorySettings } from './MemorySettings';
+import { MobileSettings } from './MobileSettings';
 import { CloudSettings } from './CloudSettings';
 import { DesktopSettings } from './DesktopSettings';
 
@@ -319,6 +320,7 @@ const categories = [
   { id:'skills',label:'Skills',icon:Wand2 },
   { id:'desktop',label:'Desktop',icon:Monitor },
   { id:'updates',label:'Updates',icon:Download },
+  { id:'mobile',label:'iPhone',icon:Smartphone },
 ];
 
 export function SettingsPage() {
@@ -334,6 +336,7 @@ export function SettingsPage() {
       {category === 'skills' ? <SkillsPreferences /> : null}
       {category === 'desktop' ? <DesktopSettings /> : null}
       {category === 'updates' ? <UpdatesSection /> : null}
+      {category === 'mobile' ? <MobileSettings onSignIn={() => setCategory('connections')} /> : null}
     </div>
   </div>;
 }

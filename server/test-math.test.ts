@@ -8,6 +8,7 @@ type TestQuestion = Resource['questions'][number];
 
 const question: TestQuestion = questionSchema.parse({
   id: 'triangle',
+  concept: '',
   responseType: 'multiple_choice',
   choices: [
     'x = √(13² + 5²)',

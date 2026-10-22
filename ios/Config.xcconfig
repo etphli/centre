@@ -1,0 +1,7 @@
+// Override in Config.local.xcconfig. Public client identifiers are not secrets.
+CENTRE_CLOUD_URL =
+GOOGLE_IOS_CLIENT_ID =
+GOOGLE_SERVER_CLIENT_ID =
+GOOGLE_REVERSED_CLIENT_ID = centre-google-unconfigured
+DEVELOPMENT_TEAM =
+#include? "Config.local.xcconfig"

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "now": "2026-10-22T01:00:00.000Z",
+  "log": {
+    "schemaVersion": 1,
+    "sessions": [
+      {
+        "schemaVersion": 1,
+        "id": "a3b7aa8d-e3ae-46a0-8c8c-ad41a92fd6da",
+        "revision": 3,
+        "createdAt": "2026-10-18T12:00:00.000Z",
+        "updatedAt": "2026-10-18T14:00:00.000Z",
+        "deletedAt": null,
+        "source": "timer",
+        "subjectId": "math",
+        "taskId": null,
+        "title": "Overnight revision with a break",
+        "notes": "A Sunday to Monday session in Sydney.",
+        "timeZone": "Australia/Sydney",
+        "segments": [
+          {"start":"2026-10-18T12:00:00.000Z","end":"2026-10-18T12:30:00.000Z"},
+          {"start":"2026-10-18T13:00:00.000Z","end":"2026-10-18T14:00:00.000Z"}
+        ],
+        "state": {"kind":"completed"}
+      },
+      {
+        "schemaVersion": 1,
+        "id": "cb777188-d7d6-40d9-9056-390bfb0d5811",
+        "revision": 2,
+        "createdAt": "2026-10-22T00:00:00.000Z",
+        "updatedAt": "2026-10-22T00:00:15.000Z",
+        "deletedAt": null,
+        "source": "timer",
+        "subjectId": null,
+        "taskId": null,
+        "title": "Import this timer paused",
+        "notes": "Closed app and second device never count beyond checkpoint.",
+        "timeZone": "Australia/Sydney",
+        "segments": [],
+        "state": {"kind":"running","since":"2026-10-22T00:00:00.000Z","checkpointAt":"2026-10-22T00:00:15.000Z","lastActivityAt":"2026-10-22T00:00:15.000Z","confirmedAt":"2026-10-22T00:00:00.000Z"}
+      }
+    ],
+    "goals": [
+      {"schemaVersion":1,"id":"9d2bbc38-4217-46fc-85cd-0f7c806a01b6","revision":1,"createdAt":"2026-10-19T00:00:00.000Z","updatedAt":"2026-10-19T00:00:00.000Z","deletedAt":null,"weekStart":"2026-10-19","timeZone":"Australia/Sydney","targetMinutes":600}
+    ]
+  },
+  "expected": {"previousWeekDurationMs":1800000,"currentWeekDurationMs":3615000,"recoveredTimerDurationMs":15000,"recoveredTimerRevision":3},
+  "days": [
+    {"date":"2026-10-04","timeZone":"Australia/Sydney","durationMs":82800000},
+    {"date":"2026-04-05","timeZone":"Australia/Sydney","durationMs":90000000}
+  ]
+}

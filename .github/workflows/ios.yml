@@ -1,0 +1,32 @@
+name: iOS app
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test persisted mobile domain and outbox
+        run: swift test --package-path ios
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Build unsigned Release and exercise the actual iPhone app
+        run: scripts/verify-ios.sh
+      - name: Preserve actual simulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Centre-iOS-simulator
+          path: .runtime/ios-evidence
+          retention-days: 14

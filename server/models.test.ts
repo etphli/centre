@@ -50,7 +50,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
   const store = await Store.open(directory);
   store.state.subjects.push({id:'math',name:'Year10Maths',shortName:null,color:'#fff',icon:'book'});
   store.state.topics.push({id:'algebra',subjectId:'math',name:'Algebra',description:''});
-  store.state.resources.push(resourceSchema.parse({id:'quiz',subjectId:'math',topicId:'algebra',title:'Quiz',kind:'quiz',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),completedAt:null,content:'',questions:[{id:'q-one',responseType:'short_response',choices:[],prompt:'1+1',answer:'2',explanation:'Addition.',marks:1}],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null}));
+  store.state.resources.push(resourceSchema.parse({id:'quiz',subjectId:'math',topicId:'algebra',title:'Quiz',kind:'quiz',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),completedAt:null,content:'',questions:[{id:'q-one',concept:'',responseType:'short_response',choices:[],prompt:'1+1',answer:'2',explanation:'Addition.',marks:1}],practiceFocus:[],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null}));
   await store.save();
   let service = await createService({dataDir:directory});
   const request = async (path: string,method = 'GET',body?: unknown) => {

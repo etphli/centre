@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "owner": "ios",
+  "status": "final-theme-verification",
+  "baseCommit": "a9634ae467ee127468daa6813a5e745d1a8bd8a4",
+  "databaseDirection": "Latest user steering 2026-10-22 supersedes original shared Organato database instruction: database owner building independent Centre D1 and Worker. Keep Organato connector for subjects/items/calendar only. No shared Organato DB routes will be added by iOS.",
+  "architecture": "Native iOS-only SwiftUI app, iOS 17+, Swift package CentreCore for Codable domain, atomic workspace-scoped disk cache, durable idempotent pending changes, optimistic concurrency and conflict handling. URLSession HTTPS calls to database-owner Worker only. Keychain credentials. No local desktop endpoint/runtime requirement.",
+  "domain": "Generic Centre records/changes protocol. CloudRecord.version is transport CAS; data.revision is canonical domain revision. Optional createdCursor is retained and sorts equal-createdAt messages numerically; legacy positions are retained. Unknown kinds/data stay in the cache. No generated search/private execution/credentials sync.",
+  "studyLog": "Reuse study-log v1 StudySession and WeeklyStudyGoal exact fields. Persist UTC segments, Monday/IANA goals, 15s checkpoint/45s lease, pause at saved checkpoint on restart/import/background, no closed-app timer credit, idle10min/check-in60min, optimistic revisions/tombstones. No planned-calendar-to-study-time conversion.",
+  "offline": "Read cached resources/chats/calendar/review; quiz practice, timer/manual log, goals and edits persist atomically before network. Durable outbox ID reused on retries. Never silently overwrite conflicts. Cache partitioned by account/workspace; logout removes credentials and local private data with pending-change warning. Synchronize on launch/foreground/manual retry, no guaranteed iOS background execution.",
+  "hostedAI": {
+    "owner": "ios",
+    "module": "cloud-ai/index.ts#handleAiRequest(request,context):Promise<Response|null>",
+    "sourceCommit": "79c693b chat guard; 331513b canonical concepts; e0b107d retained-history boundary, exact70fbc19 module path",
+    "context": "After central auth. env.DB + optional env.AI. auth.workspaceId/deviceId. entities.get, putMessage required for assistant, commit/getPracticeAttempt/listLearningNeeds for grades, listMessages<=20. listLearningNeeds returns ALL retained<=500 including transport tombstones; existing concepts evolve at cap, new concepts skipped. putMessage atomically rejects archived target.",
+    "provider": "Cloudflare Workers AI binding env.AI, fixed @cf/meta/llama-3.1-8b-instruct-fp8. Free-plan only. No desktop Codex/ChatGPT entitlement or client provider secret.",
+    "routes": {
+      "POST /v1/ai/runs": "{id:UUID,chatId,messageId}; prompt/history loaded from authenticated saved records; no client content/model/tools/providerURL",
+      "GET /v1/ai/runs/:id": "durable workspace-scoped status/result, archived target404",
+      "POST /v1/ai/grades": "{id:UUID,resourceId,draftId,expectedDraftRevision}; canonical validateGradeResult/applyGradeEvidence then atomic attempt+draft tombstone+need commit",
+      "GET /v1/ai/grades/:id": "durable bounded result; failed/interrupted/CAS conflict never restarts inference"
+    },
+    "migrations": [
+      "cloud-ai/migrations/0001_centre_ai.sql",
+      "cloud-ai/migrations/0002_grades.sql"
+    ],
+    "limits": "Chat20/workspace/day120global,2/16active; input8000chars + history20messages/8000chars, output1024tokens. Grade10/workspace/day60global2/8active, max30questions/20000chars, written output4096tokens. Provider deadline45s; expired computation never reruns automatically. Quotas count durable admissions; Cloudflare account free allocation is separately enforced.",
+    "verification": "Real central auth/router/entity/atomic-grade/connector/attachments paths pass in isolated SQLite with signed identity fixtures, SIMULATED inference and Organato upstream. No hosted WorkersAI or production proof."
+  },
+  "installation": "Desktop Settings mobile section. Only validated real https://testflight.apple.com/join/<code> or apps.apple.com app URL produces install QR. Empty config honestly says distribution not yet available. Installation QR never contains account tokens. Separate account sign-in/pairing uses backend-authorized one-time flow, not raw IPA installation.",
+  "verification": "Actual native CI39770040680 onb128845: unsignedReleasePASS,64XCTestPASS,12/12iPhone16ProUItestsPASS(318.606s), including timer choices/restart, Review resolution, light theme, cached attachments and navigation cancellation. Native tree identical after Search integrationccd5abf. Local combined Search main9418451 typecheck196NodeTestsPASS. Last visual inspection found pale picker values on immediate light-theme transition; focused Settings-local tint fix7a10582 requires final actual capture linked on PR before readiness. Actual central auth/router/SQLite integrationPASS with own desktop fixture stopped; inference/upstream SIMULATED. No downloadable release or live provider proof.",
+  "approval": "Coordinator owns serial main merges after current user authorization. This iOS owner never merges independently. Deployments, production migrations, purchases and TestFlight/App Store uploads still require separate green light.",
+  "headCommit": "7a10582",
+  "reviewPR": "https://github.com/etphli/centre/pull/13",
+  "canonicalDependencies": {
+    "studyLog": "main 9064c7f; fixture copied unchanged SHA256 34f6d14ab3c66cd98053ee21cfe59b055086626544a6860f85798c3b60922a18",
+    "practice": "8095205 + 9ec445d included",
+    "database": "PR19; core65ba298+mount67b12b2+retained helperb48b673. EntityStore.putMessage/commit/getPracticeAttempt/listMessages/listLearningNeeds/resolveReview; module grade70fbc19 integrated as e0b107d.",
+    "calendar": "PR17 portable5d3946d+603ec3b+2d96ba0; module f4b3131+bf25350+7e357ac+b1a1394",
+    "chat": "portable projection/lineage98d76b0, feature10 PR14; exact fields only, no Codex continuation metadata",
+    "checklists": "canonical shared/checklist-progress.ts 9fcf6bd; interactiveProgress retained, no mobile script execution or invented progress schema"
+  },
+  "calendar": "Native uses exact cloud-organato routes/DTOs. Separate durable command journal stores original method/path/operationId/body before send. Pending/unknown only poll receipt. Authenticated operation_not_found enables explicit Try saved change with EXACT original command, never a new ID, and never local discard solely404. Handler ledger deduplicates concurrent retry before external writes. /link and reconciliation explicit read-only verification. Connection credentials entered on phone sent only to encrypted hosted connector, never cached.",
+  "attachments": "Read-only authenticated metadata/chunks with ?chatId=activeTarget. Server canonical ancestry gate uses all persisted chats/messages including archived ancestors. Mobile active association required. Size/chunk/base64/SHA256 verified before atomic publication, 20MiB/file and100MiB cache, partition by server/workspace/target. MIME-based safe extensions; cached reading offline; sign-out invalidates/erases actors.",
+  "review": "Ordinary generic reviewMemory resolvedAt write persists offline. Central resolveReview derives canonical linked learningNeed evidence atomically using stable resolvedAt, no alternate endpoint. Hosted grading raw atomic commit does not double-derive review evidence.",
+  "conflicts": "Keep-local uses max(local,remote) domain revision+1 and remote.version as transport CAS. Owned running studySession state/lease/since/checkpoint/segments stay exact; KeepCloud imports running timers paused at checkpoint, and ordinary restart still recovers them. Immutable attempts only offer cloud copy. No timestamp LWW.",
+  "nativeSourceTrees": {
+    "b128845_64core_12ui_pass": "6f8075ea8c0cf384698f14a979cc24274f4e5ad8",
+    "ccd5abf_after_search_main_unchanged": "6f8075ea8c0cf384698f14a979cc24274f4e5ad8",
+    "7a10582_settings_local_tint": "e8bbc073884c39efd9f5d36d4df03cd7072856be"
+  }
+}

@@ -27,7 +27,9 @@
     "cloud:dev": "wrangler dev --config cloud/wrangler.jsonc --local --port 8789",
     "cloud:migrate:local": "wrangler d1 migrations apply centre-production --local --config cloud/wrangler.jsonc",
     "cloud:build": "wrangler deploy --dry-run --config cloud/wrangler.jsonc --outdir .runtime/cloud-build",
-    "test:cloud": "tsx --test cloud/*.test.ts server/cloud-sync.test.ts cloud-organato/*.test.ts"
+    "test:cloud": "tsx --test cloud/*.test.ts server/cloud-sync.test.ts cloud-organato/*.test.ts",
+    "test:ios-core": "bash scripts/verify-ios-core.sh",
+    "test:ios": "bash scripts/verify-ios.sh"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
