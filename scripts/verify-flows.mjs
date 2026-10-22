@@ -305,6 +305,7 @@ app.on('browser-window-created', (_event, createdWindow) => {
       await waitFor("document.querySelector('dialog[open] button[aria-label=\\\"Move to topic\\\"]')",'move resource dialog');
       await clickSelector('dialog[open] button[aria-label="Move to topic"]','move topic picker');
       await clickByText('[role=option]','Pythagoras','correct classification');
+      await waitFor("[...document.querySelectorAll('dialog[open] button')].some(button=>button.getAttribute('aria-label')==='Move to topic' && button.textContent.includes('Pythagoras')) && [...document.querySelectorAll('dialog[open] .dialog__footer button')].some(button=>button.textContent.trim()==='Move' && !button.disabled)",'selected topic and Move action');
       await clickByText('dialog[open] .dialog__footer button','Move','save corrected topic');
       await waitFor("!document.querySelector('dialog[open]') && document.querySelector('.resource-header__crumbs')?.textContent.includes('Pythagoras')",'corrected classification');
       check('Resource classification can be corrected from its page',(await state()).resources.find(resource=>resource.id==='qa-diagram').topicId==='qa-pythagoras');

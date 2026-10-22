@@ -61,6 +61,29 @@ function chat(attachmentIds: string[] = []) {
   return chatSchema.parse({ id: 'chat', title: 'Revision', createdAt: instant, updatedAt: instant, codexThreadId: 'private-cli-thread', folderId: 'folder', activity: [{ id: 'tool', kind: 'tool', text: 'private terminal activity', state: 'done' }], messages: [{ id: 'message', role: 'user', codexTurns: [{ turnId: 'private-cli-turn', promptMessageId: 'message' }], content: 'Explain factors', createdAt: instant, attachmentIds, resourceIds: ['notes'], activity: [{ id: 'message-tool', kind: 'tool', text: 'private message activity', state: 'done' }] }] });
 }
 
+test('the deployed address defaults without signing in or enabling sync and preserves a saved address', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'centre-cloud-default-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const store = await Store.open(directory), attachments = new AttachmentStore(directory);
+  const credentials: Pick<Credentials, 'get' | 'set'> = { get: async () => '', set: async () => {} };
+  let requests = 0;
+  const fetcher: Fetcher = async () => { requests++; throw new Error('Opening local study must not contact cloud.'); };
+  const first = await CloudSync.open(store, credentials, attachments, fetcher);
+  try {
+    const status = await first.status();
+    assert.equal(status.baseUrl, 'https://centre-cloud.etphli.workers.dev');
+    assert.equal(status.authenticated, false);
+    assert.equal(status.enabled, false);
+    await first.configure('https://private-centre.example');
+  } finally { await first.close(); }
+  const restored = await CloudSync.open(store, credentials, attachments, fetcher);
+  try {
+    assert.equal((await restored.status()).baseUrl, 'https://private-centre.example');
+    assert.equal((await restored.status()).enabled, false);
+    assert.equal(requests, 0);
+  } finally { await restored.close(); }
+});
+
 test('explicit import backs up existing study data and roundtrips portable records across persisted devices', async t => {
   const cloud = await backend(t), a = await device(t, cloud);
   await a.credentials.set('organatoApiKey', 'secret-organato-key');

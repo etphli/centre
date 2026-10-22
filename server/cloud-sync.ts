@@ -16,7 +16,7 @@ import { HttpError, errorMessage } from './errors';
 import { applyStudyRecord, projectStudyData, projectedKinds, recordKey, sameRecord, type ProjectedRecord } from './cloud-projection';
 
 const journalSchema = z.object({
-  schemaVersion:z.literal(1),baseUrl:z.string().default(''),workspaceId:z.string().nullable().default(null),deviceId:z.string().nullable().default(null),expiresAt:z.string().nullable().default(null),enabled:z.boolean().default(false),
+  schemaVersion:z.literal(1),baseUrl:z.string().default('https://centre-cloud.etphli.workers.dev'),workspaceId:z.string().nullable().default(null),deviceId:z.string().nullable().default(null),expiresAt:z.string().nullable().default(null),enabled:z.boolean().default(false),
   cursor:z.string().default('0'),shadow:z.record(z.string(),cloudRecordSchema).default({}),outbox:z.array(cloudMutationSchema).default([]),
   conflicts:z.record(z.string(),cloudRecordSchema).default({}),uploads:z.record(z.string(),z.object({sha256:z.string(),mutationId:z.string().uuid(),cancelMutationId:z.string().uuid().optional()})).default({}),
   downloads:z.array(z.string().uuid()).default([]),materialized:z.array(z.string()).default([]),lastSyncedAt:z.string().nullable().default(null),error:z.string().nullable().default(null),
