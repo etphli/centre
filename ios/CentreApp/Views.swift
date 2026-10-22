@@ -1411,6 +1411,7 @@ private struct ReviewTab: View {
                                 .swipeActions {
                                     Button("Reviewed") { Task { await resolve(memory) } }.tint(palette.accent)
                                 }
+                                .accessibilityElement(children: .contain)
                                 .accessibilityIdentifier("review.item.\(memory.id)")
                         }
                     } header: { Text("To review") } footer: {
