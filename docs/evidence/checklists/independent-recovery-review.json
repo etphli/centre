@@ -1,0 +1,294 @@
+{
+  "result": "PASS: no P1/P2 findings in reviewed network/navigation recovery scope",
+  "matrix": {
+    "path": "/tmp/centre-sandbox-mrhx8K/report.json",
+    "browser": {
+      "electron": "44.9.1",
+      "chromium": "152.0.7977.167"
+    },
+    "executedAttacks": 23,
+    "attackHttpHits": 0,
+    "invalidMessageSaveRequests": 0,
+    "positiveControls": 19,
+    "failures": [],
+    "persistence": {
+      "trustedClickSaved": true,
+      "diskCheckedItemIds": [
+        "study"
+      ],
+      "reloadChecked": true,
+      "saveRequests": 1
+    }
+  },
+  "probes": [
+    {
+      "path": "/tmp/centre-sandbox-hgscye/report.json",
+      "browser": {
+        "electron": "44.9.1",
+        "chromium": "152.0.7977.167"
+      },
+      "mode": "immediate",
+      "attempts": [
+        {
+          "name": "auto-immediate",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-SNNlHk/report.json",
+      "browser": {
+        "electron": "44.9.1",
+        "chromium": "152.0.7977.167"
+      },
+      "mode": "microtask",
+      "attempts": [
+        {
+          "name": "auto-microtask",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-w5cvX3/report.json",
+      "browser": {
+        "electron": "44.9.1",
+        "chromium": "152.0.7977.167"
+      },
+      "mode": "load",
+      "attempts": [
+        {
+          "name": "auto-load",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-gvByW7/report.json",
+      "browser": {
+        "electron": "44.9.1",
+        "chromium": "152.0.7977.167"
+      },
+      "mode": "timer",
+      "attempts": [
+        {
+          "name": "auto-timer",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-VWGejr/report.json",
+      "browser": {
+        "electron": "44.9.1",
+        "chromium": "152.0.7977.167"
+      },
+      "mode": "pending",
+      "attempts": [
+        {
+          "name": "manual-pending",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": true,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 2,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-cAr3r2/report.json",
+      "browser": "154.0.8037.92",
+      "mode": "immediate",
+      "attempts": [
+        {
+          "name": "auto-immediate",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-l6aR5q/report.json",
+      "browser": "154.0.8037.92",
+      "mode": "microtask",
+      "attempts": [
+        {
+          "name": "auto-microtask",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-5wmY6M/report.json",
+      "browser": "154.0.8037.92",
+      "mode": "load",
+      "attempts": [
+        {
+          "name": "auto-load",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-GEXIR3/report.json",
+      "browser": "154.0.8037.92",
+      "mode": "timer",
+      "attempts": [
+        {
+          "name": "auto-timer",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": false,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 1,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    },
+    {
+      "path": "/tmp/centre-sandbox-iTOFwK/report.json",
+      "browser": "154.0.8037.92",
+      "mode": "pending",
+      "attempts": [
+        {
+          "name": "manual-pending",
+          "frameUrl": "about:srcdoc"
+        }
+      ],
+      "url": "about:srcdoc",
+      "checkboxVisible": true,
+      "checked": true,
+      "pendingIntercepted": true,
+      "markup": " <img src=x onerror=\"window.injected=true\"> </span><script>window.injected=true</script>",
+      "scriptElements": 0,
+      "handlers": 0,
+      "saveRequestsBeforeRecoveryClick": 0,
+      "finalDiskChecked": [],
+      "saveRequests": 2,
+      "httpAttackHits": 0,
+      "canaryHits": 1
+    }
+  ],
+  "sourceHashes": {
+    "server/diagram.ts": "f2dd17d2acb5c335d02b482611120d48f14a08190ad3e4c2566924376f405c32",
+    "server/index.ts": "0bb8ab698694cec9d6eeafcb94640e43ca5d352297d5ca1fba0b454716f3e4b2",
+    "server/store.ts": "21526b516aa7406db965d4d50fd9218af419cc19cd15cac59a0ed5009837e636",
+    "server/checklist-progress.ts": "5f3a72015530974b54d1848df3cb922b4c0a6708bb58292dfac1f7de17f9a258",
+    "src/ui/DiagramFrame.tsx": "13d8c16831271d05070e3aa07654aad3ce49e8d7f8f0aa2c957df14d7f2305cc",
+    "src/ui/diagram.css": "8ffe5aa351c7ff97a0280d00c2a17ad71c29394cd730e71ec53d13864fb7165d",
+    "src/data/client.ts": "2481840b30ea34873a3546178f62b791a55979f4fb4e7440beed4853db7bd4a1",
+    "shared/checklist-progress.ts": "0289a523dd0a8dde8644490e64630489b82cba3767a0ca0def977efe72d5efa7",
+    "shared/checklist-progress-queue.ts": "f5099b103e80c86a07666c124308722cc5157bd6b5ca1e3ff997182fa1209fe1"
+  },
+  "currentSourceHashesMatch": true,
+  "probeScript": ".runtime/independent-recovery-probe.mjs",
+  "probeScriptSha256": "9880347034dac304ceeef0386a06ce0e2778b32fba3f0c6654b106b6b8f4c9aa",
+  "notVerified": [
+    "iOS",
+    "hosted D1",
+    "production deployment"
+  ],
+  "supersededRun": {
+    "path": "/tmp/centre-sandbox-Znoy3t/report.json",
+    "reason": "source changed during nonce fix; excluded from final evidence"
+  },
+  "preservedFallbackLog": "/tmp/centre-checklist-evidence/t3-preview-fallback.txt"
+}

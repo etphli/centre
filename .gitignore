@@ -17,3 +17,4 @@ ios/Config.local.xcconfig
 ios/*.xcresult/
 ios/Centre.xcodeproj/
 ios/.swiftpm/
+.wrangler/

@@ -1,0 +1,31 @@
+{
+  "url": "http://127.0.0.1:5186/",
+  "title": "Centre",
+  "errors": [],
+  "posts": 4,
+  "access": {
+    "origin": "null",
+    "centre": "undefined",
+    "require": "undefined",
+    "cookie": "SecurityError",
+    "storage": "SecurityError",
+    "parent": "SecurityError"
+  },
+  "forgedMessagesRejected": true,
+  "navigationDuringSave": true,
+  "state": [
+    {
+      "schemaVersion": 1,
+      "id": "5e6a789f-f000-8387-9c48-10ca02b6e48f",
+      "revision": 41,
+      "resourceId": "checklist-demo",
+      "documentRevision": "3597b7a21d0c5c0e83418e99bc8339f48e45788311d149102059daff5a227aa8",
+      "checkedItemIds": [
+        "legacy-3"
+      ],
+      "createdAt": "2026-10-22T09:30:15.965Z",
+      "updatedAt": "2026-10-22T10:17:05.974Z",
+      "deletedAt": null
+    }
+  ]
+}

@@ -16,11 +16,11 @@ export default defineConfig({
     watch: { ignored: ['**/release/**', '**/dist-electron/**'] },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:4319',
+        target: `http://127.0.0.1:${process.env.CENTRE_SERVICE_PORT ?? '4319'}`,
         configure(proxy) {
           proxy.on('proxyReq', (req) => {
             try {
-              const connection = connectionSchema.parse(JSON.parse(readFileSync('.runtime/connection.json', 'utf8')));
+              const connection = connectionSchema.parse(JSON.parse(readFileSync(process.env.CENTRE_CONNECTION_FILE ?? '.runtime/connection.json', 'utf8')));
               req.setHeader('Authorization', `Bearer ${connection.token}`);
             } catch {
               req.removeHeader('Authorization');

@@ -2,10 +2,12 @@ import { studyLogSchema, type StudyTags, type StudySegment, type TimerAction } f
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { searchQuerySchema, searchResultsSchema } from '../../shared/search';
 import { z } from 'zod';
+import { checklistProgressUpdateSchema, diagramPreviewSchema } from '../../shared/checklist-progress';
+import { cloudStatusSchema } from '../../shared/cloud-status';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import type { DesktopAction, DesktopActionRequest } from '../../shared/desktop-actions';
 import type { LauncherOperation, LauncherList } from '../../shared/desktop-launchers';
-import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
+import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, quizDraftSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent, type QuizDraft } from '../../shared/schema';
 
 export interface ExportedFile { filename: string; content: string; mimeType: string }
 export interface AttachmentUploadInput { name:string; mimeType:string; data:string }
@@ -48,7 +50,7 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
       throw new Error(error.success ? error.data.error : `Centre returned ${response.status}.`);
     }
   }
-  const failure = z.object({ error: z.string() }).safeParse(value);
+  const failure = z.object({ error: z.string() }).strict().safeParse(value);
   if (failure.success) throw new Error(failure.data.error);
   const result = schema.parse(value);
   if (stateRequest && !window.centre && (path === '/state/poll' || !stateEtag)) stateEtag = nextStateEtag;
@@ -56,9 +58,19 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
 }
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
+export const cloudApi = {
+  status: () => request('GET','/cloud/status',cloudStatusSchema),
+  configure: (baseUrl:string) => request('POST','/cloud/configure',cloudStatusSchema,{baseUrl}),
+  signIn: async () => { const result = await request('POST','/cloud/sign-in',z.object({url:z.string().url()}),{}); await openExternal(result.url); return result; },
+  importData: () => request('POST','/cloud/import',cloudStatusSchema,{confirm:true}),
+  sync: () => request('POST','/cloud/sync',cloudStatusSchema,{}),
+  pairing: () => request('POST','/cloud/pairing',z.object({baseUrl:z.string().url(),code:z.string(),expiresAt:z.string().datetime()}),{}),
+  disconnect: () => request('POST','/cloud/disconnect',cloudStatusSchema,{}),
+  resolve: (kind:string,id:string,choice:'local'|'cloud') => request('POST','/cloud/conflicts/resolve',cloudStatusSchema,{kind,id,choice}),
+};
 export const api = {
-  mobileCloudStatus: () => request('GET', '/cloud/status', z.object({authenticated:z.boolean()})),
-  mobilePairing: () => request('POST', '/cloud/pairing', z.object({code:z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/),expiresAt:z.string().datetime(),baseUrl:z.string().url()}), {}),
+  mobileCloudStatus: () => request('GET','/cloud/status',z.object({authenticated:z.boolean()})),
+  mobilePairing: () => request('POST','/cloud/pairing',z.object({code:z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/),expiresAt:z.string().datetime(),baseUrl:z.string().url()}),{}),
   studyLog: () => request('GET', '/study-log', studyLogSchema),
   createStudy: (input: StudyTags & {id:string;segments:StudySegment[]}) => request('POST', '/study-log/sessions', studyLogSchema, input),
   editStudy: (id:string,input:StudyTags & {expectedRevision:number;segments:StudySegment[]}) => request('PATCH', `/study-log/sessions/${encodeURIComponent(id)}`, studyLogSchema, input),
@@ -75,7 +87,9 @@ export const api = {
   createChat: (modelSelection:ModelSelection|null = null) => request('POST', '/chats', chatSchema, {modelSelection}),
   selectChatModel: (id:string,selection:ModelSelection) => request('PATCH',`/chats/${encodeURIComponent(id)}/model`,chatSchema,modelSelectionSchema.parse(selection)),
   organizeChat: (chatId: string, input: { pinned?: boolean; folderId?: string | null; beforeChatId?: string | null }) => request('PATCH', `/chats/${encodeURIComponent(chatId)}/organize`, chatSchema, input),
-  sendMessage: (chatId: string, content: string, context: PageContext, attachmentIds: string[] = [], resourceRequest?:CreateResource) => request('POST', `/chats/${encodeURIComponent(chatId)}/messages`, chatSchema, { content, context, attachmentIds, resourceRequest }),
+  sendMessage: (chatId: string, content: string, context: PageContext, attachmentIds: string[] = [], resourceRequest?:CreateResource, messageId?:string) => request('POST', `/chats/${encodeURIComponent(chatId)}/messages`, chatSchema, { content, context, attachmentIds, resourceRequest,messageId }),
+  branchChat: (chatId:string,input:{operation:'continue'|'edit'|'regenerate';messageId:string;content?:string}) => request('POST',`/chats/${encodeURIComponent(chatId)}/branch`,chatSchema,input),
+  retryMessage: (chatId:string,messageId:string) => request('POST',`/chats/${encodeURIComponent(chatId)}/retry`,chatSchema,{messageId}),
   uploadAttachment: (file: AttachmentUploadInput): Promise<Attachment> => request('POST','/attachments',attachmentSchema,file),
   getAttachment: (id: string): Promise<Attachment> => request('GET',`/attachments/${encodeURIComponent(id)}`,attachmentSchema),
   answerQuestion: (id:string,answers:Record<string,string>) => request('POST',`/questions/${encodeURIComponent(id)}/answer`,okSchema,{answers}),
@@ -90,13 +104,18 @@ export const api = {
   deleteResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/archive`,okSchema,{}),
   restoreResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/restore`,okSchema,{}),
   moveResource: (id:string,location:{subjectId:string|null;topicId:string|null}) => request('PATCH',`/resources/${encodeURIComponent(id)}/location`,resourceSchema,location),
+  saveQuizDraft: (resourceId:string,input:{id:string;expectedRevision:number|null;answers:Record<string,string>;currentQuestion:number}):Promise<QuizDraft> => request('PATCH',`/resources/${encodeURIComponent(resourceId)}/practice-draft`,quizDraftSchema,input),
+  startOverQuizDraft: (resourceId:string,input:{id:string;expectedRevision:number}) => request('POST',`/resources/${encodeURIComponent(resourceId)}/practice-draft/start-over`,okSchema,input),
   exportResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/export`, exportSchema),
   refreshConnectedFile: (id:string) => request('POST', `/resources/${encodeURIComponent(id)}/refresh`,resourceSchema,{}),
-  previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, z.object({ url: z.string().url() })),
+  previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, diagramPreviewSchema),
+  saveChecklistProgress: (id:string,documentRevision:string,itemId:string,checked:boolean) => request('POST',`/resources/${encodeURIComponent(id)}/checklist-progress`,okSchema,checklistProgressUpdateSchema.parse({documentRevision,itemId,checked})),
   saveFeedback: (id: string, notes: string, questionIds: string[] = [], confident = false) => request('POST', `/resources/${encodeURIComponent(id)}/feedback`, okSchema, { notes, questionIds, confident }),
-  gradeQuiz: (resourceId: string, answers: Record<string, string>) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers }),
-  createEvent: (input: Pick<StudyEvent, 'title' | 'date'> & Partial<Pick<StudyEvent, 'time' | 'subjectId' | 'notes'>>) => request('POST', '/events', eventSchema, input),
-  completeEvent: (id: string, completed: boolean) => request('PATCH', `/events/${encodeURIComponent(id)}`, eventSchema, { completedAt: completed ? new Date().toISOString() : null }),
+  gradeQuiz: (resourceId: string, answers: Record<string, string>, submission?:{draftId:string;expectedDraftRevision:number}) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers, ...(submission ?? {}) }),
+  createEvent: (input: Pick<StudyEvent, 'title' | 'date'> & Partial<Pick<StudyEvent, 'time' | 'plannedDurationMinutes' | 'subjectId' | 'notes'>>) => request('POST', '/events', eventSchema, input),
+  updateEvent: (id:string,input:Partial<Pick<StudyEvent,'title'|'date'|'time'|'plannedDurationMinutes'|'subjectId'|'notes'>> & {expectedRevision:number}) => request('PATCH',`/events/${encodeURIComponent(id)}`,eventSchema,input),
+  completeEvent: (id: string, completed: boolean, expectedRevision?:number) => request('PATCH', `/events/${encodeURIComponent(id)}`, eventSchema, { completedAt: completed ? new Date().toISOString() : null,...(expectedRevision === undefined ? {} : {expectedRevision}) }),
+  archiveEvent: (id:string,expectedRevision:number) => request('POST',`/events/${encodeURIComponent(id)}/archive`,eventSchema,{expectedRevision}),
   resolveMemory: (id: string) => request('POST', `/memories/${encodeURIComponent(id)}/resolve`, okSchema, {}),
   syncOrganato: () => request('POST', '/organato/sync', snapshotSchema, {}),
   createOrganatoItem: (input: unknown) => request('POST', '/organato/items', assignmentSchema, input),

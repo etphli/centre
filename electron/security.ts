@@ -14,13 +14,15 @@ const routes = [
   ['GET', /^\/api\/models$/],
   ['GET', /^\/api\/search$/],
   ['GET', /^\/api\/skills$/],
+  ['GET', /^\/api\/cloud\/status$/],
+  ['POST', /^\/api\/cloud\/(configure|sign-in|import|sync|pairing|disconnect|conflicts\/resolve)$/],
   ['PATCH', /^\/api\/assistant-memories\/[0-9a-f-]{36}$/],
   ['POST', /^\/api\/assistant-memories\/[0-9a-f-]{36}\/forget$/],
   ['GET', /^\/api\/connectors$/],
   ['POST', /^\/api\/connectors\/(google\/start|notion|disconnect|cancel)$/],
   ['POST', /^\/api\/chats$/],
   ['POST', /^\/api\/questions\/[^/]+\/answer$/],
-  ['POST', /^\/api\/chats\/[^/]+\/(messages|cancel|archive|restore)$/],
+  ['POST', /^\/api\/chats\/[^/]+\/(messages|cancel|archive|restore|branch|retry)$/],
   ['POST', /^\/api\/attachments$/],
   ['GET', /^\/api\/attachments\/[0-9a-f-]{36}$/],
   ['PATCH', /^\/api\/chats\/[^/]+\/(organize|model)$/],
@@ -30,10 +32,14 @@ const routes = [
   ['POST', /^\/api\/topics$/],
   ['POST', /^\/api\/resources\/generate$/],
   ['PATCH', /^\/api\/resources\/[^/]+\/location$/],
+  ['PATCH', /^\/api\/resources\/[^/]+\/practice-draft$/],
+  ['POST', /^\/api\/resources\/[^/]+\/practice-draft\/start-over$/],
   ['GET', /^\/api\/resources\/[^/]+\/(export|preview)$/],
+  ['POST', /^\/api\/resources\/[^/]+\/checklist-progress$/],
   ['POST', /^\/api\/resources\/[^/]+\/(feedback|archive|restore|refresh)$/],
   ['POST', /^\/api\/quiz\/grade$/],
   ['POST', /^\/api\/events$/],
+  ['POST', /^\/api\/events\/[^/]+\/archive$/],
   ['PATCH', /^\/api\/events\/[^/]+$/],
   ['POST', /^\/api\/memories\/[^/]+\/resolve$/],
   ['POST', /^\/api\/organato\/(sync|items)$/],
@@ -57,7 +63,7 @@ export function validateRequest(method: unknown, path: unknown, body: unknown) {
   }
   if (request.method === 'GET' && body !== undefined) throw new Error('GET requests cannot include a body.');
   const serializedLength = JSON.stringify(body ?? null).length;
-  const maxLength = request.method === 'POST' && request.path === '/api/attachments' ? 30_000_000 : 2_000_000;
+  const maxLength = request.method === 'POST' && request.path.endsWith('/checklist-progress') ? 16_384 : request.method === 'POST' && request.path === '/api/attachments' ? 30_000_000 : 2_000_000;
   if (serializedLength > maxLength) throw new Error('This request is too large.');
   return request;
 }

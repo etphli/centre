@@ -1,6 +1,7 @@
-import { BookOpen, Check, ChevronRight, Maximize2, MessageSquare, PanelRight, Plus, RotateCcw, X } from 'lucide-react';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import type { Chat, Resource, Snapshot } from '../../shared/schema';
+import { BookOpen, Check, ChevronRight, GitBranch, Maximize2, MessageSquare, PanelRight, Pencil, Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Chat, Message, Resource, Snapshot } from '../../shared/schema';
+import { api } from '../data/client';
 import { Composer } from './Composer';
 import { MessageAttachments } from './Attachments';
 import { useApp, type Turn } from './context';
@@ -11,6 +12,7 @@ import { routeContext, type CreateKind, type Route } from './types';
 import { useSearchTarget } from './useSearchTarget';
 import './thinking.css';
 import './side-chat.css';
+import './chat-branches.css';
 
 export function contextLabel(route: Route, state: Snapshot): string {
   const context = routeContext(route, state);
@@ -98,18 +100,210 @@ function CodexNotice() {
   );
 }
 
+type BranchLineage = Extract<Chat['lineage'], { kind: 'branch' }>;
+type BranchOperation = BranchLineage['operation'];
+
+/** A short, plain excerpt so repeated per-message buttons have distinct accessible names. */
+function excerpt(text: string): string {
+  const plain = text.replace(/[`*_#>[\]()!|~]/g, '').replace(/\s+/g, ' ').trim();
+  if (!plain) return 'empty message';
+  return plain.length > 48 ? `${plain.slice(0, 47).trimEnd()}…` : plain;
+}
+
+/** Opens a chat where the user already is: the side panel stays a side panel, the full page stays full. */
+function useOpenChat(compact: boolean): (chatId: string) => void {
+  const { navigate, openSideChat } = useApp();
+  return (chatId) => (compact ? openSideChat(chatId) : navigate({ kind: 'chat', chatId }));
+}
+
+/**
+ * Which messages in a branch are new rather than inherited. Branches copy the parent's messages in order,
+ * so the source message's position in the parent marks the edited prompt or replaced reply in the child.
+ */
+function branchMarks(chat: Chat, lineage: BranchLineage, parent: Chat | undefined): { prompt: string | null; reply: string | null } {
+  if (lineage.operation === 'continue') return { prompt: null, reply: null };
+  if (lineage.promptMessageId) {
+    const index = chat.messages.findIndex(message => message.id === lineage.promptMessageId);
+    if (index >= 0) return {prompt:lineage.operation === 'edit' ? lineage.promptMessageId : null,reply:chat.messages.slice(index + 1).find(message => message.role === 'assistant')?.id ?? null};
+  }
+  const fromParent = parent ? parent.messages.findIndex((message) => message.id === lineage.sourceMessageId) : -1;
+  const index = fromParent >= 0 ? fromParent : chat.messages.findIndex((message) => message.id === lineage.sourceMessageId);
+  if (index < 0) return { prompt: null, reply: null };
+  const source = chat.messages[index];
+  const prompt = lineage.operation === 'edit' && source?.role === 'user' ? source.id : null;
+  const reply = source?.role === 'assistant' ? source : chat.messages.slice(index + 1).find((message) => message.role === 'assistant');
+  return { prompt, reply: reply?.id ?? null };
+}
+
+function LineageBanner({ lineage, parent, compact }: { lineage: BranchLineage; parent: Chat | undefined; compact: boolean }) {
+  const openChat = useOpenChat(compact);
+  const title = parent?.title || 'Untitled chat';
+  return (
+    <div className="branch-banner" role="note">
+      <GitBranch size={13} aria-hidden className="branch-banner__icon" />
+      <p>
+        {parent ? <>Branched from <span className="branch-banner__title">{title}</span></> : 'Branched from a chat that’s no longer available'}
+      </p>
+      {parent ? (
+        <button type="button" className="link-button branch-banner__open" aria-label={`Open original chat: ${title}`} onClick={() => openChat(lineage.parentChatId)}>
+          Open original
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function BranchLabel({ label, note }: { label: string; note?: boolean }) {
+  return (
+    <div className="branch-label">
+      <span className="branch-label__name"><GitBranch size={11} aria-hidden />{label}</span>
+      {note ? <span className="branch-label__note">No connected files, events or saved resources were changed.</span> : null}
+    </div>
+  );
+}
+
+/** Inline replacement for a sent prompt. Saving never changes this chat; it starts a branch from the edit. */
+function PromptEditor({ message, locked, onCancel, onSave }: { message: Message; locked: boolean; onCancel: () => void; onSave: (content: string) => Promise<boolean> }) {
+  const [draft, setDraft] = useState(message.content);
+  const [saving, setSaving] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const content = draft.trim();
+  const ready = content.length > 0 && content !== message.content.trim() && !locked && !saving;
+
+  useEffect(() => {
+    const node = field.current;
+    if (!node) return;
+    node.focus();
+    node.setSelectionRange(node.value.length, node.value.length);
+  }, []);
+  useEffect(() => {
+    const node = field.current;
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${Math.min(node.scrollHeight + 2, 320)}px`;
+  }, [draft]);
+
+  async function save() {
+    if (!ready) return;
+    setSaving(true);
+    if (!(await onSave(content))) setSaving(false);
+  }
+
+  return (
+    <form className="prompt-editor" aria-label="Edit prompt" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <textarea
+        ref={field}
+        className="prompt-editor__field"
+        aria-label="Edited prompt"
+        aria-describedby={`prompt-editor-hint-${message.id}`}
+        value={draft}
+        rows={2}
+        disabled={saving}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            // Keep Escape here so it doesn't also close the side chat.
+            event.preventDefault();
+            event.stopPropagation();
+            onCancel();
+          } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            void save();
+          }
+        }}
+      />
+      <div className="prompt-editor__footer">
+        <p id={`prompt-editor-hint-${message.id}`} className="prompt-editor__hint">
+          {locked ? 'Wait for the current reply to finish.' : 'Opens a new branch. This chat stays as it is.'}
+        </p>
+        <button type="button" className="button button--quiet button--small" onClick={onCancel} disabled={saving}>Cancel</button>
+        <button type="submit" className="button button--primary button--small" disabled={!ready}>
+          {saving ? 'Starting branch…' : 'Save and continue in branch'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function MessageActions({ message, locked, busy, visible, onEdit, onBranch, onRegenerate }: { message: Message; locked: boolean; busy: boolean; visible: boolean; onEdit?: () => void; onBranch: () => void; onRegenerate?: () => void }) {
+  const subject = excerpt(message.content);
+  const kind = message.role === 'user' ? 'prompt' : 'reply';
+  const disabled = locked || busy;
+  const hint = locked ? 'Available when the current reply finishes' : undefined;
+  return (
+    <div className={`message-actions message-actions--${message.role}${visible ? ' is-shown' : ''}`} role="group" aria-label={`Actions for ${kind}: ${subject}`}>
+      {onEdit ? (
+        <button type="button" className="message-action" disabled={disabled} title={hint} aria-label={`Edit prompt: ${subject}`} onClick={onEdit}>
+          <Pencil size={12} aria-hidden /><span>Edit prompt</span>
+        </button>
+      ) : null}
+      {onRegenerate ? (
+        <button type="button" className="message-action" disabled={disabled} title={hint} aria-label={`Regenerate reply: ${subject}`} onClick={onRegenerate}>
+          <RefreshCw size={12} aria-hidden /><span>Regenerate</span>
+        </button>
+      ) : null}
+      <button type="button" className="message-action" disabled={disabled} title={hint} aria-label={`Branch from ${kind}: ${subject}`} onClick={onBranch}>
+        <GitBranch size={12} aria-hidden /><span>Branch from here</span>
+      </button>
+    </div>
+  );
+}
+
 /** Messages for a chat plus the in-flight turn, if any. */
 export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat | undefined; turn: Turn | undefined; compact?: boolean; messageId?: string }) {
-  const { state,send,cancel } = useApp();
+  const { state, send, cancel, act } = useApp();
+  const openChat = useOpenChat(compact);
   const [preview,setPreview] = useState<Resource|null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [working, setWorking] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const messages = chat?.messages ?? [];
   const last = messages[messages.length - 1];
   const showPending = turn && !(last?.role === 'user' && last.content === turn.content) && turn.status !== 'error';
-  const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
   const liveSteps = chat?.activity ?? [];
   const waiting = state.pendingQuestions.some(request => request.chatId === chat?.id);
+  const responding = state.activeResponses.some(response => response.chatId === chat?.id);
+  // Branching, editing and retrying wait for the chat to settle: no reply running or stopping, no question open.
+  const locked = responding || waiting || turn?.status === 'working' || turn?.status === 'stopping';
+
+  const lineage = chat?.lineage.kind === 'branch' ? chat.lineage : null;
+  const parent = lineage ? state.chats.find(item => item.id === lineage.parentChatId && !item.deletedAt) : undefined;
+  const marks = chat && lineage ? branchMarks(chat, lineage, parent) : { prompt: null, reply: null };
+
+  // A prompt is complete once a reply follows it. Only the tail of the thread can be waiting on one.
+  const replied = new Set<string>();
+  let seenReply = false;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!;
+    if (message.role === 'assistant') seenReply = true;
+    else if (seenReply) replied.add(message.id);
+  }
+  const unanswered = last?.role === 'user' ? last : undefined;
+  // A local send that failed may or may not have saved its prompt. Retry a saved prompt; only resend one that never arrived.
+  const failed = turn?.status === 'error' ? turn : undefined;
+  const failedSaved = failed ? messages.some(message => message.id === failed.messageId) : false;
+  const failedRetry = failed && failedSaved && unanswered?.id === failed.messageId ? unanswered : undefined;
+  const failedResend = failed && !failedSaved ? failed : undefined;
+  const stalled = !failedRetry && !failedResend && !locked && unanswered ? unanswered : undefined;
+
+  async function branch(message: Message, operation: BranchOperation, content?: string): Promise<boolean> {
+    if (!chat || locked || working) return false;
+    setWorking(message.id);
+    const child = await act(() => api.branchChat(chat.id, { operation, messageId: message.id, content }));
+    setWorking(null);
+    if (!child) return false;
+    setEditing(null);
+    openChat(child.id);
+    return true;
+  }
+
+  async function retry(message: Message) {
+    if (!chat || locked || working) return;
+    setWorking(message.id);
+    await act(() => api.retryMessage(chat.id, message.id));
+    setWorking(null);
+  }
 
   useEffect(() => {
     follow.current = true;
@@ -124,14 +318,59 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
   },[]);
   useEffect(() => { if (turn && follow.current) end.current?.scrollIntoView({block:'end'}); },[liveSteps,turn?.id]);
   useSearchTarget(messageId ? `chat-message-${messageId}` : undefined);
+  useEffect(() => { setEditing(null); }, [chat?.id]);
+
+  function retryNotice(message: string, onRetry: () => void, alert: boolean) {
+    return (
+      <div className={alert ? 'thread-error' : 'thread-error thread-error--quiet'} role={alert ? 'alert' : 'status'}>
+        <p>{message}{!failedResend ? <small className="retry-note">Retry uses saved history without changing connected files, events or saved resources.</small> : null}</p>
+        <button type="button" className="button button--quiet button--small" disabled={locked || working !== null} onClick={onRetry}>
+          <RotateCcw size={14} aria-hidden /> Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={`thread${compact ? ' thread--compact' : ''}`} aria-live="polite" aria-busy={turn?.status === 'working'}>
-      {messages.map(message => <Fragment key={message.id}>
-        {message.role === 'user' ? <div id={`chat-message-${message.id}`} className="message message--user"><div className="message__bubble">{message.content}</div></div> : <div id={`chat-message-${message.id}`} className="message message--assistant"><ThinkingDetails steps={message.activity} duration={message.responseDurationMs} /><Markdown>{message.content}</Markdown></div>}
-        {message.attachmentIds.length ? <MessageAttachments ids={message.attachmentIds} /> : null}
-        {message.resourceIds.length ? <div className="thread-resources">{message.resourceIds.flatMap(id => { const resource = state.resources.find(item => item.id === id); return resource ? [<InlineResourcePreview key={id} resource={resource} onPreview={() => setPreview(resource)} />] : []; })}</div> : null}
-      </Fragment>)}
+      {lineage ? <LineageBanner lineage={lineage} parent={parent} compact={compact} /> : null}
+      {messages.map(message => {
+        const isEditing = editing === message.id;
+        const actionable = chat && !isEditing && (message.role === 'assistant' || replied.has(message.id));
+        return (
+          <div id={`chat-message-${message.id}`} className="thread__item" key={message.id}>
+            {message.role === 'user' ? (
+              <div className="message message--user">
+                {marks.prompt === message.id ? <BranchLabel label="Edited prompt" /> : null}
+                {isEditing ? (
+                  <PromptEditor message={message} locked={locked} onCancel={() => setEditing(null)} onSave={(content) => branch(message, 'edit', content)} />
+                ) : (
+                  <div className="message__bubble">{message.content}</div>
+                )}
+              </div>
+            ) : (
+              <div className="message message--assistant">
+                {marks.reply === message.id ? <BranchLabel label={lineage?.operation === 'edit' ? 'Reply to edited prompt' : 'Alternate reply'} note /> : null}
+                <ThinkingDetails steps={message.activity} duration={message.responseDurationMs} />
+                <Markdown>{message.content}</Markdown>
+              </div>
+            )}
+            {message.attachmentIds.length ? <MessageAttachments ids={message.attachmentIds} /> : null}
+            {message.resourceIds.length ? <div className="thread-resources">{message.resourceIds.flatMap(id => { const resource = state.resources.find(item => item.id === id); return resource ? [<InlineResourcePreview key={id} resource={resource} onPreview={() => setPreview(resource)} />] : []; })}</div> : null}
+            {actionable ? (
+              <MessageActions
+                message={message}
+                locked={locked}
+                busy={working !== null}
+                visible={message === last || working === message.id}
+                onEdit={message.role === 'user' ? () => setEditing(message.id) : undefined}
+                onRegenerate={message.role === 'assistant' ? () => void branch(message, 'regenerate') : undefined}
+                onBranch={() => void branch(message, 'continue')}
+              />
+            ) : null}
+          </div>
+        );
+      })}
       {preview ? <ResourcePreviewDialog resource={preview} onClose={() => setPreview(null)} /> : null}
       {showPending ? (
         <div className="message message--user message--pending">
@@ -139,17 +378,9 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
         </div>
       ) : null}
       {turn && turn.status !== 'error' ? <WorkingActivity steps={liveSteps} turn={turn} waiting={waiting} onExpand={() => { follow.current = true; end.current?.scrollIntoView({block:'end'}); }} onStop={() => { if (turn.chatId) void cancel(turn.chatId); }} /> : null}
-      {turn?.status === 'error' ? (
-        <div className="thread-error" role="alert">
-          <p>{turn.error}</p>
-          <button type="button" className="button button--quiet button--small" onClick={() => void send(turn.content, turn.context, turn.chatId,undefined,turn.attachmentIds,turn.resourceRequest)}>
-            <RotateCcw size={14} /> Try again
-          </button>
-        </div>
-      ) : null}
-      {!turn && last?.role === 'user' && lastAssistant !== last ? (
-        <p className="thread-note">No reply yet. Send another message or try again.</p>
-      ) : null}
+      {failedRetry ? retryNotice(failed?.error ?? chat?.responseError ?? 'No reply yet.', () => void retry(failedRetry), true) : null}
+      {failedResend ? retryNotice(failedResend.error ?? 'The message wasn’t sent.', () => void send(failedResend.content, failedResend.context, failedResend.chatId, undefined, failedResend.attachmentIds, failedResend.resourceRequest), true) : null}
+      {stalled ? retryNotice(chat?.responseError ?? 'No reply yet.', () => void retry(stalled), Boolean(chat?.responseError)) : null}
       <div ref={end} className="thread__end" />
     </div>
   );

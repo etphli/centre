@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { printPaperSchema, saveFileSchema, validateExternalUrl, validateRequest } from './security';
 
 test('IPC accepts only service routes and their intended methods', () => {
-  for (const [method, path] of [['GET', '/api/state'], ['POST','/api/questions/00000000-0000-4000-8000-000000000000/answer'], ['PATCH','/api/chats/chat-1/model'], ['POST','/api/resources/quiz-1/archive'], ['POST','/api/resources/quiz-1/restore'], ['POST', '/api/chats/chat-123/messages'], ['POST', '/api/chats/chat-123/cancel'], ['POST','/api/attachments'], ['GET','/api/attachments/00000000-0000-4000-8000-000000000000'], ['PATCH', '/api/settings'], ['GET', '/api/resources/test_1/export'], ['GET', '/api/resources/diagram_1/preview']]) {
+  for (const [method, path] of [['GET', '/api/state'], ['POST','/api/questions/00000000-0000-4000-8000-000000000000/answer'], ['PATCH','/api/chats/chat-1/model'], ['POST','/api/resources/quiz-1/archive'], ['POST','/api/resources/quiz-1/restore'], ['POST', '/api/chats/chat-123/branch'], ['POST', '/api/chats/chat-123/retry'], ['POST', '/api/chats/chat-123/messages'], ['POST', '/api/chats/chat-123/cancel'], ['POST','/api/attachments'], ['GET','/api/attachments/00000000-0000-4000-8000-000000000000'], ['PATCH', '/api/settings'], ['GET', '/api/resources/test_1/export'], ['GET', '/api/resources/diagram_1/preview']]) {
     assert.equal(validateRequest(method, path, undefined).path, path);
   }
   for (const [method, path] of [['DELETE', '/api/state'], ['POST', '/api/state'], ['GET', 'https://example.com/api/state'], ['GET', '/api/../state'], ['GET', '/api/resources/%2e%2e/export'], ['GET', '/api/state?token=x'], ['GET', '/api//state'], ['POST', '/api/settings/secret'], ['POST', '/api/resources/diagram_1/preview'], ['GET', '/artifacts/diagram_1/capability']]) {
@@ -14,6 +14,13 @@ test('IPC accepts only service routes and their intended methods', () => {
   assert.equal(validateRequest('POST','/api/attachments',{ data:'x'.repeat(2_000_001) }).method,'POST');
   assert.throws(() => validateRequest('POST','/api/attachments',{ data:'x'.repeat(30_000_001) }));
   assert.throws(() => validateRequest('GET','/api/attachments/not-a-uuid',undefined));
+  assert.equal(validateRequest('POST','/api/resources/diagram_1/checklist-progress',{documentRevision:'a'.repeat(64),itemId:'one',checked:true}).method,'POST');
+  assert.throws(() => validateRequest('GET','/api/resources/diagram_1/checklist-progress',undefined));
+  assert.throws(() => validateRequest('POST','/api/resources/diagram_1/checklist-progress',{extra:'x'.repeat(16_384)}));
+  assert.equal(validateRequest('PATCH', '/api/resources/quiz-one/practice-draft', {}).method, 'PATCH');
+  assert.equal(validateRequest('POST', '/api/resources/quiz-one/practice-draft/start-over', {}).method, 'POST');
+  assert.throws(() => validateRequest('POST', '/api/resources/quiz-one/practice-draft', {}));
+  assert.throws(() => validateRequest('PATCH', '/api/resources/quiz-one/practice-draft/start-over', {}));
 });
 
 test('system browser rejects file, script, credential, and arbitrary localhost URLs', () => {

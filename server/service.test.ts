@@ -13,7 +13,7 @@ import { resourceSchema, snapshotSchema, type Resource } from '../shared/schema'
 
 const originalBinary = process.env.CENTRE_CODEX_BIN;
 process.env.CENTRE_CODEX_BIN = '/centre-test/no-codex-binary';
-const seedResource: Resource = { id:'quiz-one',subjectId:'math',topicId:'algebra',title:'Algebra practice',kind:'quiz',createdAt:'2026-10-20T00:00:00.000Z',updatedAt:'2026-10-20T00:00:00.000Z',content:'',questions:[{ id:'q-one',concept:'',responseType:'short_response',choices:[],prompt:'Solve 2x = 8',answer:'4',explanation:'Divide by 2.',marks:2 }],practiceFocus:[],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null,completedAt:null };
+const seedResource: Resource = resourceSchema.parse({ id:'quiz-one',subjectId:'math',topicId:'algebra',title:'Algebra practice',kind:'quiz',createdAt:'2026-10-20T00:00:00.000Z',updatedAt:'2026-10-20T00:00:00.000Z',content:'',questions:[{ id:'q-one',concept:'',responseType:'short_response',choices:[],prompt:'Solve 2x = 8',answer:'4',explanation:'Divide by 2.',marks:2 }],practiceFocus:[],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null,completedAt:null });
 async function fixture(extraResources: Resource[] = []) {
   const directory = await mkdtemp(join(tmpdir(),'centre-api-test-'));
   const store = await Store.open(directory); store.state.subjects.push({ id:'math',name:'Mathematics',shortName:'Maths',color:'#c44',icon:'book' }); store.state.topics.push({ id:'algebra',subjectId:'math',name:'Algebra',description:'' }); store.state.resources.push(structuredClone(seedResource),...extraResources); await store.save();
@@ -187,10 +187,10 @@ test('diagram preview capabilities are artifact-specific, read-only and isolated
     assert.equal((await f.request('/api/resources/missing/preview')).status,404);
     const preview = await f.request('/api/resources/diagram-one/preview');
     assert.equal(preview.status,200); const url = new URL(preview.body.url);
-    assert.equal(url.origin,origin); assert.equal(url.search,''); assert.ok(!url.href.includes(f.service.token));
+    assert.equal(url.origin,origin); assert.match(url.searchParams.get('revision') ?? '',/^[a-f0-9]{64}$/); assert.ok(!url.href.includes(f.service.token));
     const response = await fetch(url);
     assert.equal(response.status,200); assert.match(response.headers.get('content-type') ?? '',/^text\/html/);
-    const html = await response.text();assert.ok(html.includes(diagram.content));assert.match(html,/centre:diagram-size/);assert.match(html,/centre:theme/);
+    const html = await response.text();assert.match(html,/Explored/);assert.match(html,/centre:diagram-size/);assert.match(html,/centre:theme/);assert.match(html,/sandbox="allow-scripts"/);assert.match(html,/frame-src 'none'/);
     const light = new URL(url);light.searchParams.set('theme','light');assert.match(await (await fetch(light)).text(),/--centre-bg:#f9f9f7/);
     const csp = response.headers.get('content-security-policy') ?? '';
     for (const directive of ["default-src 'none'","script-src 'unsafe-inline'","style-src 'unsafe-inline'","img-src data:","connect-src 'none'","base-uri 'none'","form-action 'none'"]) assert.ok(csp.includes(directive));

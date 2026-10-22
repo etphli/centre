@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Resource } from '../shared/schema';
+import { questionSchema, type Resource } from '../shared/schema';
 import { normalizePaperMath } from './test-math';
 import { paperTemplate } from './test-paper';
 
 type TestQuestion = Resource['questions'][number];
 
-const question: TestQuestion = {
+const question: TestQuestion = questionSchema.parse({
   id: 'triangle',
   concept: '',
   responseType: 'multiple_choice',
@@ -20,7 +20,7 @@ const question: TestQuestion = {
   answer: 'x = √(13² + 5²)',
   explanation: 'Use π, θ, and 30° when describing the angle.',
   marks: 1,
-};
+});
 
 test('normalizes the legacy triangle expressions in plain text', () => {
   assert.equal(normalizePaperMath('x = √(13² + 5²)'), '\\ensuremath{x = \\sqrt{13^{2} + 5^{2}}}');

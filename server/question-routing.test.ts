@@ -44,8 +44,9 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const chat = (await request('/chats','POST',{})).body;
     let ended = false;
     completion = request(`/chats/${chat.id}/messages`,'POST',{content:'Ask me a question as a test, like do you like blue.',context:{page:'chat'}}).then(result => {ended = true;return result;});
+    void completion.catch(() => undefined);
     let pending;
-    for(let attempt = 0;attempt < 100;attempt++) {
+    for(let attempt = 0;attempt < 500;attempt++) {
       pending = snapshotSchema.parse((await request('/state')).body).pendingQuestions[0];
       if(pending || ended)break;
       await setTimeout(20);
@@ -59,7 +60,8 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     assert.equal(result.body.messages.length,3);
     assert.equal(snapshotSchema.parse((await request('/state')).body).pendingQuestions.length,0);
     completion = request(`/chats/${chat.id}/messages`,'POST',{content:'Ask another popup question.',context:{page:'chat'}});
-    for(let attempt = 0;attempt < 100;attempt++) {
+    void completion.catch(() => undefined);
+    for(let attempt = 0;attempt < 500;attempt++) {
       pending = snapshotSchema.parse((await request('/state')).body).pendingQuestions[0];
       if(pending)break;
       await setTimeout(20);

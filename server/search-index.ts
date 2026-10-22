@@ -213,10 +213,35 @@ export class SearchIndex {
 
   constructor(private readonly attachments: Pick<AttachmentStore, 'searchText' | 'workspaceId'>) {}
 
-  async rebuild(snapshot: Snapshot): Promise<void> {
-    const version = ++this.rebuildVersion;
+  refreshVisibility(snapshot: Snapshot): void {
+    this.updateVisibility(snapshot);
+  }
+
+  private updateVisibility(snapshot: Snapshot) {
     this.resourceRecords = new Map(snapshot.resources.map(resource => [resource.id, resource]));
     this.chatRecords = new Map(snapshot.chats.map(chat => [chat.id, chat]));
+    const attachmentOwners = new Map<string, { chat: Chat; messageId: string }[]>();
+    for (const chat of snapshot.chats) {
+      for (const message of chat.messages) {
+        for (const id of new Set(message.attachmentIds)) {
+          const existing = attachmentOwners.get(id);
+          if (!existing) attachmentOwners.set(id, [{ chat, messageId: message.id }]);
+          else if (!existing.some(owner => owner.chat.id === chat.id)) existing.push({ chat, messageId: message.id });
+        }
+      }
+    }
+    const workspaceId = this.attachments.workspaceId;
+    const scopedChats = snapshot.chats.map(chat => ({ workspaceId, chat }));
+    const owners = [...attachmentOwners.entries()].flatMap(([id, candidates]) => candidates
+      .filter(target => !target.chat.deletedAt && candidates.every(owner => canShareChatAttachment(scopedChats, id, { workspaceId, chatId: owner.chat.id }, { workspaceId, chatId: target.chat.id })))
+      .map(owner => [id, owner] as const));
+    this.activeAttachmentDocumentIds = new Set(owners.map(([id, owner]) => `attachment:${owner.chat.id}:${owner.messageId}:${id}`));
+    return owners;
+  }
+
+  async rebuild(snapshot: Snapshot): Promise<void> {
+    const version = ++this.rebuildVersion;
+    const owners = this.updateVisibility(snapshot);
     const documents = new Map<string, IndexedDocument>();
     const postings = new Map<string, Set<string>>();
     let order = 0;
@@ -235,26 +260,19 @@ export class SearchIndex {
       add({ id: `resource:${resource.id}`, kind: 'resource', label: resource.title, sourceLabel: resource.connectedFile ? connectedSourceLabel(resource) : `${groupKind(resource)} content`, contextLabel, text: [resource.title, content, resource.kind].join('\n'), bodyStart, bodyEnd: bodyStart + content.length, target: { kind: 'resource', resourceId: resource.id } });
       questionDocuments(resource, snapshot, add);
     }
-    const attachmentOwners = new Map<string, { chat: Chat; messageId: string }[]>();
     for (const chat of snapshot.chats) {
       if (!chat.deletedAt) chatDocuments(chat, add);
-      for (const message of chat.messages) {
-        for (const id of new Set(message.attachmentIds)) {
-          const existing = attachmentOwners.get(id);
-          if (!existing) attachmentOwners.set(id, [{ chat, messageId: message.id }]);
-          else if (!existing.some(owner => owner.chat.id === chat.id)) existing.push({ chat, messageId: message.id });
-        }
-      }
     }
-    for (const event of snapshot.events) add({ id: `event:${event.id}`, kind: 'event', label: event.title, sourceLabel: 'Calendar event', contextLabel: event.date, text: [event.title, event.notes].filter(Boolean).join('\n'), target: { kind: 'calendar' } });
-    for (const assignment of snapshot.assignments) add({ id: `assignment:${assignment.id}`, kind: 'assignment', label: assignment.title, sourceLabel: 'Assignment', contextLabel: assignment.dueDate ? `Due ${assignment.dueDate}` : assignment.status, text: assignment.title, target: { kind: 'calendar' } });
+    const archivedCalendarItems = new Set(snapshot.events.flatMap(event => event.deletedAt && event.organatoId ? [event.organatoId] : []));
+    for (const event of snapshot.events) {
+      if (event.deletedAt) continue;
+      add({ id: `event:${event.id}`, kind: 'event', label: event.title, sourceLabel: 'Calendar event', contextLabel: event.date, text: [event.title, event.notes].filter(Boolean).join('\n'), target: { kind: 'calendar' } });
+    }
+    for (const assignment of snapshot.assignments) {
+      if (archivedCalendarItems.has(assignment.id)) continue;
+      add({ id: `assignment:${assignment.id}`, kind: 'assignment', label: assignment.title, sourceLabel: 'Assignment', contextLabel: assignment.dueDate ? `Due ${assignment.dueDate}` : assignment.status, text: assignment.title, target: { kind: 'calendar' } });
+    }
 
-    const workspaceId = this.attachments.workspaceId;
-    const scopedChats = snapshot.chats.map(chat => ({ workspaceId, chat }));
-    const owners = [...attachmentOwners.entries()].flatMap(([id, candidates]) => candidates
-      .filter(target => !target.chat.deletedAt && candidates.every(owner => canShareChatAttachment(scopedChats, id, { workspaceId, chatId: owner.chat.id }, { workspaceId, chatId: target.chat.id })))
-      .map(owner => [id, owner] as const));
-    this.activeAttachmentDocumentIds = new Set(owners.map(([id, owner]) => `attachment:${owner.chat.id}:${owner.messageId}:${id}`));
     for (let offset = 0; offset < owners.length; offset += 16) {
       const batch = owners.slice(offset, offset + 16);
       const values = await Promise.all(batch.map(async ([id, owner]) => ({ id, owner, value: await this.attachmentText(id) })));

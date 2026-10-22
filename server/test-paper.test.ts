@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Resource } from '../shared/schema';
+import { questionSchema, type Resource } from '../shared/schema';
 import { getTestSections } from '../shared/test-paper';
 import { paperTemplate } from './test-paper';
 
@@ -12,7 +12,7 @@ const makeQuestion = (
   marks: number,
   prompt = `Prompt ${id}.`,
   answer = `Answer ${id}.`,
-): TestQuestion => ({
+): TestQuestion => questionSchema.parse({
   id,
   concept: '',
   responseType,

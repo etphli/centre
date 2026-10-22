@@ -1,0 +1,12 @@
+{
+  "style": {
+    "appearance": "none",
+    "outline": "2px",
+    "outlineStyle": "solid",
+    "border": "1px"
+  },
+  "forcedColorsAppearance": "auto",
+  "statusAligned": true,
+  "savedRemovedAfterTwoSeconds": true,
+  "errorAndRetryPersistAfterTwoSeconds": true
+}
