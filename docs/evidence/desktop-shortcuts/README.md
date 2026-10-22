@@ -9,4 +9,8 @@ These captures come from the production renderer in actual Electron windows with
 
 `verification.json` records the checks. The native wrapper suite labels synthetic lifecycle events and separately launches a real second process. The packaged suite verifies actual cold macOS URL delivery, system handler identity, native icon opening, and warm URL delivery. It uses a verification-only bundle ID to avoid other Centre builds and unregisters that bundle afterward.
 
-Study actions are checked against the isolated combination with [Study Log PR #10](https://github.com/etphli/centre/pull/10), without merging either branch into main. The standalone PR disables study setup until that dependency is present. Release signing, notarization, installed-release URL association, and Google authentication were not verified. Local builds used fixture OAuth values.
+Original study checks used an isolated combination with [Study Log PR #10](https://github.com/etphli/centre/pull/10). After user approval and that dependency's merge, the final Desktop candidate integrated actual main `9064c7f33a7ae55e5ed978ec3ff9533e2c59e6a6`. It passed 116 tests, typecheck/build, 73 native checks, and 22 actual packaged launch checks.
+
+The `approved-*.png` captures show that current packaged run: cold manual-form launch, weekly summary showing the hour explicitly saved through the icon-opened form, and timer controls with no automatic start. SHORT-1 was cleared by the coordinator's direct inspection of the committed corrected captures.
+
+Release signing, notarization, installed-release URL association, and Google authentication were not verified. Local builds used fixture OAuth values. The real Desktop was untouched.

@@ -116,7 +116,7 @@ try {
   await until(() => evaluate("Boolean(document.querySelector('.settings-layout__nav'))"), 'warm macOS URL opens Settings');
   check('Warm macOS URL delivery reuses the running app', true);
   if (studyLog) {
-    const before = await evaluate("window.centre.request('GET','/state').then(state=>state.studyLog)");
+    let previousStudy = await evaluate("window.centre.request('GET','/state').then(state=>state.studyLog)");
     const cases = [
       { action: 'study-log.manual', label: 'Log study', ready: "Boolean(document.querySelector('dialog[open] .study-form'))", name: 'study-manual' },
       { action: 'study-log.week', label: 'This week’s study', ready: "document.activeElement?.id === 'study-week-title'", name: 'study-week' },
@@ -126,14 +126,21 @@ try {
       await openIcon(await setupIcon(item.action, item.label));
       await until(() => evaluate(item.ready), `${item.label} native icon destination`);
       check(`Actual ${item.label} icon opens the canonical focused controls`, true);
+      const launchedStudy = await evaluate("window.centre.request('GET','/state').then(state=>state.studyLog)");
+      check(`${item.label} launch alone preserves persisted study time`, JSON.stringify(previousStudy) === JSON.stringify(launchedStudy));
+      if (item.action === 'study-log.week') check('Summary icon displays the hour explicitly saved through Log study', await evaluate("document.querySelector('.study-aim__total')?.textContent.replace(/\\s/g,'') === '1hstudied'"));
       await screenshot(item.name);
       if (item.action === 'study-log.manual') {
-        await evaluate("document.querySelector('dialog[open] button[aria-label=Close]').click()");
-        await until(() => evaluate("!document.querySelector('dialog[open]')"), 'manual dialog closed');
+        await evaluate("(()=>{const input=document.querySelector('dialog[open] .study-form input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Desktop icon verification');input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+        await evaluate("[...document.querySelectorAll('dialog[open] .study-form button')].find(button=>button.textContent.trim()==='Save study time').click()");
+        await until(() => evaluate("!document.querySelector('dialog[open]')"), 'study entry saved');
+        previousStudy = await evaluate("window.centre.request('GET','/state').then(state=>state.studyLog)");
+        const saved = previousStudy.sessions.find(session => session.title === 'Desktop icon verification');
+        check('Saving through the icon form persists one completed hour', saved?.state.kind === 'completed' && saved.segments.reduce((sum, segment) => sum + Date.parse(segment.end) - Date.parse(segment.start), 0) === 3600000);
       }
     }
     const after = await evaluate("window.centre.request('GET','/state').then(state=>state.studyLog)");
-    check('Actual study icon launches do not start a timer or change persisted study time', JSON.stringify(before) === JSON.stringify(after));
+    check('Summary and timer icons preserve the saved hour without starting a timer', JSON.stringify(previousStudy) === JSON.stringify(after) && after.sessions.every(session => session.state.kind === 'completed'));
   }
   report.passed = true;
 } catch (error) {

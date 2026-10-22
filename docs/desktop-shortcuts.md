@@ -18,7 +18,7 @@ Actions restore or reopen Centre’s window. An open dialog delays the action un
 
 ## Study Log integration
 
-The study actions require the separate Study Log change. Without it, study icon setup is disabled and direct study URLs report that the feature is unavailable. This PR adds no Log screen or timer state.
+The study actions reuse Study Log. Builds without it disable study icon setup and report unavailable direct study URLs. Desktop shortcuts add no separate Log screen or timer state.
 
 The canonical consumer is `StudyLogProvider` in `src/data/useStudyLog.tsx`. Its exported `requestStudyLogAction({id, mode})` sends `centre:study-log-action` with `mode: 'manual' | 'timer' | 'week'`. The desktop dispatcher uses that same event boundary without importing an absent module on main. The provider waits for study data and deduplicates request IDs.
 
@@ -34,6 +34,8 @@ For actual macOS cold/warm URL delivery and opening an icon through Finder’s l
 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --dir --publish never --config.appId=au.com.centre.desktop.shortcutsverification --config.directories.output=.runtime/shortcuts-final-package
 node scripts/verify-shortcuts-packaged.mjs .runtime/shortcuts-final-package/mac-arm64/Centre.app
 ```
+
+Add `--study-log` to also test a cold launch into the manual form and open the real Log study, weekly summary, and timer icons. The verifier checks that launches alone leave persisted study time unchanged. It then explicitly saves a one-hour fixture through the icon-opened form and checks that the summary shows that hour.
 
 This verifier requires the separate test bundle ID. It checks that the system URL handler points to that bundle before opening an icon, and unregisters the test bundle after exit. It never changes the system’s default handler explicitly. The separate ID avoids other local Centre builds intercepting verification URLs. [Electron’s launch guidance](https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app) describes the packaged macOS URL event.
 
