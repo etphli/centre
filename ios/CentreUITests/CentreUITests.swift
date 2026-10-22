@@ -173,6 +173,31 @@ final class CentreUITests: XCTestCase {
         capture("11-accessibility-large-settings")
     }
 
+    func testReviewResolutionAndLightThemeSurviveRestart() {
+        tab("Review")
+        tap("review.markReviewed.28a04f7b-70e9-44f2-925a-5c7559791aa4")
+        waitText("Nothing to review")
+        restart(); tab("Review")
+        waitText("Nothing to review")
+        capture("17-offline-review-resolution-restored")
+        tap("settings.open")
+        let theme = app.descendants(matching: .any).matching(identifier: "settings.theme").firstMatch
+        reveal(theme); theme.tap()
+        let light = app.buttons["Light"]
+        XCTAssertTrue(light.waitForExistence(timeout: 5)); light.tap()
+        let changed = expectation(for: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "Light", "Light"), evaluatedWith: theme)
+        wait(for: [changed], timeout: 5)
+        capture("18-light-settings")
+        tap("settings.done")
+        restart(); tab("Log")
+        XCTAssertTrue(app.textFields["timer.title"].waitForExistence(timeout: 5))
+        capture("19-light-log-after-restart")
+        tap("settings.open")
+        let restored = app.descendants(matching: .any).matching(identifier: "settings.theme").firstMatch
+        reveal(restored)
+        XCTAssertTrue((restored.label + " " + String(describing: restored.value ?? "")).contains("Light"))
+    }
+
     func testUnconfiguredAccountRequiresConnectionAndRejectsCredentialURL() {
         app.terminate(); app.launchArguments = ["-ui-testing-unconfigured"]; app.launch()
         let address = app.textFields["connect.url"]

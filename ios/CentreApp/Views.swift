@@ -2293,6 +2293,7 @@ private struct SettingsView: View {
                         Text("Light").tag("light")
                         Text("Match iPhone").tag("system")
                     }
+                    .accessibilityIdentifier("settings.theme")
                     Picker("Reading size",selection:preferenceBinding("textSize",fallback:"standard")) {
                         Text("Small").tag("small");Text("Standard").tag("standard");Text("Large").tag("large")
                     }.accessibilityIdentifier("settings.textSize")
