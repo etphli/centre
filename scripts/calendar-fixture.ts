@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -79,6 +79,8 @@ await seed('/events',{title:'Essay outline',date:today,time:'16:00',plannedDurat
 await seed('/events',{title:'Review practice answers',date:addCalendarDays(today,1),time:'17:00',plannedDurationMinutes:60,subjectId:'math'});
 const web = await createViteServer({configFile:false,plugins:[react(),{name:'fixture-csp',transformIndexHtml:html => html.replace("script-src 'self'","script-src 'self' 'unsafe-inline'")}],server:{host:'127.0.0.1',port:5286,strictPort:true,proxy:{'/api':{target:`http://127.0.0.1:${service.port}`,configure:proxy => proxy.on('proxyReq',request => request.setHeader('Authorization',`Bearer ${service.token}`))}}}});
 await web.listen();
+await mkdir('.runtime',{recursive:true});
+await writeFile('.runtime/calendar-fixture.json',JSON.stringify({url:'http://127.0.0.1:5286',controls:`http://127.0.0.1:${upstreamAddress.port}/__fixture__/mode`,directory},null,2));
 process.stdout.write(`Calendar fixture ready: http://127.0.0.1:5286\nDisposable data: ${directory}\nUpstream fixture controls: http://127.0.0.1:${upstreamAddress.port}/__fixture__/mode\n`);
 const stop = () => { void Promise.all([web.close(),service.close(),new Promise<void>(resolve => upstream.close(() => resolve()))]).then(() => process.exit(0)); };
 process.once('SIGINT',stop); process.once('SIGTERM',stop);
