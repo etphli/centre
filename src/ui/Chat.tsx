@@ -156,7 +156,7 @@ function BranchLabel({ label, note }: { label: string; note?: boolean }) {
   return (
     <div className="branch-label">
       <span className="branch-label__name"><GitBranch size={11} aria-hidden />{label}</span>
-      {note ? <span className="branch-label__note">Previous actions weren’t repeated for this reply.</span> : null}
+      {note ? <span className="branch-label__note">No connected files, events or saved resources were changed.</span> : null}
     </div>
   );
 }
@@ -321,7 +321,7 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
   function retryNotice(message: string, onRetry: () => void, alert: boolean) {
     return (
       <div className={alert ? 'thread-error' : 'thread-error thread-error--quiet'} role={alert ? 'alert' : 'status'}>
-        <p>{message}{!failedResend ? <small className="retry-note">Retry answers from saved history. Previous actions won’t be repeated.</small> : null}</p>
+        <p>{message}{!failedResend ? <small className="retry-note">Retry uses saved history without changing connected files, events or saved resources.</small> : null}</p>
         <button type="button" className="button button--quiet button--small" disabled={locked || working !== null} onClick={onRetry}>
           <RotateCcw size={14} aria-hidden /> Try again
         </button>
