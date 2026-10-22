@@ -186,6 +186,22 @@ final class CentreUITests: XCTestCase {
     }
 
 
+    func testOfflineChatConsentAndMessageSurviveRestart() {
+        tab("Chat");tap("chat.row.07cc79cc-af72-4768-b211-94b365c50a64")
+        let composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText("Explain ATP in one sentence.")
+        tap("chat.send")
+        XCTAssertTrue(app.buttons["chat.allowAI"].waitForExistence(timeout:5))
+        capture("15-cloud-ai-consent-before-send")
+        app.buttons["Cancel"].tap()
+        XCTAssertEqual(composer.value as? String,"Explain ATP in one sentence.")
+        tap("chat.send");tap("chat.allowAI")
+        waitText("Explain ATP in one sentence.")
+        restart();tab("Chat");tap("chat.row.07cc79cc-af72-4768-b211-94b365c50a64")
+        waitText("Explain ATP in one sentence.")
+        capture("16-offline-message-restored-no-fixture-inference")
+    }
+
     func testCachedAttachmentOpensWithoutDesktopOrNetwork() {
         tab("Chat")
         tap("chat.row.07cc79cc-af72-4768-b211-94b365c50a64")

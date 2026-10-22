@@ -8,7 +8,7 @@ const distribution = mobileDistribution(import.meta.env.VITE_CENTRE_IOS_DISTRIBU
 
 /** Shared by iPhone installation settings and Centre Cloud's account controls. */
 export function AccountPairing({onSignIn}:{onSignIn:()=>void}) {
-  const [pairing, setPairing] = useState<{qr:string;expiresAt:string} | null>(null);
+  const [pairing, setPairing] = useState<{qr:string;expiresAt:string;link:string} | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -40,24 +40,30 @@ export function AccountPairing({onSignIn}:{onSignIn:()=>void}) {
       if (!status.authenticated) throw new Error('Sign in to Centre cloud first.');
       const value = await api.mobilePairing();
       const base = new URL(value.baseUrl);
-      if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || !['','/'].includes(base.pathname) || Date.parse(value.expiresAt) <= Date.now() || Date.parse(value.expiresAt) > Date.now() + 6 * 60_000) throw new Error('Centre Cloud returned an invalid pairing invitation.');
+      const localPreview = import.meta.env.DEV && base.protocol==='http:' && ['127.0.0.1','localhost','[::1]'].includes(base.hostname);
+      if ((!localPreview && base.protocol !== 'https:') || base.username || base.password || base.search || base.hash || !['','/'].includes(base.pathname) || Date.parse(value.expiresAt) <= Date.now() || Date.parse(value.expiresAt) > Date.now() + 6 * 60_000) throw new Error('Centre Cloud returned an invalid pairing invitation.');
       const url = new URL('centre://pair');
       url.searchParams.set('baseUrl',base.href); url.searchParams.set('code',value.code);
       const module = await import('qrcode');
       const qr = await module.toDataURL(url.href,{width:260,margin:4,errorCorrectionLevel:'M'});
-      setNow(Date.now()); setPairing({qr,expiresAt:value.expiresAt});
+      setNow(Date.now()); setPairing({qr,expiresAt:value.expiresAt,link:url.href});
     } catch (failure) {
       const message = errorMessage(failure);
       setError(message === 'Endpoint not found.' ? 'Account pairing is unavailable in this build. Connect Centre Cloud in Connections after the cloud update is installed.' : message);
     }
     finally { setBusy(false); }
   }
+  async function copyLink() {
+    if (!pairing || Date.parse(pairing.expiresAt)<=Date.now()) return;
+    try { await navigator.clipboard.writeText(pairing.link); }
+    catch { setError('The pairing link could not be copied. Scan the code instead.'); }
+  }
   const expires = pairing ? Math.ceil((Date.parse(pairing.expiresAt)-now)/1000) : 0;
   return <>
     <p>Scan a private, one-time code with the installed Centre iPhone app to connect your account.</p>
     <button type="button" className="button button--small" onClick={() => void create()} disabled={busy || checking || !authenticated}>{busy ? 'Creating code' : 'Create account pairing code'}</button>
     {!authenticated ? <p className="settings-detail">{checking ? 'Checking your Centre cloud account…' : <button type="button" className="link-button" onClick={onSignIn}>Sign in to Centre cloud first</button>}</p> : null}
-    {pairing && expires > 0 ? <div className="mobile-install"><img className="mobile-install__qr" src={pairing.qr} width={260} height={260} alt="One-time Centre account pairing code. Keep this private." /><div><p>Account access code. Keep this private.</p><p className="settings-detail">Expires in {Math.ceil(expires/60)} minutes and works once. This connects your account; it does not install the app.</p><button type="button" className="button button--quiet button--small" onClick={() => setPairing(null)}>Hide code</button></div></div> : pairing ? <p className="settings-detail" role="status">This account code has expired. Create a new one.</p> : null}
+    {pairing && expires > 0 ? <div className="mobile-install"><img className="mobile-install__qr" src={pairing.qr} width={260} height={260} alt="One-time Centre account pairing code. Keep this private." /><div><p>Account access code. Keep this private.</p><p className="settings-detail">Expires in {Math.ceil(expires/60)} minutes and works once. This connects your account; it does not install the app.</p><div className="form__actions"><button type="button" className="button button--quiet button--small" onClick={() => setPairing(null)}>Hide code</button><button type="button" className="button button--small" onClick={()=>void copyLink()}>Copy link</button></div></div></div> : pairing ? <p className="settings-detail" role="status">This account code has expired. Create a new one.</p> : null}
     {error ? <p className="form__error" role="alert">{error}</p> : null}
   </>;
 }

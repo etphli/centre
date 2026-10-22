@@ -120,7 +120,7 @@ public actor Replica {
         erased=true
         state=ReplicaState(schemaVersion:1,workspace:state.workspace,cursor:"0",shadow:[:],outbox:[],conflicts:[],ai:[],connector:.object([:]))
     }
-    public func synchronize(using transport: any CloudTransport) async throws {
+    public func synchronize(using transport: any CloudTransport, allowAI: Bool = true) async throws {
         try requireActive()
         guard !synchronizing else { return }
         synchronizing=true; defer { synchronizing=false }
@@ -149,22 +149,38 @@ public actor Replica {
             }
             try persist(next)
         }
-        for job in state.ai {
-            if let status=job.run?.status, ["failed","interrupted","conflict"].contains(status) { continue }
-            // No AI begins until every referenced local record has reached the server.
-            let blocked: Bool
-            switch job {
-            case .chat(let request,_): blocked=state.outbox.contains(where:{$0.mutation.key == "chat/\(request.chatId)" || $0.mutation.key == "message/\(request.messageId)"})
-            case .grade(let request,_): blocked=state.outbox.contains(where:{$0.mutation.key == "practice.draft/\(request.draftId)" || $0.mutation.key == "resource/\(request.resourceId)"})
+        // AI failures must not prevent importing archived chats or other cloud changes.
+        var firstAIError: Error?
+        if allowAI {
+            for job in state.ai {
+                if let status=job.run?.status, ["failed","interrupted","conflict"].contains(status) { continue }
+                // No AI begins until every referenced local record has reached the server.
+                let blocked: Bool
+                switch job {
+                case .chat(let request,_): blocked=state.outbox.contains(where:{$0.mutation.key == "chat/\(request.chatId)" || $0.mutation.key == "message/\(request.messageId)"})
+                case .grade(let request,_): blocked=state.outbox.contains(where:{$0.mutation.key == "practice.draft/\(request.draftId)" || $0.mutation.key == "resource/\(request.resourceId)"})
+                }
+                if blocked { continue }
+                let run: AIRun
+                do {
+                    switch job { case .chat(let request,_):run=try await transport.run(request); case .grade(let request,_):run=try await transport.grade(request) }
+                } catch {
+                    if firstAIError == nil { firstAIError=error }
+                    if let failure=error as? CloudFailure, let run=Self.rejectedAI(job.id, failure:failure),
+                       let index=state.ai.firstIndex(where:{$0.id == job.id}) {
+                        var next=state; next.ai[index]=next.ai[index].updating(run); try persist(next)
+                    }
+                    continue
+                }
+                guard run.id == job.id else {
+                    if firstAIError == nil { firstAIError=CentreError.invalid("The AI result has an unexpected identity.") }
+                    continue
+                }
+                var next=state
+                if run.status == "completed" { next.ai.removeAll(where:{$0.id == job.id}) }
+                else if let index=next.ai.firstIndex(where:{$0.id == job.id}) { next.ai[index]=job.updating(run) }
+                try persist(next)
             }
-            if blocked { continue }
-            let run: AIRun
-            switch job { case .chat(let request,_):run=try await transport.run(request); case .grade(let request,_):run=try await transport.grade(request) }
-            guard run.id == job.id else { throw CentreError.invalid("The AI result has an unexpected identity.") }
-            var next=state
-            if run.status == "completed" { next.ai.removeAll(where:{$0.id == job.id}) }
-            else if let index=next.ai.firstIndex(where:{$0.id == job.id}) { next.ai[index]=job.updating(run) }
-            try persist(next)
         }
         var pages=0
         while true {
@@ -182,6 +198,19 @@ public actor Replica {
             try persist(next) // cursor advances in the same atomic commit as its records
             if !page.hasMore { break }
         }
+        if let firstAIError { throw firstAIError }
+    }
+    private static func rejectedAI(_ id:String, failure:CloudFailure) -> AIRun? {
+        let code=failure.body["error"]["code"].string ?? ""
+        let status:String
+        switch failure.status {
+        case 429,503: status="unavailable"
+        case 404 where code == "not_found": status="failed"
+        case 400 where ["validation","invalid_request","invalid_message","invalid_json"].contains(code): status="failed"
+        case 409 where ["conflict","idempotency_mismatch","grade_in_progress"].contains(code): status="conflict"
+        default: return nil
+        }
+        return AIRun(id:id,status:status,error:failure.body["error"])
     }
     private static func validate(_ record:CloudRecord) throws {
         guard record.schemaVersion >= 1, record.version > 0, !record.kind.isEmpty, !record.id.isEmpty,

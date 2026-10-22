@@ -19,6 +19,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     @Published var pairingInvitation:PairingInvitation?
     @Published var aiRuns:[AIRun]=[]
     @Published var calendarCommands:[ConnectorCommand]=[]
+    @Published var cloudAIAllowed=false
     private var replica:Replica?
     private var calendarJournal:ConnectorJournal?
     private var attachmentCache:AttachmentCache?
@@ -47,7 +48,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             #endif
             if let saved=try SessionVault.read() {
                 guard let url=URL(string:saved.baseURL) else { throw CentreError.invalid("The saved cloud address is invalid.") }
-                baseURL=saved.baseURL;session=saved.session
+                baseURL=saved.baseURL;session=saved.session;cloudAIAllowed=saved.cloudAIAllowed == true
                 client=try CloudHTTP(baseURL:url,token:saved.session.token)
                 let workspace=try WorkspaceKey(baseURL:url,workspaceId:saved.session.workspaceId)
                 replica=try Replica(directory:directory,workspace:workspace)
@@ -120,6 +121,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         return saved
     }
     func send(chatId:String?,text:String) async -> String? {
+        guard cloudAIAllowed else { error="Allow Cloudflare AI before sending a message.";return nil }
         let text=text.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !text.isEmpty,text.utf16.count <= 8000 else { error="Write a message of up to 8,000 characters.";return nil }
         let chatId=chatId ?? UUID().uuidString.lowercased(),messageId=UUID().uuidString.lowercased(),now=Clock.iso(Date())
@@ -153,6 +155,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     }
     @discardableResult
     func submitQuiz(resource:CloudRecord) async -> Bool {
+        guard cloudAIAllowed else { error="Allow Cloudflare AI before submitting for marking.";return false }
         let saved = await perform {
             guard let replica,let draft=items("practice.draft").first(where:{$0.data?["resourceId"].string == resource.id}),let revision=draft.data?["revision"].int else { throw CentreError.invalid("Save your answers before submitting.") }
             guard !aiJobs.contains(where:{if case .grade(let request,_)=$0{return request.draftId == draft.id};return false}) else { throw CentreError.unavailable("This quiz is already waiting for marking.") }
@@ -166,6 +169,11 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     }
     func quizFailure(resourceId:String) -> String? {
         aiJobs.contains { if case .grade(let request,let run)=$0 { return request.resourceId == resourceId && ["failed","interrupted","conflict"].contains(run?.status ?? "") };return false } ? "Marking could not finish safely. Your answers are saved. Start over to submit a fresh draft." : nil
+    }
+    func quizWaiting(resourceId:String) -> String? {
+        aiJobs.compactMap { job -> String? in
+            if case .grade(let request,let run)=job,request.resourceId == resourceId,run?.status == "unavailable" { return run?.error?["message"].string };return nil
+        }.last
     }
     @discardableResult func startOverQuiz(resource:CloudRecord) async -> Bool {
         guard !isQuizSubmitted(resourceId:resource.id) else { error="This quiz is waiting for marking. Synchronize before starting over.";return false }
@@ -293,7 +301,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         let journal=try ConnectorJournal(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
         try SessionVault.save(SavedSession(baseURL:base.absoluteString,session:newSession))
         let attachments=try AttachmentCache(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
-        self.baseURL=base.absoluteString;self.session=newSession;client=api;replica=store;calendarJournal=journal;attachmentCache=attachments
+        self.baseURL=base.absoluteString;self.session=newSession;client=api;replica=store;calendarJournal=journal;attachmentCache=attachments;cloudAIAllowed=false
         try await recoverTimers();await refresh()
     }
     func logout(discard:Bool) async {
@@ -306,7 +314,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             // Block every producer before the first await. Erased actors also reject retained stale handles.
             try await store?.erase();try await journal?.erase();try await attachments?.erase()
             try SessionVault.clear();GIDSignIn.sharedInstance.signOut()
-            scheduledSync?.cancel();session=nil;client=nil;replica=nil;calendarJournal=nil;attachmentCache=nil;calendarCommands=[];records=[];connector = .object([:]);pendingCount=0;conflicts=[];aiJobs=[];aiRuns=[];status="Signed out. Private data removed from this iPhone."
+            scheduledSync?.cancel();session=nil;client=nil;replica=nil;calendarJournal=nil;attachmentCache=nil;calendarCommands=[];records=[];connector = .object([:]);pendingCount=0;conflicts=[];aiJobs=[];aiRuns=[];cloudAIAllowed=false;status="Signed out. Private data removed from this iPhone."
             if let api,let oldSession,!fixture { _ = try? await api.call("/v1/devices/revoke",method:"POST",body:.object(["deviceId":.string(oldSession.deviceId)])) }
         } catch { self.error=error.localizedDescription }
     }
@@ -328,11 +336,11 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         do {
             status="Synchronizing"
             try await client.bootstrap(workspaceId:session.workspaceId)
-            try await replica.synchronize(using:client)
+            try await replica.synchronize(using:client,allowAI:cloudAIAllowed)
             do {
                 try await calendarJournal?.process(using:client)
                 // Connector writes are committed by the hosted module, then imported through the same feed.
-                try await replica.synchronize(using:client)
+                try await replica.synchronize(using:client,allowAI:cloudAIAllowed)
             } catch { self.error="Calendar changes remain saved. \(error.localizedDescription)" }
             // Imported timers pause at their persisted checkpoint. They never start a second device lease.
             try await recoverTimers(excludingLocal:true);await refresh()
@@ -342,7 +350,25 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             else if !conflicts.isEmpty { status="\(conflicts.count) conflicts need your choice in Settings." }
             else if pendingCount > 0 { status="\(pendingCount) changes waiting to sync." }
             else if status == "Synchronizing" { status="Synchronized with Centre Cloud." }
-        } catch { status="Offline. Study changes remain saved on iPhone.";self.error=error.localizedDescription;await refresh() }
+        } catch {
+            if let failure=error as? CloudFailure {
+                switch failure.status {
+                case 401:status="Sign in again to synchronize. Study changes stay saved on iPhone."
+                case 429:status="The cloud allowance is reached. Study changes stay saved on iPhone."
+                case 503:status="A cloud service is unavailable. Study changes stay saved on iPhone."
+                default:status="Cloud synchronization needs attention. Study changes stay saved on iPhone."
+                }
+            } else { status="Offline. Study changes remain saved on iPhone." }
+            self.error=error.localizedDescription;await refresh()
+        }
+    }
+    @discardableResult func allowCloudAI(_ allowed:Bool) -> Bool {
+        guard !signingOut,let session else { return false }
+        guard allowed || !busy else { error="Wait for the current cloud request to finish before changing AI access.";return false }
+        do {
+            if !fixture { try SessionVault.save(SavedSession(baseURL:baseURL,session:session,cloudAIAllowed:allowed)) }
+            cloudAIAllowed=allowed;return true
+        } catch { self.error=error.localizedDescription;return false }
     }
     @discardableResult func calendarCreate(title:String,date:Date,subjectId:String?,durationMinutes:Int=60) async -> Bool {
         await perform {

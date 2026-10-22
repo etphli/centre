@@ -213,6 +213,7 @@ private struct ChatThreadView: View {
     @State private var draft = ""
     @State private var sending = false
     @State private var waitedOut = false
+    @State private var confirmCloudAI=false
     @ScaledMetric(relativeTo: .body) private var sendSize: CGFloat = 44
 
     init(chatId: String?) { _chatId = State(initialValue: chatId) }
@@ -271,6 +272,10 @@ private struct ChatThreadView: View {
         .navigationTitle(chatData?["title"].string.nonEmpty ?? "New chat")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(palette.bg, for: .navigationBar)
+        .confirmationDialog("Allow Cloudflare AI?",isPresented:$confirmCloudAI,titleVisibility:.visible) {
+            Button("Allow and send") { if model.allowCloudAI(true) { send() } }.accessibilityIdentifier("chat.allowAI")
+            Button("Cancel",role:.cancel) {}
+        } message:{ Text("Your message and recent chat history will be sent to Cloudflare's Llama 3.1 to answer. Written quiz marking also uses this service. You can turn this off in Settings.") }
     }
 
     private func thread() -> [CloudRecord] {
@@ -282,6 +287,10 @@ private struct ChatThreadView: View {
     private func replyStatus(_ messages: [CloudRecord]) -> (text: String, working: Bool, failed: Bool)? {
         if sending { return ("Saving your message…", true, false) }
         guard let last = messages.last, model.data(last)["role"].string == "user" else { return nil }
+        if !model.cloudAIAllowed { return ("Cloud AI is paused. Your message is saved. Allow Cloudflare AI in Settings to send it.",false,false) }
+        if let chatId,let run=model.chatRun(chatId:chatId,messageId:last.id),run.status == "unavailable" {
+            return ((run.error?["message"].string ?? "Cloud AI is unavailable.")+" Your message is saved. Pull down to check again.",false,false)
+        }
         if let chatId,let run = model.chatRun(chatId:chatId,messageId:last.id),["failed","interrupted","conflict"].contains(run.status) {
             let reason = run.error?["message"].string.nonEmpty.map { " \($0)" } ?? ""
             return ("Cloud AI couldn't finish a reply.\(reason) Your message is saved on this iPhone.", false, true)
@@ -320,6 +329,7 @@ private struct ChatThreadView: View {
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        guard model.cloudAIAllowed else { confirmCloudAI=true;return }
         draft = ""
         sending = true
         waitedOut = false
@@ -1089,6 +1099,7 @@ private struct QuizView: View {
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
                 if Task.isCancelled { return }
                 await model.sync()
+                if model.quizWaiting(resourceId:resource.id) != nil { return }
             }
         }
         .confirmationDialog("Start this quiz over?", isPresented: $confirmStartOver, titleVisibility: .visible) {
@@ -1098,11 +1109,11 @@ private struct QuizView: View {
             Text("Your current answers are cleared so you can answer again. Marked results stay saved.")
         }
         .confirmationDialog("Submit for marking?", isPresented: $confirmSubmit, titleVisibility: .visible) {
-            Button("Submit answers") { Task { await submit() } }
+            Button("Submit answers") { if model.cloudAIAllowed || model.allowCloudAI(true) { Task { await submit() } } }
                 .accessibilityIdentifier("quiz.submit.confirm")
         } message: {
             let unanswered = questions.filter { answers[$0["id"].string ?? ""]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true }.count
-            Text((unanswered > 0 ? "\(unanswered) unanswered. " : "") + "Answers lock until Centre Cloud marks them. If you're offline, they wait on this iPhone.")
+            Text((unanswered > 0 ? "\(unanswered) unanswered. " : "") + "Your saved quiz and answers go to Centre Cloud for marking. Written answers use Cloudflare's Llama 3.1. Submitting allows this service; you can turn it off in Settings. Answers lock while marking and wait here if you're offline.")
         }
         .navigationDestination(item: $shownAttempt) { id in
             if let attempt = attemptsForResource().first(where: { $0.id == id }) {
@@ -1146,12 +1157,13 @@ private struct QuizView: View {
 
     private func markingNotice(_ marking: Marking) -> some View {
         let failed: String? = { if case .failed(let reason) = marking { return reason }; return nil }()
-        let text = failed ?? (submitting ? "Submitting your answers…"
+        let waiting=model.quizWaiting(resourceId:resource.id) ?? (!model.cloudAIAllowed ? "Marking is paused. Allow Cloudflare AI in Settings to continue.":nil)
+        let text = failed ?? waiting ?? (submitting ? "Submitting your answers…"
                 : "Submitted. Answers are locked until Centre Cloud returns your mark. If you're offline, they wait on this iPhone.")
-        let tone = failed == nil ? palette.text2 : palette.warn
+        let tone = failed == nil && waiting == nil ? palette.text2 : palette.warn
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                if failed == nil {
+                if failed == nil && waiting == nil {
                     ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
@@ -1160,6 +1172,7 @@ private struct QuizView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("quiz.markingStatus")
+            if waiting != nil { Button("Check marking again") { Task { await model.sync() } } }
             if failed != nil {
                 Button(startingOver ? "Starting over…" : "Start over", role: .destructive) { confirmStartOver = true }
                     .buttonStyle(CentreQuietButtonStyle(role: .destructive))
@@ -2245,13 +2258,16 @@ private struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Allow Cloudflare AI",isOn:Binding(get:{model.cloudAIAllowed},set:{_ = model.allowCloudAI($0)}))
+                        .disabled(model.busy)
+                        .accessibilityIdentifier("settings.aiConsent")
                     LabeledContent("On iPhone") {
                         Text(model.session == nil ? "Unavailable until you connect" : "Llama 3.1 in Centre Cloud")
                             .multilineTextAlignment(.trailing)
                     }
                     LabeledContent("On your Mac", value: "Codex")
                 } header: { Text("Assistant") } footer: {
-                    Text("Mobile AI uses Centre Cloud with Llama 3.1, within a daily allowance. Desktop Codex sign-in does not grant cloud AI access. Codex chats from your Mac sync here.")
+                    Text("Messages, recent chat history and written quiz answers are sent to Cloudflare when you request AI. Turning this off pauses waiting requests. Cloud AI has a daily allowance. Your Mac's Codex sign-in does not grant cloud AI access.")
                 }
                 .centreRow(palette)
 

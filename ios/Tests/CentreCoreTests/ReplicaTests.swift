@@ -1,10 +1,14 @@
 import XCTest
 @testable import CentreCore
 
+private enum AIOutcome { case failure(CloudFailure), timeout, status(String) }
+
 private actor ReplicaTransport: CloudTransport {
     var puts: [CloudMutation] = []
     var receipts: [String: CloudRecord] = [:]
     var grades: [GradeRequest] = []
+    var chats: [AIRequest] = []
+    var aiOutcomes: [AIOutcome]
     var events: [String] = []
     var pages: [ChangesPage]
     var response: MutationResponse?
@@ -14,11 +18,12 @@ private actor ReplicaTransport: CloudTransport {
     var startedContinuation: CheckedContinuation<Void, Never>?
     var started = false
 
-    init(pages: [ChangesPage] = [], response: MutationResponse? = nil, loseAcknowledgement: Bool = false, suspendFirstPut: Bool = false) {
+    init(pages: [ChangesPage] = [], response: MutationResponse? = nil, loseAcknowledgement: Bool = false, suspendFirstPut: Bool = false, aiOutcomes: [AIOutcome] = []) {
         self.pages = pages
         self.response = response
         self.loseAcknowledgement = loseAcknowledgement
         self.suspendFirstPut = suspendFirstPut
+        self.aiOutcomes = aiOutcomes
     }
     func put(_ mutation: CloudMutation) async throws -> MutationResponse {
         puts.append(mutation)
@@ -44,16 +49,28 @@ private actor ReplicaTransport: CloudTransport {
     func releasePut() { putContinuation?.resume(); putContinuation = nil }
     func sent() -> [CloudMutation] { puts }
     func gradeCalls() -> [GradeRequest] { grades }
+    func chatCalls() -> [AIRequest] { chats }
     func eventLog() -> [String] { events }
     func changes(cursor: String) async throws -> ChangesPage {
         events.append("changes:\(cursor)")
         return pages.isEmpty ? ChangesPage(records: [], cursor: cursor, hasMore: false) : pages.removeFirst()
     }
-    func run(_ request: AIRequest) async throws -> AIRun { AIRun(id: request.id, status: "completed") }
+    private func aiResult(id: String) throws -> AIRun {
+        guard !aiOutcomes.isEmpty else { return AIRun(id: id, status: "completed") }
+        switch aiOutcomes.removeFirst() {
+        case .failure(let error): throw error
+        case .timeout: throw URLError(.timedOut)
+        case .status(let status): return AIRun(id: id, status: status)
+        }
+    }
+    func run(_ request: AIRequest) async throws -> AIRun {
+        chats.append(request); events.append("run:\(request.id)")
+        return try aiResult(id: request.id)
+    }
     func grade(_ request: GradeRequest) async throws -> AIRun {
         grades.append(request)
         events.append("grade:\(request.draftId)")
-        return AIRun(id: request.id, status: "completed")
+        return try aiResult(id: request.id)
     }
 }
 
@@ -283,6 +300,112 @@ final class ReplicaTests: XCTestCase {
         XCTAssertEqual(reopened.connector, .object([:]))
         XCTAssertEqual(reopened.cursor, "0")
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
+
+    func testAIAdmissionErrorsPersistPerJobButStillImportChangesAndRetryOriginalIdentity() async throws {
+        for status in [429, 503] {
+            let key = try workspace("ai-admission-\(status)")
+            let store = try Replica(directory: directory, workspace: key)
+            let rejected = AIRequest(chatId: "first-chat", messageId: "first-message")
+            let other = AIRequest(chatId: "second-chat", messageId: "second-message")
+            try await store.stage([], ai: .chat(rejected, nil))
+            try await store.stage([], ai: .chat(other, nil))
+            let detail: JSONValue = .object(["code": .string(status == 429 ? "rate_limited" : "service_unavailable"), "message": .string("Try again later")])
+            let failure = CloudFailure(status: status, body: .object(["error": detail]))
+            let foreign = CloudRecord(kind: "resource", id: "foreign", version: 1, cursor: "12", data: .object(["title": .string("Other device")]))
+            let network = ReplicaTransport(pages: [ChangesPage(records: [foreign], cursor: "12", hasMore: false)], aiOutcomes: [.failure(failure), .status("processing")])
+            do { try await store.synchronize(using: network); XCTFail("AI failure must remain visible after the pull") }
+            catch let error as CloudFailure { XCTAssertEqual(error.status, status) }
+            let reopened = try Replica(directory: directory, workspace: key)
+            let disk = await reopened.snapshot()
+            XCTAssertEqual(disk.cursor, "12")
+            XCTAssertEqual(disk.shadow[foreign.key], foreign)
+            let waiting = try XCTUnwrap(disk.ai.first(where: { $0.id == rejected.id })?.run)
+            XCTAssertEqual(waiting.id, rejected.id); XCTAssertEqual(waiting.status, "unavailable")
+            XCTAssertEqual(waiting.error, detail)
+            let independent = try XCTUnwrap(disk.ai.first(where: { $0.id == other.id })?.run)
+            XCTAssertEqual(independent.status, "processing"); XCTAssertNil(independent.error)
+            let retry = ReplicaTransport(aiOutcomes: [.status("completed"), .status("processing")])
+            try await reopened.synchronize(using: retry)
+            let retried = await retry.chatCalls()
+            XCTAssertEqual(retried, [rejected, other])
+            let finished = await reopened.snapshot()
+            XCTAssertFalse(finished.ai.contains(where: { $0.id == rejected.id }))
+        }
+    }
+
+    func testMissingAITargetBecomesTerminalWhileArchivedChatAndCursorStillImport() async throws {
+        let store = try replica(), request = AIRequest(chatId: "archived-chat", messageId: "message")
+        try await store.stage([], ai: .chat(request, nil))
+        let archived = CloudRecord(kind: "chat", id: request.chatId, version: 2, cursor: "25", deleted: true, data: nil)
+        let errorBody: JSONValue = .object(["code": .string("not_found"), "message": .string("Chat or message not found")])
+        let network = ReplicaTransport(pages: [ChangesPage(records: [archived], cursor: "25", hasMore: false)], aiOutcomes: [.failure(CloudFailure(status: 404, body: .object(["error": errorBody])))])
+        do { try await store.synchronize(using: network); XCTFail("Missing target should report its error after pulling") }
+        catch let error as CloudFailure { XCTAssertEqual(error.status, 404) }
+        let reopened = try replica(), disk = await reopened.snapshot()
+        XCTAssertEqual(disk.cursor, "25"); XCTAssertEqual(disk.shadow[archived.key], archived)
+        XCTAssertEqual(disk.ai.first?.run?.status, "failed")
+        XCTAssertEqual(disk.ai.first?.run?.error, errorBody)
+        let next = ReplicaTransport()
+        try await reopened.synchronize(using: next)
+        let calls = await next.chatCalls(), events = await next.eventLog()
+        XCTAssertTrue(calls.isEmpty)
+        XCTAssertEqual(events, ["changes:25"])
+    }
+
+    func testAmbiguousAINetworkFailurePullsChangesWithoutInventingTerminalRunAndRetriesSameGrade() async throws {
+        let store = try replica()
+        let request = GradeRequest(id: UUID().uuidString.lowercased(), draftId: "draft", resourceId: "resource", expectedDraftRevision: 4)
+        try await store.stage([], ai: .grade(request, nil))
+        let foreign = CloudRecord(kind: "future.record", id: "foreign", version: 1, cursor: "31", data: .object(["retained": .bool(true)]))
+        let network = ReplicaTransport(pages: [ChangesPage(records: [foreign], cursor: "31", hasMore: false)], aiOutcomes: [.timeout])
+        do { try await store.synchronize(using: network); XCTFail("Expected ambiguous provider/network outcome") }
+        catch let error as URLError { XCTAssertEqual(error.code, .timedOut) }
+        let reopened = try replica(), disk = await reopened.snapshot()
+        XCTAssertEqual(disk.cursor, "31"); XCTAssertEqual(disk.shadow[foreign.key], foreign)
+        XCTAssertEqual(disk.ai, [.grade(request, nil)], "Unknown outcome must not become a fabricated failed run")
+        let retry = ReplicaTransport()
+        try await reopened.synchronize(using: retry)
+        let first = await network.gradeCalls(), second = await retry.gradeCalls()
+        XCTAssertEqual(first, [request]); XCTAssertEqual(second, first)
+        let finished = await reopened.snapshot(); XCTAssertTrue(finished.ai.isEmpty)
+    }
+
+    func testExplicitInvalidSubmissionIsTerminalAndStillPullsBeforeThrowing() async throws {
+        for (status, code, terminal) in [(400, "validation", "failed"), (409, "conflict", "conflict"), (409, "idempotency_mismatch", "conflict")] {
+            let key = try workspace("invalid-\(status)-\(code)")
+            let store = try Replica(directory: directory, workspace: key)
+            let request = GradeRequest(id: UUID().uuidString.lowercased(), draftId: "draft", resourceId: "resource", expectedDraftRevision: 4)
+            try await store.stage([], ai: .grade(request, nil))
+            let detail: JSONValue = .object(["code": .string(code), "message": .string("Invalid saved submission")])
+            let network = ReplicaTransport(pages: [ChangesPage(records: [], cursor: "40", hasMore: false)], aiOutcomes: [.failure(CloudFailure(status: status, body: .object(["error": detail])))])
+            do { try await store.synchronize(using: network); XCTFail("Expected explicit submission failure") }
+            catch let error as CloudFailure { XCTAssertEqual(error.status, status) }
+            let reopened = try Replica(directory: directory, workspace: key), disk = await reopened.snapshot()
+            XCTAssertEqual(disk.cursor, "40"); XCTAssertEqual(disk.ai.first?.run?.status, terminal)
+            XCTAssertEqual(disk.ai.first?.run?.error, detail)
+            let next = ReplicaTransport(); try await reopened.synchronize(using: next)
+            let calls = await next.gradeCalls(); XCTAssertTrue(calls.isEmpty)
+        }
+    }
+
+    func testDisabledAIStillPushesAndPullsRecordsWhileKeepingOriginalPendingRequest() async throws {
+        let store = try replica(), request = AIRequest(chatId: "chat", messageId: "message")
+        try await store.stage([edit("Offline edit")], ai: .chat(request, nil))
+        let foreign = CloudRecord(kind: "resource", id: "other-device", version: 1, cursor: "55", data: .object(["title": .string("Remote")]))
+        let network = ReplicaTransport(pages: [ChangesPage(records: [foreign], cursor: "55", hasMore: false)])
+        try await store.synchronize(using: network, allowAI: false)
+        let reopened = try replica(), disk = await reopened.snapshot()
+        XCTAssertEqual(disk.cursor, "55"); XCTAssertEqual(disk.shadow[foreign.key], foreign)
+        XCTAssertTrue(disk.outbox.isEmpty)
+        XCTAssertEqual(disk.ai, [.chat(request, nil)])
+        let calls = await network.chatCalls(), grades = await network.gradeCalls()
+        XCTAssertTrue(calls.isEmpty && grades.isEmpty)
+        let retry = ReplicaTransport()
+        try await reopened.synchronize(using: retry, allowAI: true)
+        let enabledCalls = await retry.chatCalls(); XCTAssertEqual(enabledCalls, [request])
+        let finished = await reopened.snapshot(); XCTAssertTrue(finished.ai.isEmpty)
     }
 
 }

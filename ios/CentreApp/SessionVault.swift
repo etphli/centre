@@ -2,7 +2,12 @@ import Foundation
 import Security
 import CentreCore
 
-struct SavedSession: Codable { let baseURL: String; let session: CloudSession }
+struct SavedSession: Codable {
+    let baseURL:String
+    let session:CloudSession
+    let cloudAIAllowed:Bool?
+    init(baseURL:String,session:CloudSession,cloudAIAllowed:Bool?=nil) { self.baseURL=baseURL;self.session=session;self.cloudAIAllowed=cloudAIAllowed }
+}
 enum SessionVault {
     private static var query: [String: Any] { [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:"Centre Cloud",kSecAttrAccount as String:"session"] }
     static func read() throws -> SavedSession? {
