@@ -1,8 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
-import { mkdir,readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir,readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, extname, join } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { createService } from '../server/index';
@@ -11,8 +11,13 @@ import { nativeAttachmentSchema, printPaperSchema, saveFileSchema, validateExter
 import { proxyRequest } from './proxy';
 import { createUpdater } from './updater';
 import { diagramDocument } from '../server/diagram';
+import { createDesktopActionDelivery, createDesktopWindowOpener } from './desktop-actions';
+import { DesktopLauncherManager } from './desktop-launchers';
+import { desktopActionSchema } from '../shared/desktop-actions';
+import { launcherOperationSchema } from '../shared/desktop-launchers';
 
 app.setName('Centre');
+if (process.env.CENTRE_USER_DATA_DIR) app.setPath('userData', resolve(process.env.CENTRE_USER_DATA_DIR));
 process.env.PATH = [join(homedir(), '.local/bin'), join(homedir(), '.cargo/bin'), '/opt/homebrew/bin', '/usr/local/bin', process.env.PATH ?? '/usr/bin:/bin'].join(':');
 process.env.CENTRE_SKILLS_DIR = app.isPackaged ? join(process.resourcesPath, 'skills') : join(__dirname, '../skills');
 let mainWindow: BrowserWindow | null = null;
@@ -20,6 +25,26 @@ let service: Awaited<ReturnType<typeof createService>> | undefined;
 let closing = false;
 const rendererFile = join(__dirname, '../dist/index.html');
 const rendererUrl = app.isPackaged ? pathToFileURL(rendererFile).href : process.env.CENTRE_RENDERER_URL ?? 'http://127.0.0.1:5186/';
+const actions = createDesktopActionDelivery((request) => {
+  if (!mainWindow || mainWindow.webContents.isDestroyed()) throw new Error('The Centre window is unavailable.');
+  mainWindow.webContents.send('centre:actions:request', request);
+}, (error) => console.error('Desktop action delivery failed', error));
+const openCentreWindow = createDesktopWindowOpener({
+  available: () => Boolean(service) && !closing,
+  getWindow: () => mainWindow,
+  createWindow,
+});
+function revealCentre() {
+  void openCentreWindow().catch((error: unknown) => {
+    console.error('Centre window could not open', error);
+    dialog.showErrorBox('Centre could not open', error instanceof Error ? error.message : 'Unknown window error');
+  });
+}
+// macOS can emit this before app.whenReady(). No protocol registration is needed here.
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (actions.enqueueUrl(url)) revealCentre();
+});
 const googleOAuthSchema = z.object({ clientId: z.string().min(1), clientSecret: z.string().min(1) }).strict();
 const maxAttachmentBytes = 20 * 1024 * 1024;
 const maxAttachmentSelectionBytes = 30 * 1024 * 1024;
@@ -63,6 +88,11 @@ async function createWindow() {
     },
   });
   mainWindow = window;
+  actions.unready();
+  window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) actions.unready();
+  });
+  window.webContents.on('render-process-gone', () => actions.unready());
   const syncWindowChrome = () => window.webContents.send('centre:window-chrome', process.platform === 'darwin' && !window.isFullScreen());
   window.webContents.on('dom-ready', syncWindowChrome);
   window.on('enter-full-screen', syncWindowChrome);
@@ -80,8 +110,9 @@ async function createWindow() {
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   window.webContents.session.setPermissionCheckHandler(() => false);
   window.on('ready-to-show', () => window.show());
-  window.on('closed', () => { mainWindow = null; });
-  await window.loadURL(rendererUrl);
+  window.on('closed', () => { actions.unready(); mainWindow = null; });
+  try { await window.loadURL(rendererUrl); }
+  catch (error) { window.destroy(); throw error; }
 }
 
 async function start() {
@@ -90,6 +121,36 @@ async function start() {
   process.env.GOOGLE_CLIENT_SECRET = googleOAuth.clientSecret;
   service = await createService({ dataDir: process.env.CENTRE_DATA_DIR ?? join(app.getPath('userData'), 'data') });
   const updates = createUpdater();
+  const isolatedDesktop = Boolean(process.env.CENTRE_DESKTOP_DIR && process.env.CENTRE_USER_DATA_DIR);
+  const launchersSupported = process.platform === 'darwin' && (app.isPackaged || isolatedDesktop);
+  let launcherManager: Promise<DesktopLauncherManager> | undefined;
+  function launchers() {
+    if (!launcherManager) launcherManager = (async () => {
+      const desktopDirectory = await realpath(process.env.CENTRE_DESKTOP_DIR ?? app.getPath('desktop'));
+      const profileDirectory = await realpath(app.getPath('userData'));
+      return new DesktopLauncherManager({ desktopDirectory, manifestDirectory: join(profileDirectory, 'desktop-launchers') });
+    })().catch(error => { launcherManager = undefined; throw error; });
+    return launcherManager;
+  }
+  async function launcherList() {
+    return {
+      supported: launchersSupported,
+      message: launchersSupported ? '' : 'Desktop icons are available in the installed Centre app for macOS.',
+      launchers: launchersSupported ? await (await launchers()).list() : [],
+    };
+  }
+  ipcMain.handle('centre:launchers:list', (event) => { authorize(event); return launcherList(); });
+  ipcMain.handle('centre:launchers:change', async (event, action: unknown, operation: unknown) => {
+    authorize(event);
+    if (!launchersSupported) throw new Error('Open the installed Centre app for macOS to manage Desktop icons.');
+    await (await launchers()).change(desktopActionSchema.parse(action), launcherOperationSchema.parse(operation));
+    return launcherList();
+  });
+  ipcMain.handle('centre:actions:ready', (event) => { authorize(event); actions.ready(); });
+  ipcMain.handle('centre:actions:acknowledge', (event, value: unknown) => {
+    authorize(event);
+    actions.acknowledge(z.string().uuid().parse(value));
+  });
   ipcMain.handle('centre:request', async (event, method: unknown, path: unknown, body: unknown) => {
     authorize(event);
     if (!service) throw new Error('The local Centre service is not running.');
@@ -168,23 +229,24 @@ async function start() {
     { label: 'Centre', submenu: [{ role: 'about' }, { type: 'separator' }, { label: 'Check for updates...', click: () => { void updates.check().then((status) => dialog.showMessageBox({ type: status.state === 'error' ? 'error' : 'info', message: status.message })).catch(() => dialog.showErrorBox('Update failed', 'Centre could not check for updates.')); } }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
     { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
   ]));
-  await createWindow();
+  await openCentreWindow();
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => { if (mainWindow?.isMinimized()) mainWindow.restore(); mainWindow?.focus(); });
+  actions.enqueueArgv(process.argv);
+  app.on('second-instance', (_event, argv) => { actions.enqueueArgv(argv); revealCentre(); });
   app.whenReady().then(start).catch((error: unknown) => {
     dialog.showErrorBox('Centre could not start', error instanceof Error ? error.message : 'Unknown startup error');
     app.quit();
   });
-  app.on('activate', () => { if (!mainWindow && service) void createWindow(); });
+  app.on('activate', revealCentre);
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
   app.on('before-quit', (event) => {
     if (closing || !service) return;
     event.preventDefault();
     closing = true;
     const timeout = setTimeout(() => app.exit(0), 4000);
-    void service.close().finally(() => { clearTimeout(timeout); app.quit(); });
+    void service.close().catch((error: unknown) => console.error('Centre service could not close', error)).finally(() => { clearTimeout(timeout); app.quit(); });
   });
 }

@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { StudyLog } from '../shared/study-log';
 import { snapshotSchema, type Snapshot } from '../shared/schema';
 
 export const emptySnapshot = (): Snapshot => snapshotSchema.parse({ subjects: [], topics: [], resources: [], chats: [], events: [], memories: [], assignments: [], settings: {}, codex: { available: false, authenticated: false, message: 'Connecting to Codex CLI…' }, lastSyncedAt: null });
@@ -14,22 +15,25 @@ export class Store {
     catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('Centre data could not be read. The existing state file has been preserved.', { cause: error }); }
     return new Store(directory, state);
   }
-  save(): Promise<void> {
-    const write = this.queue.then(async () => {
-      await this.persist(this.state);
+  save(): Promise<void> { return this.enqueue(() => this.persist(this.state)); }
+  saveStudyLog(studyLog: StudyLog): Promise<void> {
+    return this.enqueue(async () => {
+      await this.persist({ ...this.state, studyLog });
+      this.state.studyLog = studyLog;
     });
-    this.queue = write.catch(() => undefined);
-    return write;
   }
   update<K extends keyof Snapshot>(key:K, change:(current:Snapshot[K]) => Snapshot[K]|undefined):Promise<void> {
-    const write = this.queue.then(async () => {
+    return this.enqueue(async () => {
       const next = change(structuredClone(this.state[key]));
       if (next === undefined) return;
       await this.persist({...this.state,[key]:next});
       this.state[key] = next;
     });
-    this.queue = write.catch(() => undefined);
-    return write;
+  }
+  private enqueue(write: () => Promise<void>): Promise<void> {
+    const pending = this.queue.then(write);
+    this.queue = pending.catch(() => undefined);
+    return pending;
   }
   private async persist(state:Snapshot) {
     const content = JSON.stringify(snapshotSchema.parse(state),null,2);

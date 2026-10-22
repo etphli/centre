@@ -1,0 +1,28 @@
+.centre-date-time, .centre-duration-field { display: grid; gap: 6px; min-width: 0; font-size: 0.8125rem; }
+.centre-date-time__controls { display: flex; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.centre-date-popover { position: relative; min-width: 0; }
+.centre-date-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; padding: 6px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-s); background: var(--surface); font-size: 0.75rem; white-space: nowrap; }
+.centre-date-trigger svg { color: var(--text-2); flex: none; }
+.centre-date-trigger:hover, .centre-date-trigger[aria-expanded=true] { background: var(--selected-bg, var(--surface-2)); }
+.centre-date-panel { position: fixed; inset: auto; margin: 0; padding: 10px; max-height: 340px; overflow: auto; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 8px 25px #0003; font: 0.75rem/1.5 var(--font-sans); }
+.centre-date-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.centre-date-panel__heading > span { font-weight: 500; }
+.centre-date-grid__row { display: grid; grid-template-columns: repeat(7, 1fr); }
+.centre-date-grid__row > * { display: grid; place-items: center; height: 32px; min-width: 0; border-radius: var(--radius-s); }
+.centre-date-grid [role=columnheader] { color: var(--text-2); }
+.centre-date-grid button:hover { background: var(--surface-2); }
+.centre-date-grid button[aria-selected=true] { background: var(--selected-bg, var(--surface-2)); color: var(--selected-ink, var(--text)); box-shadow: inset 0 0 0 1px var(--text-2); }
+.centre-date-grid button.is-outside { color: var(--text-3); }
+.centre-time-field { display: flex; align-items: stretch; min-width: 0; }
+.centre-time-field > input { width: 66px !important; min-width: 0; padding: 6px 8px !important; font-size: 0.75rem; font-variant-numeric: tabular-nums; background: var(--surface) !important; border: 1px solid var(--line-strong); border-radius: var(--radius-s) 0 0 var(--radius-s) !important; }
+.centre-date-trigger--time { border-left: 0; border-radius: 0 var(--radius-s) var(--radius-s) 0; height: 100%; padding: 6px; }
+.centre-time-options { display: grid; gap: 2px; }
+.centre-time-options button { min-height: 30px; padding: 4px 8px; text-align: left; border-radius: var(--radius-s); }
+.centre-time-options button:hover, .centre-time-options button[aria-selected=true] { background: var(--selected-bg, var(--surface-2)); color: var(--selected-ink, var(--text)); }
+.centre-duration-field__controls { display: flex; gap: 8px; align-items: stretch; }
+.centre-duration-field__controls > label { display: flex !important; flex-direction: row; align-items: center; gap: 6px; }
+.centre-duration-field__controls input { width: 64px !important; font-variant-numeric: tabular-nums; }
+.centre-duration-field__controls > .centre-select { min-width: 94px; }
+.centre-duration-field__controls input[type=number] { appearance: textfield; }
+.centre-duration-field__controls input[type=number]::-webkit-inner-spin-button,
+.centre-duration-field__controls input[type=number]::-webkit-outer-spin-button { appearance: none; margin: 0; }

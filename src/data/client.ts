@@ -1,7 +1,10 @@
+import { studyLogSchema, type StudyTags, type StudySegment, type TimerAction } from '../../shared/study-log';
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { z } from 'zod';
 import { checklistProgressUpdateSchema, diagramPreviewSchema } from '../../shared/checklist-progress';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
+import type { DesktopAction, DesktopActionRequest } from '../../shared/desktop-actions';
+import type { LauncherOperation, LauncherList } from '../../shared/desktop-launchers';
 import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
 
 export interface ExportedFile { filename: string; content: string; mimeType: string }
@@ -9,6 +12,15 @@ export interface AttachmentUploadInput { name:string; mimeType:string; data:stri
 export interface UpdateStatus { state: string; message: string; version?: string; downloaded?: boolean; configured?: boolean }
 type Method = 'GET' | 'POST' | 'PATCH';
 export interface DesktopBridge {
+  actions: {
+    subscribe: (listener: (request: DesktopActionRequest) => void) => () => void;
+    ready: () => Promise<void>;
+    acknowledge: (id: string) => Promise<void>;
+  };
+  launchers: {
+    list: () => Promise<LauncherList>;
+    change: (action: DesktopAction, operation: LauncherOperation) => Promise<LauncherList>;
+  };
   request: (method: Method, path: string, body?: unknown) => Promise<unknown>;
   chooseFiles: () => Promise<AttachmentUploadInput[]>;
   openDiagram: (input:{id:string;theme:string}) => Promise<unknown>;
@@ -45,6 +57,13 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
 export const api = {
+  studyLog: () => request('GET', '/study-log', studyLogSchema),
+  createStudy: (input: StudyTags & {id:string;segments:StudySegment[]}) => request('POST', '/study-log/sessions', studyLogSchema, input),
+  editStudy: (id:string,input:StudyTags & {expectedRevision:number;segments:StudySegment[]}) => request('PATCH', `/study-log/sessions/${encodeURIComponent(id)}`, studyLogSchema, input),
+  deleteStudy: (id:string,expectedRevision:number) => request('POST', `/study-log/sessions/${encodeURIComponent(id)}/delete`, studyLogSchema, {expectedRevision}),
+  startStudy: (input:StudyTags & {id:string}) => request('POST', '/study-log/timer/start', studyLogSchema, input),
+  timerStudy: (id:string,action:TimerAction,expectedRevision:number,activity = false) => request('POST', `/study-log/timer/${encodeURIComponent(id)}/${action}`, studyLogSchema, {expectedRevision,activity}),
+  saveStudyGoal: (input:{id:string;weekStart:string;timeZone:string;targetMinutes:number;expectedRevision?:number}) => request('POST', '/study-log/goals', studyLogSchema, input),
   state: () => request('GET', '/state', snapshotSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),
   forgetMemory: (id:string) => request('POST', `/assistant-memories/${encodeURIComponent(id)}/forget`, okSchema, {}),
