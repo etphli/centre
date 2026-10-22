@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { applyGradeEvidence, attemptSchema, learningNeedSchema, quizDraftSchema, validateGradeResult, type LearningNeed } from '../shared/practice';
+import { MAX_LEARNING_NEEDS, applyGradeEvidence, attemptSchema, learningNeedSchema, quizDraftSchema, validateGradeResult, type LearningNeed } from '../shared/practice';
 import { resourceSchema } from '../shared/schema';
 
 export interface GradeStatement {
@@ -177,11 +177,16 @@ export async function handleGradeRequest(request: Request, context: GradeContext
       const result = validateGradeResult(questions, {score:0,total:0,feedback:[...objective,...written]}, resource.title.slice(0,100));
       const attempt = attemptSchema.parse({schemaVersion:1,revision:1,id:crypto.randomUUID(),sourceDraftId:draft.id,resourceId:resource.id,answers:draft.answers,result,createdAt:now});
       const records = await context.entities.listLearningNeeds();
-      if (records.length > 500) throw new Error('Learning needs exceed the supported bound.');
+      if (records.length > MAX_LEARNING_NEEDS) throw new Error('Learning needs exceed the supported bound.');
       let needs: LearningNeed[] = records.filter(record => !record.deleted).map(record => learningNeedSchema.parse(record.data));
       const changed = new Map<string, LearningNeed>();
+      let retainedCount = records.length;
       for (const feedback of result.feedback) {
         const transition = applyGradeEvidence({learningNeeds:needs,subjectId:resource.subjectId,topicId:resource.topicId,resourceId:resource.id,questionId:feedback.questionId,questionConcept:questions.find(question => question.id === feedback.questionId)?.concept || '',concept:feedback.concept,topicName:resource.title,feedback,attemptId:attempt.id,now,createId:() => crypto.randomUUID()});
+        if (transition.updatedNeed && !needs.some(need=>need.id===transition.updatedNeed?.id)) {
+          if (retainedCount>=MAX_LEARNING_NEEDS) continue;
+          retainedCount++;
+        }
         needs = transition.learningNeeds;
         if (transition.updatedNeed) changed.set(transition.updatedNeed.id, transition.updatedNeed);
       }
