@@ -153,7 +153,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
     }
   }
   let pending=false;
-  const report=()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;const input=document.querySelector('input[type=checkbox][data-centre-checklist-id]');const anchor=input?.labels?.[0]||input;const inset=anchor?Math.max(0,Math.min(512,Math.round(anchor.getBoundingClientRect().left))):0;parent.postMessage({type:'centre:diagram-size',height:Math.ceil(document.body.getBoundingClientRect().height),inset},'*')})};
+  const report=()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;const input=document.querySelector('input[type=checkbox][data-centre-checklist-id]');const anchor=input?.labels?.[0]||input;const inset=anchor?Math.max(0,Math.min(512,Math.round(anchor.getBoundingClientRect().left))):0;const bounds=document.body.getBoundingClientRect();const height=Math.ceil(Math.max(bounds.height,document.body.scrollHeight)+Math.max(0,bounds.top+scrollY));parent.postMessage({type:'centre:diagram-size',height,inset},'*')})};
   new ResizeObserver(report).observe(document.body);addEventListener('load',report);report();
 })();
 </script>${checklistScript}<!--/centre:bridge--></body></html>`;
