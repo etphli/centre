@@ -21,7 +21,7 @@ T3 preview status and open timed out; its open call reported `Preview automation
 
 - `npm test`: 188 passed, zero failed, after integrating current main.
 - `npm run build`: passed TypeScript and production Vite build. Existing large-chunk and dependency comment warnings remain.
-- Hosted module: 59 tests against real SQLite with upstream fetch simulation. Independent three-round review found and verified fixes for remote ownership collision, stale hosted links and stale snapshot responses. Live hosted D1 concurrency and production Organato are unverified.
+- Hosted module: 60 tests against real SQLite with upstream fetch simulation. Independent three-round review found and verified fixes for remote ownership collision, stale hosted links and stale snapshot responses. Live hosted D1 concurrency and production Organato are unverified.
 - Real UI: month arrow-key navigation and Shift-Enter create; week switching; session selection and overlap details; create; move date/time; change duration; complete; failed archive keeps active; successful archive creates tombstone and preserves completion and assignments; previous/next/current week. The study Log state is unchanged by these actions. Zero page errors; one expected HTTP 503 console entry from the intentional failure.
 - At 1280×800, the week width and scroll width are both 708px and all seven headers are visible. Selecting the afternoon session scrolls to 756px. The month ends at 621.94px, above the composer at 631px.
 - Browser rendering and local service were exercised. Electron packaging, live account provisioning and production deployment were not exercised.
@@ -40,3 +40,5 @@ T3 preview status and open timed out; its open call reported `Preview automation
 The footer's unavailable Codex notice belongs to the intentionally isolated fixture.
 
 Explicit assignment deadline instants are also covered in Sydney and Los Angeles. Date-only deadlines remain all-day on their original calendar date. The final optional `Assignment.dueAt` projection preserves existing date-only consumers.
+
+The coordinator independently cleared CAL-1/2/3/4 and local X-1/X-2 using the fresh fixture at 1280×800. The live recheck confirmed seven visible days, selected scroll, month/composer separation, human status labels, opaque archive confirmation, shared controls and zero page exceptions. This is Calendar visual clearance only; hosted D1/iOS integration and merge approval remain separate. A subsequent test-only addition confirms authenticated operation-not-found and concurrent explicit retry deduplicate to one upstream create; the focused module suite passes 60 tests. No duplicate full build was run.

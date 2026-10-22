@@ -200,6 +200,18 @@ test('cloud Organato contract against actual migration and isolated SQLite',asyn
     assert.deepEqual((await f.request(`/operations/${operationId}`)).body,first.result.body);
   });
 
+  await t.test('authenticated missing operation permits explicit same-command retry without duplicate upstream create',async () => {
+    await f.connect();const data=session();const operationId=randomUUID();
+    const missing=await f.request(`/operations/${operationId}`);assert.equal(missing.status,404);
+    assert.deepEqual(missing.body.error,{code:'operation_not_found',message:'The operation was not found.'});
+    // Both clients can observe absence before either request reaches the durable insert.
+    const results=await Promise.all([f.create(data,operationId),f.create(data,operationId)]);
+    assert.ok(results.every(result => [200,202].includes(result.result.status)));
+    const saved=await f.request(`/operations/${operationId}`);assert.equal(saved.status,200);assert.equal(receipt(saved.body).status,'succeeded');
+    assert.equal(f.externalWrites().length,1);assert.equal(f.writes.length,1);
+    assert.deepEqual((await f.create(data,operationId)).result.body,saved.body);assert.equal(f.externalWrites().length,1);
+  });
+
   await t.test('ledger insertion failure prevents every external write',async () => {
     await f.connect();f.db.failSQL=query => query.startsWith('INSERT INTO centre_organato_operations');
     const result=await f.create();assert.notEqual(result.result.status,200);assert.equal(f.externalWrites().length,0);assert.equal(f.writes.length,0);
