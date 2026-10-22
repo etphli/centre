@@ -85,7 +85,7 @@ export const calendarEventSchema = eventSchema.extend({
   }
 });
 export type CalendarEvent = z.infer<typeof calendarEventSchema>;
-export const assignmentSchema = z.object({ id: z.string(), title: z.string(), kind: z.enum(['work', 'todo']), subjectId: z.string().nullable(), dueDate: z.string().nullable(), status: z.string(), version: z.number() });
+export const assignmentSchema = z.object({ id: z.string(), title: z.string(), kind: z.enum(['work', 'todo']), subjectId: z.string().nullable(), dueDate: z.string().nullable(), dueAt: z.iso.datetime().nullable().optional(), status: z.string(), version: z.number() });
 export const memorySchema = z.object({ id: z.string(), subjectId: z.string().nullable(), topicId: z.string().nullable(), resourceId: z.string(), question: z.string(), note: z.string(), createdAt: z.string(), nextReviewAt: z.string(), resolvedAt: z.string().nullable().default(null) });
 export const rememberInputSchema = z.object({ key:z.string().trim().min(1).max(80),content:z.string().trim().min(1).max(1000) }).strict();
 export const assistantMemorySchema = rememberInputSchema.extend({ id:z.string().uuid(),createdAt:z.string().datetime(),updatedAt:z.string().datetime() });

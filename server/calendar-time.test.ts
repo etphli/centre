@@ -190,3 +190,15 @@ test('import tombstones suppress assignment resurrection and invalid sessions ar
   assert.equal(days.flatMap(value => value.deadlines).length, 0);
   assert.equal(eventInterval(event({ deletedAt: '2026-10-01T00:00:00Z' })), null);
 });
+
+
+test('explicit assignment deadlines retain their instant across configured timezones', () => {
+  const timed = assignmentSchema.parse({id:'timed-work',title:'Due work',kind:'work',subjectId:null,dueDate:'2026-10-05',dueAt:'2026-10-04T14:30:00Z',status:'not_started',version:7});
+  const allDay = assignmentSchema.parse({...timed,id:'all-day',dueAt:null});
+  const sydney=week([], '2026-10-05','Australia/Sydney',[timed,allDay]);
+  assert.equal(day(sydney,'2026-10-05').deadlines.find(d=>d.id==='timed-work')?.time,'01:30');
+  assert.equal(day(sydney,'2026-10-05').deadlines.find(d=>d.id==='all-day')?.time,null);
+  const losAngeles=week([], '2026-09-28','America/Los_Angeles',[timed,allDay]);
+  assert.equal(day(losAngeles,'2026-10-04').deadlines.find(d=>d.id==='timed-work')?.time,'07:30');
+  assert.equal(losAngeles.flatMap(d=>d.deadlines).some(d=>d.id==='all-day'),false);
+});

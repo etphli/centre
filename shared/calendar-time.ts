@@ -226,7 +226,7 @@ export function aggregateCalendarWeek(input: {
   }
   for (const assignment of assignments.values()) {
     if (!assignment.dueDate || linkedItems.has(assignment.id)) continue;
-    const position = deadlinePosition(assignment.dueDate, null, assignment.dueDate.includes('T') ? assignment.dueDate : null, input.timeZone, input.timeZone);
+    const position = deadlinePosition(assignment.dueDate, null, assignment.dueAt ?? (assignment.dueDate.includes('T') ? assignment.dueDate : null), input.timeZone, input.timeZone);
     const day = days.find(day => day.date === position?.date);
     if (!day || !position) continue;
     day.deadlines.push({
