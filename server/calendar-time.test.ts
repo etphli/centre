@@ -145,6 +145,14 @@ test('canonical calendar records reject imported projections and inconsistent lo
   assert.equal(calendarEventSchema.safeParse({...canonical,kind:'deadline'}).success,false);
 });
 
+test('canonical records retain precise existing instants during a repeated DST hour', () => {
+  for (const startAt of ['2026-04-04T15:30:12.123Z','2026-04-04T16:30:12.123Z']) {
+    const canonical = calendarEventSchema.parse(event({id:'d08320ec-19d8-4c2e-a131-10a4a58cb29e',date:'2026-04-05',time:'02:30:12.123',startAt,createdAt:'2026-04-01T00:00:00Z',updatedAt:'2026-04-01T00:00:00Z'}));
+    assert.equal(projectCalendarEvent(canonical).startAt,startAt);
+    assert.equal(eventInterval(canonical)?.start.toString(),startAt);
+  }
+});
+
 test('midnight segments preserve total planned minutes without adding a zero-length next day', () => {
   const days = week([
     event({ id: 'cross', time: '23:30', plannedDurationMinutes: 120 }),

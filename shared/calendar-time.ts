@@ -40,6 +40,10 @@ export function calendarTimeLabel(time: string, options: Intl.DateTimeFormatOpti
   return Temporal.PlainTime.from(time).toLocaleString(undefined, options);
 }
 
+export function calendarTimeKey(time: Temporal.PlainTime): string {
+  return time.second || time.millisecond || time.microsecond || time.nanosecond ? time.toString() : time.toString({smallestUnit:'minute'});
+}
+
 export function calendarStartInstant(dateKey: string, time: string, timeZone: string): Temporal.Instant {
   const date = dateFromKey(dateKey);
   const clock = Temporal.PlainTime.from(time);

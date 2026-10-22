@@ -54,6 +54,7 @@ export const modelSelectionSchema = z.object({ model:z.string().min(1).max(200),
 export type ModelSelection = z.infer<typeof modelSelectionSchema>;
 export const chatSchema = z.object({ modelSelection:modelSelectionSchema.nullable().default(null), id: z.string(), title: z.string(), createdAt: z.string(), updatedAt: z.string(), deletedAt: z.string().nullable().default(null), codexThreadId: z.string().nullable().default(null), pinnedAt: z.string().nullable().default(null), folderId: z.string().nullable().default(null), sortOrder: z.number().int().default(0), activity:z.array(activitySchema).max(60).default([]), messages: z.array(messageSchema) });
 export const chatFolderSchema = z.object({ id: z.string(), name: z.string(), sortOrder: z.number().int().default(0), collapsed: z.boolean().default(false) });
+export const calendarTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?$/);
 export const eventSchema = z.object({
   schemaVersion:z.literal(1).default(1), id:z.string(), revision:z.number().int().positive().default(1),
   createdAt:z.iso.datetime().nullable().default(null), updatedAt:z.iso.datetime().nullable().default(null), deletedAt:z.iso.datetime().nullable().default(null),
@@ -69,7 +70,7 @@ export const calendarEventSchema = eventSchema.extend({
   id:z.string().uuid(), origin:z.literal('centre'), title:z.string().trim().min(1).max(200),
   schemaVersion:z.literal(1), revision:z.number().int().positive(),
   createdAt:z.iso.datetime(), updatedAt:z.iso.datetime(), completedAt:z.iso.datetime().nullable(),
-  time:z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable(), notes:z.string().max(20000),
+  time:calendarTimeSchema.nullable(), notes:z.string().max(20000),
   timeZone:z.string().max(100).refine(value => { try { new Intl.DateTimeFormat('en',{timeZone:value}); return true; } catch { return false; } },'Choose a valid IANA time zone.'),
 }).strict().superRefine((event,context) => {
   if (event.kind === 'session' && (!event.time || !event.startAt || !event.plannedDurationMinutes)) context.addIssue({code:'custom',path:['time'],message:'A planned session needs a start time, instant and planned duration.'});
@@ -77,9 +78,9 @@ export const calendarEventSchema = eventSchema.extend({
   if (event.kind === 'deadline' && (event.time || event.startAt)) context.addIssue({code:'custom',path:['time'],message:'A Centre deadline is an all-day date.'});
   if (event.kind === 'session' && event.time && event.startAt) {
     try {
-      const expected = Temporal.PlainDate.from(event.date).toPlainDateTime(Temporal.PlainTime.from(event.time)).toZonedDateTime(event.timeZone,{disambiguation:'reject'}).toInstant();
-      if (!expected.equals(Temporal.Instant.from(event.startAt))) context.addIssue({code:'custom',path:['startAt'],message:'The start instant must match the date, time and time zone.'});
-    } catch { context.addIssue({code:'custom',path:['time'],message:'Choose a valid, unambiguous local start time.'}); }
+      const local = Temporal.PlainDate.from(event.date).toPlainDateTime(Temporal.PlainTime.from(event.time));
+      if (!Temporal.Instant.from(event.startAt).toZonedDateTimeISO(event.timeZone).toPlainDateTime().equals(local)) context.addIssue({code:'custom',path:['startAt'],message:'The start instant must match the date, time and time zone.'});
+    } catch { context.addIssue({code:'custom',path:['time'],message:'Choose a valid local start time and instant.'}); }
   }
 });
 export type CalendarEvent = z.infer<typeof calendarEventSchema>;
