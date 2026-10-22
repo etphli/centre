@@ -1,0 +1,13 @@
+{
+  "runtime": "Installed Electron 44 / Node 24.22.0",
+  "endpoint": "https://centre-cloud.etphli.workers.dev/v1/bootstrap",
+  "before": {
+    "error": "fetch failed",
+    "causeCode": "SELF_SIGNED_CERT_IN_CHAIN"
+  },
+  "after": {
+    "status": 401
+  },
+  "tlsVerificationDisabled": false,
+  "explanation": "401 is the expected authenticated endpoint response to this anonymous probe."
+}

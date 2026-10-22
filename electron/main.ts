@@ -15,7 +15,9 @@ import { createDesktopActionDelivery, createDesktopWindowOpener } from './deskto
 import { DesktopLauncherManager } from './desktop-launchers';
 import { desktopActionSchema } from '../shared/desktop-actions';
 import { launcherOperationSchema } from '../shared/desktop-launchers';
+import { useSystemCertificateAuthorities } from './system-trust';
 
+useSystemCertificateAuthorities();
 app.setName('Centre');
 if (process.env.CENTRE_USER_DATA_DIR) app.setPath('userData', resolve(process.env.CENTRE_USER_DATA_DIR));
 process.env.PATH = [join(homedir(), '.local/bin'), join(homedir(), '.cargo/bin'), '/opt/homebrew/bin', '/usr/local/bin', process.env.PATH ?? '/usr/bin:/bin'].join(':');

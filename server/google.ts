@@ -7,6 +7,13 @@ import { accountSchema } from '../shared/schema';
 import type { Store } from './store';
 import type { Credentials } from './credentials';
 import { HttpError } from './errors';
+import { sendGoogleCallback } from './google-callback';
+
+function callbackFailure(error: unknown) {
+  if (error instanceof HttpError) return error.message;
+  if (error instanceof Error && /^(Google |This Google |This cloud |This connection |Centre cloud )/.test(error.message)) return error.message;
+  return 'Centre could not finish signing in. Check your connection, then return to Centre and try again.';
+}
 
 export class GoogleLogin {
   private listener: Server | null = null;
@@ -29,8 +36,8 @@ export class GoogleLogin {
         const url = new URL(request.url ?? '/', 'http://127.0.0.1');
         if (request.method !== 'GET' || url.pathname !== '/oauth/callback') { response.writeHead(404).end('Not found.'); return; }
         const received = url.searchParams.get('state') ?? '';
-        if (Buffer.byteLength(received) !== Buffer.byteLength(state) || !timingSafeEqual(Buffer.from(received),Buffer.from(state))) { response.writeHead(400).end('Sign-in state did not match. Return to Centre and try again.'); return; }
-        if (used) { response.writeHead(409).end('This sign-in link has already been used.'); return; }
+        if (Buffer.byteLength(received) !== Buffer.byteLength(state) || !timingSafeEqual(Buffer.from(received),Buffer.from(state))) { sendGoogleCallback(response,400,{kind:'error',message:'Sign-in state did not match. Return to Centre and try again.'}); return; }
+        if (used) { sendGoogleCallback(response,409,{kind:'error',message:'This sign-in link has already been used. Start a new sign-in from Centre.'}); return; }
         used = true;
         try {
           if (url.searchParams.has('error')) throw new Error('Google sign-in was declined. Return to Centre to try again.');
@@ -63,10 +70,10 @@ export class GoogleLogin {
           } else this.store.state.settings.account = accountSchema.parse({ name: profile.name ?? profile.email, email: profile.email, ...(profile.picture ? { picture: profile.picture } : {}) });
           await this.store.save();
           if (generation !== this.generation) throw new Error('This Google sign-in was cancelled.');
-          response.writeHead(200).end('You are signed in to Centre. You can close this window and return to the app.');
-        } catch (error) { response.writeHead(400).end(error instanceof Error ? error.message : 'Google sign-in failed.'); }
+          sendGoogleCallback(response,200,{kind:'success'});
+        } catch (error) { sendGoogleCallback(response,400,{kind:'error',message:callbackFailure(error)}); }
         finally { if (this.listener === listener) this.close(); }
-      })().catch(() => { if (!response.writableEnded) response.writeHead(500).end('Google sign-in failed.'); if (this.listener === listener) this.close(); });
+      })().catch(() => { if (!response.writableEnded) sendGoogleCallback(response,500,{kind:'error',message:'Centre could not finish signing in. Return to the app and try again.'}); if (this.listener === listener) this.close(); });
     });
     await new Promise<void>((resolve,reject) => { listener.once('error',reject); listener.listen(0,'127.0.0.1',resolve); });
     this.listener = listener;

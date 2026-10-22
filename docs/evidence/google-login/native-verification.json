@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "checks": [
+    "Production Electron startup trusts the macOS certificate chain and reaches real Centre Cloud",
+    "Actual loopback callback completes with simulated Google responses",
+    "Success page provides a valid Centre Settings action",
+    "Native service saves the account before reporting success",
+    "Account is persisted without provider tokens",
+    "Real Cloud rejects the simulated invalid identity after a secure connection",
+    "Failed Cloud sign-in grants no account or device session",
+    "No renderer errors"
+  ],
+  "liveGoogleConsent": false,
+  "googleResponses": "SIMULATED",
+  "cloudTransport": "REAL HTTPS with certificate verification",
+  "rendererErrors": []
+}
