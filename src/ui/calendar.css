@@ -66,6 +66,29 @@
   box-shadow: inset 2px 0 0 color-mix(in oklab, var(--tint) 80%, var(--text));
 }
 
+.split--calendar .month__cell {
+  height: clamp(76px, calc((100dvh - 340px) / 6), 112px);
+  padding: 4px;
+  gap: 2px;
+}
+
+.month__cell-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.month__cell-heading .month__more {
+  padding: 0;
+  white-space: nowrap;
+  font-size: 0.625rem;
+}
+
+.split--calendar .month__items { gap: 1px; }
+
 /* Week grid. One scroller owns both axes so the day header, due row and hour gutter stay aligned. */
 
 .week {

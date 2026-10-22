@@ -586,14 +586,13 @@ export function CalendarPage() {
                           onClick={() => select(key)}
                           onDoubleClick={() => openEventDialog(key)}
                         >
-                          <span className="month__date">{fromDateKey(key).getDate()}</span>
+                          <span className="month__cell-heading"><span className="month__date">{fromDateKey(key).getDate()}</span>{items.length > 2 ? <span className="month__more">{items.length - 2} more</span> : null}</span>
                           <span className="month__items" aria-hidden>
-                            {items.slice(0, 3).map((item) => (
+                            {items.slice(0, 2).map((item) => (
                               <span key={item.id} className={`month__chip month__chip--${item.kind}${item.kind === 'event' && isPlannedSession(item.event) ? ' month__chip--session' : ''}${item.done ? ' is-done' : ''}`} style={subjectTint(item.color)}>
-                                {item.title}
+                                {item.kind === 'event' && item.time ? `${item.time.slice(0,5)} ` : ''}{item.title}
                               </span>
                             ))}
-                            {items.length > 3 ? <span className="month__more">{items.length - 3} more</span> : null}
                           </span>
                         </button>
                       </div>
