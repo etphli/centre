@@ -9,6 +9,7 @@ import { getCurriculumContext } from './curriculum';
 import { diagramDocument } from './diagram';
 import { paperTemplate } from './test-paper';
 import { structuredOutputSchema } from './structured-output';
+import type { SearchIndex } from './search-index';
 export { paperTemplate } from './test-paper';
 export { diagramDocument } from './diagram';
 
@@ -35,7 +36,7 @@ export function safeLatex(value: string) {
 }
 
 export class Resources {
-  constructor(private readonly store: Store, private readonly codex: Codex) {}
+  constructor(private readonly store: Store, private readonly codex: Codex, private readonly searchIndex?: SearchIndex) {}
   private location(input: Pick<CreateResource, 'subjectId' | 'topicId'>) {
     if (input.subjectId === null && input.topicId === null) return {subject:{name:'Personal learning'},topic:{name:'Personal learning',description:''}};
     if (input.subjectId === null || input.topicId === null) throw new HttpError(400,'Choose a subject and topic together, or personal learning.');
@@ -67,6 +68,7 @@ export class Resources {
     this.store.state.resources.unshift(resource);
     try { await this.store.save(); }
     catch (error) { this.store.state.resources = this.store.state.resources.filter(saved => saved.id !== resource.id); throw error; }
+    await this.searchIndex?.rebuild(this.store.state);
     return resource;
   }
   async generate(input: CreateResource, conversation?: { threadId:string; selection:ModelSelection; context:string; imagePaths:string[]; checkActive:()=>void }) {
@@ -148,7 +150,7 @@ export class Resources {
     const resource = requireFound(this.store.state.resources.find(x => x.id === id && !x.deletedAt),'Resource');
     resource.subjectId = input.subjectId;resource.topicId = input.topicId;resource.updatedAt = new Date().toISOString();
     for (const memory of this.store.state.memories.filter(value => value.resourceId === id)) { memory.subjectId = input.subjectId;memory.topicId = input.topicId; }
-    await this.store.save();return resource;
+    await this.store.save();await this.searchIndex?.rebuild(this.store.state);return resource;
   }
   export(id: string) {
     const resource = requireFound(this.store.state.resources.find(x => x.id === id && !x.deletedAt), 'Resource');

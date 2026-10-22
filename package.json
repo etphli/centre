@@ -17,14 +17,15 @@
     "package:mac": "npm run build && npm run build:electron && electron-builder --mac --publish never",
     "typecheck": "tsc --noEmit",
     "benchmark:performance": "node scripts/benchmark-performance.mjs",
-    "test": "tsx --test server/*.test.ts electron/*.test.ts scripts/*.test.mjs",
+    "test": "tsx --test server/*.test.ts shared/*.test.ts electron/*.test.ts scripts/*.test.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "skills:download": "node scripts/download-claude-skills.mjs",
     "postinstall": "npm run skills:download",
     "prebuild": "npm run skills:download",
     "verify:connectors": "tsx scripts/verify-connectors.mjs",
     "test:ios-core": "bash scripts/verify-ios-core.sh",
-    "test:ios": "bash scripts/verify-ios.sh"
+    "test:ios": "bash scripts/verify-ios.sh",
+    "verify:search": "tsx scripts/verify-search.mjs"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",

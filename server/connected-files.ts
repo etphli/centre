@@ -6,6 +6,7 @@ import { resourceSchema } from '../shared/schema';
 import type { Store } from './store';
 import type { Connectors } from './connectors';
 import { HttpError, requireFound } from './errors';
+import type { SearchIndex } from './search-index';
 
 const headerSchema = z.object({ title: z.string().optional(), name: z.string().optional(), revisionId: z.string().optional(), properties: z.object({ title: z.string().optional() }).optional(), info: z.object({ title: z.string().optional() }).optional() });
 const rowSchema = z.object({ values: z.array(z.object({ formattedValue: z.string().optional(), effectiveValue: z.object({ stringValue: z.string().optional(), numberValue: z.number().optional(), boolValue: z.boolean().optional() }).optional() })).default([]) });
@@ -49,7 +50,7 @@ export function fileSnapshot(connector: ConnectedFile['connector'], fileId: stri
 }
 
 export class ConnectedFiles {
-  constructor(private readonly store: Store, private readonly connectors: Connectors) {}
+  constructor(private readonly store: Store, private readonly connectors: Pick<Connectors, 'read' | 'edit'>, private readonly searchIndex?: SearchIndex) {}
   async read(value: unknown) {
     const input = connectorReadSchema.parse(value);
     const result = await this.connectors.read(input);
@@ -61,6 +62,7 @@ export class ConnectedFiles {
     const resource = resourceSchema.parse({ ...(existing ?? { id: randomUUID(), subjectId: null, topicId: null, kind: 'notes', createdAt: now }), ...snapshot, updatedAt: now });
     if (existing) Object.assign(existing, resource); else this.store.state.resources.push(resource);
     await this.store.save();
+    await this.searchIndex?.rebuild(this.store.state);
     return { ...result, resource };
   }
   async refresh(id: string) {
