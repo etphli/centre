@@ -275,7 +275,10 @@ app.on('browser-window-created', (_event, createdWindow) => {
       await waitFor("document.querySelector('.resource-card__open')",'resource cards');
       await clickByText('.resource-card__open','Synthetic diagram','diagram resource');
       await waitFor("document.querySelector('iframe.diagram-embed')",'diagram embed');
-      const diagramFrame = () => window.webContents.mainFrame.frames.find(frame=>frame.url.includes('/artifacts/qa-diagram/'));
+      const diagramFrame = () => {
+        const relay = window.webContents.mainFrame.frames.find(frame=>frame.url.includes('/artifacts/qa-diagram/'));
+        return relay?.frames.find(frame=>frame.url === 'about:srcdoc');
+      };
       const diagramValue = async expression => {const frame=diagramFrame();if(!frame)throw new Error('Diagram child frame missing');return frame.executeJavaScript(expression);};
       for(let i=0;i<40 && !(diagramFrame() && await diagramValue("Boolean(document.getElementById('explore'))"));i++)await pause(100);
       await pause(500);
