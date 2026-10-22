@@ -1,5 +1,5 @@
 import {
-  ArrowDown, ArrowUp, CalendarDays, Check, ChevronRight, Folder, FolderMinus, FolderPlus, Inbox, Library, MoreHorizontal,
+  ArrowDown, ArrowUp, Clock3, CalendarDays, Check, ChevronRight, Folder, FolderMinus, FolderPlus, Inbox, Library, MoreHorizontal,
   PanelLeft, Pencil, Pin, PinOff, Plus, Search, Settings, Target, Trash2,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -528,6 +528,7 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
         <NavItem icon={<Plus size={15} />} label="New chat" active={route.kind === 'home'} onClick={() => navigate({ kind: 'home' })} />
         <NavItem icon={<Library size={15} />} label="Resources" active={resourceRoutes.includes(route.kind)} onClick={() => navigate({ kind: 'resources' })} />
         <NavItem icon={<CalendarDays size={15} />} label="Calendar" active={route.kind === 'calendar'} onClick={() => navigate({ kind: 'calendar' })} />
+        <NavItem icon={<Clock3 size={15} />} label="Log" active={route.kind === 'log'} onClick={() => navigate({ kind: 'log' })} />
         <NavItem icon={<Target size={15} />} label="Review" active={route.kind === 'review'} onClick={() => navigate({ kind: 'review' })} badge={dueMemories || undefined} />
       </nav>
       <div
