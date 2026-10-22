@@ -8,7 +8,8 @@
 .settings-layout__nav{display:flex;flex-direction:column;gap:2px;position:sticky;top:0;align-self:start}
 .settings-layout__nav h1{font-size:1.125rem;font-weight:500;margin:0 0 23px 8px;letter-spacing:-.4px}
 .settings-layout__nav button{display:flex;align-items:center;gap:9px;font-size:0.75rem;text-align:left;padding:8px;border-radius:6px;color:var(--text-2)}
-.settings-layout__nav button:hover,.settings-layout__nav button[aria-current=page]{background:var(--surface-3);color:var(--text)}
+.settings-layout__nav button:hover{background:var(--surface-2);color:var(--text)}
+.settings-layout__nav button[aria-current=page]{background:var(--surface-3);color:var(--text);font-weight:550}
 .settings-layout__content{min-width:0;padding-top:0}
 .settings-layout__content>h1{font-family:var(--font-sans);font-size:1.25rem;font-weight:500;letter-spacing:-.4px;margin:0 0 25px}
 .preferences-title{font-size:0.8125rem;font-weight:500;margin:24px 0 8px}

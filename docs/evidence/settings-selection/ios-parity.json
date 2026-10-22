@@ -1,0 +1,33 @@
+{
+  "task": "focused_ios_settings_parity_audit",
+  "result": "platform_only_no_ios_change",
+  "summary": "The desktop settings category navigation bug has no equivalent iOS UI. iOS presents Settings as a native SwiftUI form sheet with sections and native pickers; it has no category sidebar or hover styling to split.",
+  "finding": {
+    "classification": "platform_only",
+    "desktop": {
+      "path": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/settings-selection/src/ui/preferences.css",
+      "lines": "11-12",
+      "evidence": "The fix separates button:hover (surface-2) from button[aria-current=page] (surface-3 plus font-weight 550). /Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/settings-selection/src/ui/Settings.tsx lines 323-327 initializes the current category to general and marks that category with aria-current=page; lines 320-321 defines Updates as another category."
+    },
+    "ios": [
+      {
+        "path": "/Users/likht.ethan/.t3/worktrees/centre/feat-centre-ios-app/ios/CentreApp/Views.swift",
+        "lines": "44-50",
+        "evidence": "CentreRootView presents SettingsView in a sheet."
+      },
+      {
+        "path": "/Users/likht.ethan/.t3/worktrees/centre/feat-centre-ios-app/ios/CentreApp/Views.swift",
+        "lines": "2222-2230, 2292-2316",
+        "evidence": "SettingsView is one NavigationStack/Form with native Sections and preference Pickers; there is no settings category navigation list, hover handler, aria-current state, or selected-category custom styling. Picker selections are bound to the saved theme, reading size, response style, and year level."
+      }
+    ],
+    "reason_no_ios_change": "The reported visual collision requires a pointer-hovered, unselected category and a separately selected category. The native iOS Settings form has no category navigation control, and touch interaction does not produce the desktop hover state. Its native picker selections are distinct preference values and are rendered by SwiftUI, so changing their styling would not address this desktop defect."
+  },
+  "checks": {
+    "root_AGENTS_read": true,
+    "source_review": "completed",
+    "simulator_driven": false,
+    "build_run": false,
+    "reason_build_not_run": "No iOS counterpart change was indicated by the source audit; the request prohibited active simulator use and said no build was needed unless a native issue was found."
+  }
+}
