@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assignmentSchema, attachmentSchema, chatSchema, eventSchema, resourceSchema, snapshotSchema, subjectSchema, topicSchema, type Chat, type Resource } from '../shared/schema';
+import { assignmentSchema, attachmentSchema, chatSchema, eventSchema, messageSchema, resourceSchema, snapshotSchema, subjectSchema, topicSchema, type Chat, type Resource } from '../shared/schema';
 import { MAX_SEARCH_RESULTS, MAX_SEARCH_SNIPPET_LENGTH, searchResultsSchema } from '../shared/search';
 import { AttachmentStore } from './attachments';
 import { ConnectedFiles, fileSnapshot } from './connected-files';
@@ -70,7 +70,7 @@ test('existing subject, topic, chat, event and assignment search remains availab
   const snapshot = emptySnapshot();
   snapshot.subjects.push(subjectSchema.parse({ id: 'subject', name: 'Biology', shortName: 'Bio', color: '#8ea6e8' }));
   snapshot.topics.push(topicSchema.parse({ id: 'topic', subjectId: 'subject', name: 'Cell structure', description: 'Cytoplasm' }));
-  snapshot.chats.push(chat('conversation', [], { title: 'Revision lounge', messages: [{ id: 'message', role: 'user', content: 'Explain covalent bonding', createdAt: now, resourceIds: [], attachmentIds: [], activity: [], responseDurationMs: null }] }));
+  snapshot.chats.push(chat('conversation', [], { title: 'Revision lounge', messages: [messageSchema.parse({ id: 'message', role: 'user', content: 'Explain covalent bonding', createdAt: now })] }));
   snapshot.events.push(eventSchema.parse({ id: 'event', title: 'Lab practical', date: '2026-10-23', notes: 'Bring a microscope' }));
   snapshot.assignments.push(assignmentSchema.parse({ id: 'work', title: 'Cell revision task', kind: 'work', subjectId: 'subject', dueDate: null, status: 'assigned', version: 1 }));
   const index = new SearchIndex(noAttachments);
