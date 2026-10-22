@@ -195,3 +195,4 @@
 .retry-note { color:var(--text-2); }
 .branch-banner__title { color:var(--text); }
 
+.thread--compact .prompt-editor__hint { flex-basis:100%; }
