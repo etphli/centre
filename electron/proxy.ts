@@ -1,6 +1,12 @@
 import { validateRequest } from './security';
+import type { DesktopResponse } from '../shared/desktop-response';
 
 const stateEtags = new WeakMap<object,string>();
+
+export async function proxyRequestForIpc(connection: { port: number; token: string }, method: unknown, path: unknown, body: unknown): Promise<DesktopResponse> {
+  try { return { ok: true, value: await proxyRequest(connection, method, path, body) }; }
+  catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'Centre request failed.' }; }
+}
 
 export async function proxyRequest(connection: { port: number; token: string }, method: unknown, path: unknown, body: unknown): Promise<unknown> {
   const apiPath = typeof path === 'string' && path.startsWith('/') && !path.startsWith('/api/') ? `/api${path}` : path;

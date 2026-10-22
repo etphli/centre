@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { createService } from '../server/index';
 import { compilePaper } from './paper';
 import { nativeAttachmentSchema, printPaperSchema, saveFileSchema, validateExternalUrl } from './security';
-import { proxyRequest } from './proxy';
+import { proxyRequest, proxyRequestForIpc } from './proxy';
 import { createUpdater } from './updater';
 import { diagramDocument } from '../server/diagram';
 import { createDesktopActionDelivery, createDesktopWindowOpener } from './desktop-actions';
@@ -154,7 +154,7 @@ async function start() {
   ipcMain.handle('centre:request', async (event, method: unknown, path: unknown, body: unknown) => {
     authorize(event);
     if (!service) throw new Error('The local Centre service is not running.');
-    return proxyRequest(service, method, path, body);
+    return proxyRequestForIpc(service, method, path, body);
   });
   ipcMain.handle('centre:choose-files', async (event) => {
     authorize(event);
@@ -241,11 +241,12 @@ else {
     app.quit();
   });
   app.on('activate', revealCentre);
-  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+  app.on('window-all-closed', () => { if (!closing && process.platform !== 'darwin') app.quit(); });
   app.on('before-quit', (event) => {
     if (closing || !service) return;
     event.preventDefault();
     closing = true;
+    mainWindow?.destroy();
     const timeout = setTimeout(() => app.exit(0), 4000);
     void service.close().catch((error: unknown) => console.error('Centre service could not close', error)).finally(() => { clearTimeout(timeout); app.quit(); });
   });
