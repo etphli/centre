@@ -86,7 +86,7 @@ export const MAX_LEARNING_NEEDS = 500;
 const MAX_EVIDENCE_PER_NEED = 8;
 
 export function normalizeConceptKey(label: string): string {
-  const normalized = label.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim()
+  const normalized = label.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
     .replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 120);
   return normalized || 'general';
 }
@@ -163,8 +163,7 @@ export function applyGradeEvidence(input: {
     learningNeeds[index] = updated;
     return { learningNeeds, updatedNeed: updated };
   }
-  const activeNeeds = input.learningNeeds.filter(need => !need.deletedAt);
-  if (activeNeeds.length >= MAX_LEARNING_NEEDS) {
+  if (input.learningNeeds.length >= MAX_LEARNING_NEEDS) {
     return { learningNeeds: [...input.learningNeeds], updatedNeed: undefined };
   }
   const created = learningNeedSchema.parse({ schemaVersion: 1, id: input.createId(), revision: 1,
