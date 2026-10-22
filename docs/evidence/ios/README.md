@@ -4,11 +4,13 @@ These are screenshots from the actual SwiftUI app on an iPhone 16 Pro simulator 
 
 ## Verified implementation
 
-Implementation `ebdaf47198b9f430c9fcb03fec12edab213e045c` passed [native CI run 39767722272](https://github.com/etphli/centre/actions/runs/39767722272): unsigned iOS Release build, 63 portable XCTest cases, and all 10 simulator UI tests. The simulator suite executed in 223.339 seconds with zero failures. Xcode's exported screenshots below come from that run.
+Implementation `b12884568744312afbf6ba1865c4e48db0552435` passed [native CI run 39770040680](https://github.com/etphli/centre/actions/runs/39770040680): unsigned iOS Release build, 64 portable XCTest cases, and all 12 simulator UI tests. The simulator suite executed in 318.606 seconds with zero failures. Xcode's exported screenshots below come from that run. Its [complete artifact](https://github.com/etphli/centre/actions/runs/39770040680/artifacts/12422756534) includes recordings, result bundle, and logs.
 
-[Desktop CI run 39767722350](https://github.com/etphli/centre/actions/runs/39767722350) passed type checking, all 162 Node tests, renderer production build, Electron build, and unsigned app packaging. The local portable Swift executable also passed real disk reopen, exact lost-acknowledgement replay, successor edits, conflicts, checkpoint recovery, and DST checks.
+[Desktop CI run 39767722350](https://github.com/etphli/centre/actions/runs/39767722350) passed type checking, all 162 Node tests, renderer production build, Electron build, and unsigned app packaging. After integrating Search main `9418451`, combined local type checking and all 196 Node tests passed. The local portable Swift executable also passed real disk reopen, exact lost-acknowledgement replay, successor edits, conflicts, checkpoint recovery, and DST checks.
 
-The additional Review-resolution and light-theme restart test is in `62a16b9`. A later focused timer regression exercises Keep iPhone preserving its owned running lease, normal restart pausing it, and Keep cloud importing a running lease paused. Their actual results are recorded on the PR and in its native workflow, rather than inferred from these earlier captures.
+The added Review-resolution and light-theme restart test passed, as did the focused timer test for Keep iPhone preserving its owned running lease, normal restart pausing it, and Keep cloud importing a running lease paused. Visual inspection also found pale picker values immediately after switching to light mode. A focused Settings-local tint fix follows this run; its corrected capture and actual result are linked from the PR before readiness.
+
+The green native source tree is `6f8075ea8c0cf384698f14a979cc24274f4e5ad8`. Search integration `ccd5abf` preserves that exact tree. The two-line Settings tint correction `7a10582` changes it to `e8bbc073884c39efd9f5d36d4df03cd7072856be`; the PR records its actual follow-up verification.
 
 ## Exercised native states
 
@@ -19,8 +21,10 @@ The additional Review-resolution and light-theme restart test is in `62a16b9`. A
 | Quiz choice saved and restored without invented marking | [Draft](03-offline-quiz-draft.png), [restored choice](04-quiz-answer-restored.png) |
 | Immediate native Back preserves quiz answers | [Restored after Back](14-quiz-answer-after-immediate-native-back.png) |
 | Running timer recovers paused at its checkpoint | [Recovered timer](05-timer-recovered-paused.png) |
+| Explicit local choice retains running state; cloud choice imports paused | [Keep iPhone](20-keep-local-timer-still-running.png), [restart](21-local-timer-paused-on-restart.png), [Keep cloud](22-keep-cloud-timer-imported-paused.png) |
+| Light theme survives restart | [Light Log](19-light-log-after-restart.png) |
 | Completed Log entry and weekly goal survive restart | [Log and goal](06-completed-log-and-goal-restored.png) |
-| Saved Review question | [Review](07-review-saved-memory.png) |
+| Review action has a 44-point target; resolution survives restart | [Review](07-review-saved-memory.png), [resolved after restart](17-offline-review-resolution-restored.png) |
 | Cached calendar explicitly reports offline and saved plans | [Calendar](08-offline-calendar.png) |
 | Pending changes and distinct mobile provider | [Settings](09-settings-pending-and-provider.png) |
 | Accessibility XXXL actions remain readable and reachable | [Log](10-accessibility-large-log.png), [Settings](11-accessibility-large-settings.png) |
@@ -40,8 +44,10 @@ The diagram test exercises an actual external-link attempt and observes the real
 | X-2: generic blue selection | `38c6c54`: neutral palette and window tint | Native quiz selection and Settings captures above |
 | Native accessibility: Pause split mid-word and Settings squeezed values into columns | `ebdaf47`: stacked actions and labeled values at accessibility sizes | Corrected XXXL Log and Settings above |
 | Native calendar: empty cached week looked current | `ebdaf47`: explicit offline notice, saved-plan labels | Corrected calendar above |
+| Review action inherited the row identifier and had a small target | `c06d01c`, `b128845`: contained accessibility group and 44-point action | Review and resolved-after-restart captures above |
+| Keep iPhone incorrectly recovered its own running timer | `a7106f3`: choice-aware lease handling, exact core and actual simulator regressions | Keep iPhone, restart and Keep cloud captures above |
 
-GPT-6.1-Sol independently inspected the real native captures, then rechecked all corrected native findings. No remaining screenshot-backed P1 or P2 findings were identified in those captures. No new Claude review worker was started.
+GPT-6.1-Sol independently inspected the real native captures, then rechecked all corrected native findings. Those corrections were clear. The later light Settings capture exposed one remaining P1 in picker contrast; readiness requires the focused tint correction and a new actual capture. No new Claude review worker was started.
 
 ## Boundary verification and limits
 
