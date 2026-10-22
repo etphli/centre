@@ -69,12 +69,12 @@ export function DesktopSettings() {
             <div className="desktop-settings__label"><h3>{action.label}</h3><p>{action.detail}</p>
               <span className={`desktop-settings__status desktop-settings__status--${status.state}`} aria-live="polite">
                 {working ? <span className="spinner spinner--small" aria-hidden /> : status.state === 'installed' ? <Check size={12} aria-hidden /> : status.state === 'conflict' ? <FileWarning size={12} aria-hidden /> : null}
-                {working ? 'Updating icon…' : labels[status.state]}
+                {working ? 'Updating icon…' : requiresLog && (status.state === 'absent' || status.state === 'missing') ? 'Requires Study Log in this build' : labels[status.state]}
               </span>
               {status.state === 'conflict' ? <p className="desktop-settings__conflict">“{status.filename}” was changed or belongs to you. Move or rename it in Finder to keep it safe.</p> : null}
             </div>
             <div className="desktop-settings__actions">
-              {status.state === 'installed' || status.state === 'missing' ? <button type="button" className="button button--quiet button--small" aria-label={`Remove ${action.label} desktop icon`} disabled={Boolean(busy)} onClick={() => void change(action.id, 'remove')}><Trash2 size={13} aria-hidden />Remove</button> : null}
+              {status.state === 'installed' || status.state === 'missing' ? <button type="button" className="button button--small" aria-label={`Remove ${action.label} desktop icon`} disabled={Boolean(busy)} onClick={() => void change(action.id, 'remove')}><Trash2 size={13} aria-hidden />Remove</button> : null}
               {status.state === 'absent' || status.state === 'missing' ? <button type="button" className="button button--small" aria-label={`${operation === 'repair' ? 'Repair' : 'Add'} ${action.label} desktop icon`} disabled={Boolean(busy) || requiresLog} onClick={() => void change(action.id, operation)}>{operation === 'repair' ? <RotateCcw size={13} aria-hidden /> : <Plus size={13} aria-hidden />}{operation === 'repair' ? 'Repair' : 'Add icon'}</button> : null}
             </div>
           </li>;
