@@ -292,3 +292,27 @@ test("mounted Organato connection authenticates, encrypts credentials and exclud
     "connected",
   );
 });
+
+test('mounted grading at the retained learning-history cap updates existing concepts and skips new ones',async()=>{
+  const h=await createCloudTestHarness({extension:handleCloudExtension});
+  const alice=await h.login('alice'),token=String(alice.token),now=new Date().toISOString();
+  await h.call('/v1/fixture-context','GET',undefined,token);
+  const context=h.context();assert.ok(context);
+  const ids=Array.from({length:500},()=>crypto.randomUUID());
+  const mutations:CloudMutation[]=ids.map((id,index)=>({mutationId:crypto.randomUUID(),kind:'practice.learningNeed',id,schemaVersion:1,expectedVersion:0,deleted:false,data:{schemaVersion:1,id,revision:1,subjectId:null,topicId:null,conceptKey:index===0?'fractions':`concept-${index}`,conceptLabel:index===0?'Fractions':`Concept ${index}`,needScore:1,evidence:[],createdAt:now,updatedAt:now,deletedAt:null}}));
+  for(let index=0;index<mutations.length;index+=50) await context.entities.commit(mutations.slice(index,index+50));
+  h.setTime(Date.parse('2026-10-23T00:00:00.000Z'));
+  await context.entities.put({mutationId:crypto.randomUUID(),kind:'practice.learningNeed',id:ids[499],schemaVersion:1,expectedVersion:1,deleted:true,data:null});
+  const retained=await context.entities.listLearningNeeds();assert.equal(retained.length,500);assert.ok(retained.some(row=>row.deleted));
+  const resourceId=crypto.randomUUID(),draftId=crypto.randomUUID();
+  await seed(h,token,'resource',resourceId,{id:resourceId,subjectId:null,topicId:null,title:'Number skills',kind:'quiz',createdAt:now,updatedAt:now,content:'',questions:[{id:'q1',concept:'Fractions',responseType:'multiple_choice',choices:['A','B'],prompt:'A fraction?',answer:'A',marks:1},{id:'q2',concept:'Decimals',responseType:'multiple_choice',choices:['A','B'],prompt:'A decimal?',answer:'A',marks:1}]});
+  await seed(h,token,'practice.draft',draftId,{schemaVersion:1,id:draftId,revision:1,resourceId,answers:{q1:'B',q2:'B'},currentQuestion:0,createdAt:now,updatedAt:now,deletedAt:null});
+  const request={id:crypto.randomUUID(),resourceId,draftId,expectedDraftRevision:1};
+  const response=await h.call('/v1/ai/grades','POST',request,token);assert.equal(response.status,200,JSON.stringify(response.value));
+  const after=await context.entities.listLearningNeeds();assert.equal(after.length,500);
+  const existing=await context.entities.get('practice.learningNeed',ids[0]);assert.ok(existing?.data);
+  assert.equal(existing.data.revision,2);assert.equal(existing.data.needScore,3);assert.equal((existing.data.evidence as unknown[]).length,1);
+  assert.equal(after.filter(row=>row.data?.conceptKey==='decimals').length,0);
+  assert.deepEqual(await h.call('/v1/ai/grades','POST',request,token),response);
+  assert.equal((await context.entities.getPracticeAttempt(draftId))?.id,object(response.value.attempt).id);
+});
