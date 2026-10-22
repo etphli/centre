@@ -23,3 +23,6 @@
 .centre-duration-field__controls > label { display: flex !important; flex-direction: row; align-items: center; gap: 6px; }
 .centre-duration-field__controls input { width: 64px !important; font-variant-numeric: tabular-nums; }
 .centre-duration-field__controls > .centre-select { min-width: 94px; }
+.centre-duration-field__controls input[type=number] { appearance: textfield; }
+.centre-duration-field__controls input[type=number]::-webkit-inner-spin-button,
+.centre-duration-field__controls input[type=number]::-webkit-outer-spin-button { appearance: none; margin: 0; }
