@@ -1,12 +1,15 @@
 # Study Log desktop evidence
 
-These screenshots show the built Electron application using isolated synthetic local study data. They contain no user data and do not demonstrate hosted sync or Google authentication.
+These are actual captures of Centre with isolated synthetic local study data. They do not demonstrate hosted sync or Google authentication.
 
-- `dark.png`: weekly actual hours, explicit aim progress, daily values, and subject attribution. The weekly selection is neutral; zero-time days have no fill.
-- `light-large.png`: the existing light theme and larger text setting.
-- `manual.png`: the real manual entry form with the existing Centre subject/task menus.
-- `recovered.png`: a real second-process restart. The timer recovers paused at its persisted checkpoint and can be resumed or stopped.
+- `dark.png`, `midnight.png`, `light-large.png`: built Electron weekly/daily hours, aims and subject totals using neutral ink and the existing theme/text settings.
+- `manual.png`, `date-picker.png`, `time-suggestions.png`: actual shared date/time controls in the manual/edit form, Australian date order and exact typed minutes without visible seconds.
+- `date-picker-small.png`: the shared picker stays inside Centre's minimum 960×660 desktop window.
+- `aim.png`: the hours/minutes control allows a 5 h 20 min aim, beyond quarter-hour choices.
+- `minimum-desktop.png`: Centre's existing 960px minimum width. The verifier preserves that desktop behavior.
+- `browser-760.png`: T3 browser at exactly 760×900 against the real local fixture server, reproducing the review's 1 h 30 min wrapping case. All seven track tops measured 533.5px. Edit/Delete targets measured 28px.
+- `recovered.png`: a real second-process restart. The timer recovers paused at its persisted checkpoint.
 
-Run `node scripts/verify-study-log.mjs` after the production renderer and Electron builds to reproduce the flows and screenshots. The verifier waits for the Log DOM, finite animations, and compositor frames before capture. It exercises actual local API/IPC persistence with temporary data, without hosted fixtures or provider requests. JSON reports and additional screenshots are saved under ignored `.runtime/`.
+Run `node scripts/verify-study-log.mjs` after renderer and Electron builds. It drives the real production Electron app through desktop IPC and temporary disk state, waits for navigation/animation/paint, then captures the exercised UI. The final run passed 29 initial and 5 restart checks with no renderer errors. Reports and additional captures are written under ignored `.runtime/`.
 
-The independent program design review is a separate quality gate. These captures prove the exercised UI states, not approval of the final design.
+See [verification.json](verification.json) for actual commands, results and limitations, and [design-review-fixes.md](design-review-fixes.md) for the per-finding response. Corrected captures are awaiting the coordinator's live recheck. PR #10 remains draft.

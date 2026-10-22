@@ -1,14 +1,82 @@
 {
   "environment": "macOS, built Electron main and file:// production renderer, isolated synthetic local study data",
-  "viewport": "1280x900 desktop window, dark/light/midnight, standard and large text, compact and comfortable spacing",
-  "tests": {"command":"npm run check","passed":92,"failed":0},
-  "finalTypecheck": {"command":"npm run typecheck","result":"passed"},
-  "productionBuilds": {"commands":["npm run build","npm run build:electron","npx vite build"],"result":"passed","notes":"Electron build used explicit nonfunctional local OAuth fixture values; Google login was not verified. Final renderer-only rebuild follows the CSS zero-fill correction; TypeScript source is unchanged from the passing check."},
-  "nativeStudyFlows": {"command":"node scripts/verify-study-log.mjs","initialChecks":16,"restartChecks":5,"rendererErrors":0,"result":"passed"},
-  "existingFlows": {"command":"node scripts/verify-flows.mjs","checks":45,"rendererErrors":0,"result":"passed"},
-  "textSizes": {"command":"node scripts/verify-text-size.mjs","sizes":["small","standard","large"],"persistsAcrossReload":true,"result":"passed"},
-  "independentCorrectnessReview": "GPT-6.1 Sol medium reproduced three persistence/import bugs; all fixed, 11 focused tests and original reproductions rechecked successfully",
-  "visualGate": "Independent Claude Opus 5.5 medium program review pending; PR remains draft until screenshot-backed P1 findings are resolved",
-  "limitations": ["No hosted D1 deployment or production sync verified", "No Google OAuth sign-in verified with local fixture credentials", "No signing, installer or release published", "No linter script is configured in this repository"],
-  "verificationFailuresResolvedOrExcluded": ["T3 preview host disconnected after live CRUD/timer/action tests", "Transient Electron capture UnknownVizError; final verifier uses software rendering and bounded retries", "Capture before navigation/animation paint corrected by waiting for Log, finite animation completion and compositor frames", "Development-renderer IPC fallback rejected by desktop authority and excluded from passing evidence"]
+  "viewport": "Built Electron1280x900 and minimum960x660/960x900. T3 browser760x900 against isolated local service. Dark/light/midnight, standard and large text, compact and comfortable spacing.",
+  "tests": {
+    "command": "npm test",
+    "passed": 94,
+    "failed": 0
+  },
+  "finalTypecheck": {
+    "command": "npm run typecheck",
+    "result": "passed"
+  },
+  "productionBuilds": {
+    "commands": [
+      "npm run build",
+      "npm run build:electron",
+      "npx vite build"
+    ],
+    "result": "passed",
+    "notes": "One npm run build passed after shared control implementation; final renderer-only npx vite build includes daily accessible image roles. Earlier Electron main build used explicit nonfunctional local OAuth fixture values; Google login was not verified. No Electron main source changed during the visual corrections."
+  },
+  "nativeStudyFlows": {
+    "command": "node scripts/verify-study-log.mjs",
+    "initialChecks": 29,
+    "restartChecks": 5,
+    "rendererErrors": 0,
+    "result": "passed"
+  },
+  "existingFlows": {
+    "command": "node scripts/verify-flows.mjs",
+    "checks": 45,
+    "rendererErrors": 0,
+    "result": "passed"
+  },
+  "textSizes": {
+    "command": "node scripts/verify-text-size.mjs",
+    "sizes": [
+      "small",
+      "standard",
+      "large"
+    ],
+    "persistsAcrossReload": true,
+    "result": "passed"
+  },
+  "independentCorrectnessReview": "GPT-6.1 Sol medium reproduced three persistence/import bugs, all fixed and rechecked. Read-only shared-control pass found focus selection, arbitrary minute choice and viewport clipping issues, all corrected; no repository edits by reviewer.",
+  "visualGate": "Claude Opus5.5 medium round1 findings X-1/X-2/LOG1-4 addressed in eb050d8 + faa90f8. Corrected real captures supplied. Awaiting coordinator live recheck; PR remains draft. User requested no new Claude reviews.",
+  "limitations": [
+    "No hosted D1 deployment or production sync verified",
+    "No Google OAuth sign-in verified with local fixture credentials",
+    "No signing, installer or release published",
+    "No linter script is configured in this repository"
+  ],
+  "verificationFailuresResolvedOrExcluded": [
+    "T3 preview host disconnected after live CRUD/timer/action tests",
+    "Transient Electron capture UnknownVizError; final verifier uses software rendering and bounded retries",
+    "Capture before navigation/animation paint corrected by waiting for Log, finite animation completion and compositor frames",
+    "Development-renderer IPC fallback rejected by desktop authority and excluded from passing evidence",
+    "First expanded native verifier had an incorrectly escaped selector expression; corrected verifier passes34checks with0renderer errors.",
+    "Existing45-check flow verifier passes/exit0 with0renderer errors, then emits IPC socket warnings while its temporary service closes during shutdown."
+  ],
+  "browser760": {
+    "tool": "T3 preview",
+    "url": "http://127.0.0.1:5291/?verification=neutral-chart",
+    "fixture": ".runtime/study-log-data",
+    "trackTopPixels": [
+      533.5,
+      533.5,
+      533.5,
+      533.5,
+      533.5,
+      533.5,
+      533.5
+    ],
+    "nonzeroLabelWidthPixels": 27,
+    "editDeleteTargetHeightPixels": 28,
+    "capture": "browser-760.png"
+  },
+  "sourceFixCommits": [
+    "eb050d86d8283ef628339561764cb5a701e6d619",
+    "faa90f8a7bfb56fac12a391c1a710c84d3a4e554"
+  ]
 }
