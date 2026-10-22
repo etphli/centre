@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { desktopActionRequestSchema, type DesktopActionRequest } from '../shared/desktop-actions';
+import { unwrapDesktopResponse } from '../shared/desktop-response';
 
 let nativeTitlebar = process.platform === 'darwin';
 function syncWindowChrome() {
@@ -29,7 +30,7 @@ contextBridge.exposeInMainWorld('centre', {
     ready: (): Promise<void> => ipcRenderer.invoke('centre:actions:ready'),
     acknowledge: (id: string): Promise<void> => ipcRenderer.invoke('centre:actions:acknowledge', id),
   },
-  request: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('centre:request', method, path, body),
+  request: async (method: string, path: string, body?: unknown) => unwrapDesktopResponse(await ipcRenderer.invoke('centre:request', method, path, body)),
   chooseFiles: () => ipcRenderer.invoke('centre:choose-files'),
   openDiagram: (input:{id:string;theme:string}) => ipcRenderer.invoke('centre:open-diagram',input),
   openExternal: (url: string) => ipcRenderer.invoke('centre:open-external', url),

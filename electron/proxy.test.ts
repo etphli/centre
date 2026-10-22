@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { proxyRequest } from './proxy';
+import { proxyRequest, proxyRequestForIpc } from './proxy';
+import { unwrapDesktopResponse } from '../shared/desktop-response';
 
 test('desktop polling sends validators, skips unchanged payloads, and isolates connections', async () => {
   let version = 1;
@@ -59,6 +60,11 @@ test('desktop proxy adds its private token and blocks redirects and forbidden ro
     assert.deepEqual(await proxyRequest(connection, 'GET', '/api/state', undefined), { working: true });
     await assert.rejects(proxyRequest(connection, 'POST', '/chats', { title: 'Study' }), /A turn is already running/);
     assert.equal(body, JSON.stringify({ title: 'Study' }));
+    assert.deepEqual(unwrapDesktopResponse(await proxyRequestForIpc(connection, 'GET', '/state', undefined)), { working: true });
+    const failure = await proxyRequestForIpc(connection, 'POST', '/chats', { title: 'Study' });
+    assert.deepEqual(failure, { ok: false, error: 'A turn is already running.' });
+    assert.throws(() => unwrapDesktopResponse(failure), /A turn is already running/);
+    assert.throws(() => unwrapDesktopResponse({ ok: true, error: 'Forged result' }));
     await assert.rejects(proxyRequest(connection, 'POST', '/topics', {}), /fetch failed/);
     assert.equal(redirectTargetRequests, 0);
     const accepted = requests;
