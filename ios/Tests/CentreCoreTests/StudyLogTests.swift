@@ -3,6 +3,15 @@ import XCTest
 @testable import CentreCore
 
 final class StudyLogTests: XCTestCase {
+    func testImportedPausedRecordNeverDisplacesRunningTimer() throws {
+        let now=try Clock.date("2026-10-22T00:00:00.000Z")
+        let running=try StudyRules.start(title:"Actual study",subjectId:nil,timeZone:"Australia/Sydney",now:now)
+        let imported=try StudyRules.start(title:"Imported",subjectId:nil,timeZone:"Australia/Sydney",now:now.addingTimeInterval(-3600))
+        let paused=try StudyRules.recover(imported,now:now,restart:true)
+        XCTAssertEqual(StudyRules.preferredSession([paused,running])?.id,running.id)
+        let checkpoint=try StudyRules.heartbeat(XCTUnwrap(StudyRules.preferredSession([paused,running])),now:now.addingTimeInterval(15),activity:true)
+        XCTAssertEqual(try StudyRules.weeklyDuration([checkpoint],at:now.addingTimeInterval(15),timeZone:"Australia/Sydney"),15)
+    }
     private func date(_ value: String) throws -> Date { try Clock.date(value) }
     private func timer(at now: Date) throws -> StudySession {
         try StudyRules.start(title: "Revision", subjectId: "math", timeZone: "Australia/Sydney", now: now)

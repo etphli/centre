@@ -7,6 +7,7 @@ public struct ConnectorCommand: Codable, Equatable, Identifiable, Sendable {
     public let body: JSONValue
     public internal(set) var sent: Bool
     public internal(set) var receipt: JSONValue?
+    public internal(set) var missingOnServer:Bool?=nil
     public init(id: UUID = UUID(), path: String, method: String, body: JSONValue) {
         self.id=id; self.path=path; self.method=method; self.body=body; self.sent=false; self.receipt=nil
     }
@@ -28,6 +29,7 @@ public actor ConnectorJournal {
     private var state: State
     private let file: URL
     private var processing = false
+    private var erased=false
     public init(directory: URL, workspace: WorkspaceKey) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         file=directory.appendingPathComponent(workspace.fileKey + "-organato.json")
@@ -50,6 +52,7 @@ public actor ConnectorJournal {
     public func snapshot() -> [ConnectorCommand] { state.commands }
     public var pendingCount: Int { state.commands.filter(\.pending).count }
     public func stage(_ command: ConnectorCommand) throws {
+        if erased { throw CentreError.authentication }
         try Self.validate(command)
         if let existing=state.commands.first(where: { $0.id == command.id }) {
             guard existing.path == command.path, existing.method == command.method, existing.body == command.body else {
@@ -69,13 +72,14 @@ public actor ConnectorJournal {
         if state.commands[index].receipt?["status"].string == "succeeded", receipt["status"].string != "succeeded" {
             throw CentreError.invalid("A successful calendar operation cannot return to pending.")
         }
-        var next=state; next.commands[index].receipt=receipt
+        var next=state; next.commands[index].receipt=receipt;next.commands[index].missingOnServer=nil
         let succeeded=next.commands.filter { $0.receipt?["status"].string == "succeeded" }
         let expired=Set(succeeded.prefix(max(0, succeeded.count - 100)).map(\.id))
         next.commands.removeAll { expired.contains($0.id) }
         try persist(next)
     }
     public func process(using transport: any ConnectorTransport) async throws {
+        if erased { throw CentreError.authentication }
         guard !processing else { return }
         processing=true; defer { processing=false }
         for id in state.commands.map(\.id) {
@@ -84,7 +88,11 @@ public actor ConnectorJournal {
             if let status=command.receipt?["status"].string, ["succeeded", "failed", "conflict"].contains(status) { continue }
             let receipt: JSONValue
             if command.sent {
-                receipt=try await transport.receipt(id: command.id.uuidString.lowercased())
+                do { receipt=try await transport.receipt(id: command.id.uuidString.lowercased()) }
+                catch let missing as CloudFailure where missing.status == 404 && missing.body["error"]["code"].string == "operation_not_found" {
+                    var next=state;next.commands[index].missingOnServer=true;try persist(next)
+                    continue
+                }
             } else {
                 try Self.validate(command)
                 var next=state; next.commands[index].sent=true; try persist(next)
@@ -97,7 +105,21 @@ public actor ConnectorJournal {
             try updateReceipt(receipt)
         }
     }
+    /// Only an explicit user action retries an absent receipt, with the original immutable gateway identity.
+    public func retryMissing(id:UUID,using transport:any ConnectorTransport) async throws {
+        guard !erased else { throw CentreError.authentication }
+        guard !processing else { throw CentreError.unavailable("Wait for calendar synchronization to finish.") }
+        guard let index=state.commands.firstIndex(where:{$0.id == id}),state.commands[index].sent,state.commands[index].missingOnServer == true else {
+            throw CentreError.unavailable("Check this change's receipt before trying it again.")
+        }
+        processing=true;defer { processing=false }
+        let command=state.commands[index]
+        var next=state;next.commands[index].missingOnServer=nil;try persist(next)
+        let receipt=try await transport.send(command)
+        try updateReceipt(receipt)
+    }
     public func acknowledge(_ id:UUID) throws {
+        guard !processing else { throw CentreError.unavailable("Wait for calendar synchronization to finish.") }
         guard let command=state.commands.first(where:{$0.id == id}),["failed","conflict"].contains(command.receipt?["status"].string ?? "") else {
             throw CentreError.unavailable("An uncertain calendar change must be reconciled before it can be closed.")
         }
@@ -106,7 +128,7 @@ public actor ConnectorJournal {
     public func erase() throws {
         guard !processing else { throw CentreError.unavailable("Wait for calendar synchronization to finish before signing out.") }
         if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
-        state.commands=[]
+        state.commands=[];erased=true
     }
     private static func validate(_ command: ConnectorCommand) throws {
         guard case .object = command.body, let operation=command.body["operationId"].string,
@@ -127,6 +149,7 @@ public actor ConnectorJournal {
         }
     }
     private func persist(_ next: State) throws {
+        if erased { throw CentreError.authentication }
         let encoder=JSONEncoder(); encoder.outputFormatting=[.sortedKeys]
         try encoder.encode(next).write(to: file, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)

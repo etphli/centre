@@ -94,6 +94,9 @@ public struct WeeklyStudyGoal: Codable, Equatable, Identifiable, Sendable {
 }
 
 public enum StudyRules {
+    public static func preferredSession(_ sessions:[StudySession]) -> StudySession? {
+        sessions.first { $0.deletedAt == nil && $0.state.kind == "running" } ?? sessions.first { $0.deletedAt == nil && $0.state.kind == "paused" }
+    }
     public static let heartbeatInterval: TimeInterval = 15
     public static let leaseInterval: TimeInterval = 45
     public static let idleInterval: TimeInterval = 600

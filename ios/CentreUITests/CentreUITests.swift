@@ -10,6 +10,9 @@ final class CentreUITests: XCTestCase {
         app.launchArguments = ["-ui-testing", "-reset-fixture"]
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Chat"].waitForExistence(timeout: 15))
+        let frame = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(frame.width, 375, "iPhone app entered legacy compatibility layout. Check generated UILaunchScreen metadata.")
+        XCTAssertGreaterThanOrEqual(frame.height, 667, "iPhone app entered legacy compatibility layout. Check generated UILaunchScreen metadata.")
     }
     override func tearDown() { capture("final-\(name)") }
     private func capture(_ name: String) {
@@ -86,6 +89,21 @@ final class CentreUITests: XCTestCase {
         XCTAssertTrue(restored.isSelected, "Answer selection must restore from the persisted draft")
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "quiz.latestResult").firstMatch.exists, "A saved draft is not a grade")
         capture("04-quiz-answer-restored")
+    }
+
+    func testQuizAnswerSavesWhenLeavingImmediatelyWithNativeBack() {
+        openQuiz()
+        let choice = app.buttons["quiz.choice.0"]
+        reveal(choice); choice.tap()
+        // Leave immediately, without waiting for the draft-saved footer or an explicit save action.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let row = app.buttons["resources.row.\(quizId)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5)); row.tap()
+        let restored = app.buttons["quiz.choice.0"]
+        reveal(restored)
+        XCTAssertTrue(restored.isSelected, "Native Back must flush the latest answer before the quiz view disappears")
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "quiz.latestResult").firstMatch.exists, "Saving on Back must not invent a grade")
+        capture("14-quiz-answer-after-immediate-native-back")
     }
 
     func testTimerRecoversPausedAndCompletedLogAndGoalPersist() {

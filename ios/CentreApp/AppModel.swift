@@ -25,6 +25,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     private var client:CloudHTTP?
     private var scheduledSync:Task<Void,Never>?
     private var syncing=false
+    private var signingOut=false
     private var lastInteraction=Date()
     private var aiJobs:[PendingAI]=[]
     private var ownedTimers:Set<String>=[]
@@ -63,7 +64,11 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     func items(_ kind:String) -> [CloudRecord] { records.filter{$0.kind == kind && !$0.deleted && $0.schemaVersion == 1 && $0.data?["deletedAt"].string == nil} }
     func record(kind:String,id:String) -> CloudRecord? { items(kind).first{$0.id == id} }
     func data(_ record:CloudRecord) -> JSONValue { record.data ?? .object([:]) }
-    var activeTimer:CloudRecord? { items("studySession").first { ["running","paused"].contains($0.data?["state"]["kind"].string ?? "") } }
+    var activeTimer:CloudRecord? {
+        let active=items("studySession")
+        let id=StudyRules.preferredSession(active.compactMap{try? $0.data?.decode(StudySession.self)})?.id
+        return active.first{$0.id == id}
+    }
     var sessions:[StudySession] { items("studySession").compactMap { try? $0.data?.decode(StudySession.self) } }
     var studyMinutes:Double { ((try? StudyRules.weeklyDuration(sessions,at:Date(),timeZone:timeZone)) ?? 0)/60 }
     var goalMinutes:Int {
@@ -91,6 +96,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         }
     }
     private func perform(_ action:() async throws -> Void) async -> Bool {
+        guard !signingOut else { return false }
         guard replica != nil else { error="Connect your Centre account first.";return false }
         touch();error=nil
         do { try await action();await refresh();status=pendingCount > 0 ? "Saved on iPhone. \(pendingCount) changes waiting to sync." : "Saved on iPhone.";scheduleSync();return true }
@@ -198,6 +204,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         return saved
     }
     func heartbeat() async {
+        guard !signingOut else { return }
         guard let replica,let timer=activeTimer,let body=timer.data,body["state"]["kind"].string == "running" else { return }
         do {
             let original=try body.decode(StudySession.self)
@@ -217,6 +224,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         if !changes.isEmpty { try await replica.stage(changes) }
     }
     func background() async {
+        guard !signingOut else { return }
         do { ownedTimers.removeAll();try await recoverTimers();await refresh() } catch { self.error=error.localizedDescription }
     }
     @discardableResult
@@ -241,7 +249,10 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         return saved
     }
     func resolve(conflict:SyncConflict,useLocal:Bool) async {
-        await perform { try await replica?.resolve(conflict,useLocal:useLocal) }
+        await perform {
+            try await replica?.resolve(conflict,useLocal:useLocal)
+            if conflict.local.kind == "studySession" { ownedTimers.remove(conflict.local.id);try await recoverTimers(excludingLocal:true) }
+        }
         await sync()
     }
     func receive(_ url:URL) {
@@ -286,18 +297,21 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         try await recoverTimers();await refresh()
     }
     func logout(discard:Bool) async {
-        guard !syncing else { error="Wait for synchronization to finish before signing out.";return }
+        guard !syncing,!busy,!signingOut else { error="Wait for synchronization to finish before signing out.";return }
         guard pendingCount == 0 && conflicts.isEmpty || discard else { error="You have pending study changes. Synchronize them or explicitly discard them before signing out.";return }
+        signingOut=true;busy=true;scheduledSync?.cancel()
+        defer { signingOut=false;busy=false }
+        let store=replica,journal=calendarJournal,attachments=attachmentCache,api=client,oldSession=session
         do {
-            try await backgroundAndErase()
-            if let client,let session,!fixture { _ = try? await client.call("/v1/devices/revoke",method:"POST",body:.object(["deviceId":.string(session.deviceId)])) }
+            // Block every producer before the first await. Erased actors also reject retained stale handles.
+            try await store?.erase();try await journal?.erase();try await attachments?.erase()
             try SessionVault.clear();GIDSignIn.sharedInstance.signOut()
             scheduledSync?.cancel();session=nil;client=nil;replica=nil;calendarJournal=nil;attachmentCache=nil;calendarCommands=[];records=[];connector = .object([:]);pendingCount=0;conflicts=[];aiJobs=[];aiRuns=[];status="Signed out. Private data removed from this iPhone."
+            if let api,let oldSession,!fixture { _ = try? await api.call("/v1/devices/revoke",method:"POST",body:.object(["deviceId":.string(oldSession.deviceId)])) }
         } catch { self.error=error.localizedDescription }
     }
-    private func backgroundAndErase() async throws { try await attachmentCache?.erase();try await calendarJournal?.erase();try await replica?.erase() }
     func attachment(id:String,chatId:String) async throws -> AttachmentFile {
-        guard record(kind:"chat",id:chatId) != nil,
+        guard !signingOut,record(kind:"chat",id:chatId) != nil,
               items("message").contains(where:{$0.data?["chatId"].string == chatId && ($0.data?["attachmentIds"].array ?? []).contains(.string(id))}),
               let attachmentCache else { throw CentreError.invalid("This file is not associated with an active chat.") }
         if let file=try? await attachmentCache.cached(id:id,chatId:chatId) { return file }
@@ -307,7 +321,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         return file
     }
     func sync() async {
-        guard !syncing,let replica else { return }
+        guard !signingOut,!syncing,let replica else { return }
         if fixture { await refresh();status="Offline test workspace. Changes saved on iPhone.";return }
         guard let client,let session else { return }
         syncing=true;busy=true;defer{syncing=false;busy=false}
@@ -365,14 +379,16 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         }
     }
     func calendarLink(event:JSONValue) async {
-        guard let id=event["id"].string,let record=record(kind:"calendarEvent",id:id),let revision=record.data?["revision"].int,let client,!fixture else { error="Connect to Centre Cloud to verify this calendar link.";return }
+        guard !signingOut,!busy,let id=event["id"].string,let record=record(kind:"calendarEvent",id:id),let revision=record.data?["revision"].int,let client,!fixture else { error="Connect to Centre Cloud to verify this calendar link.";return }
+        busy=true;defer { busy=false }
         do {
             _ = try await client.call("/v1/organato/sessions/\(id)/link",method:"POST",body:.object(["expectedVersion":.number(Double(record.version)),"expectedRevision":.number(Double(revision))]))
             await sync()
         } catch { self.error=error.localizedDescription }
     }
     func reconcileCalendar(_ command:ConnectorCommand,applied:Bool,organatoId:String) async {
-        guard let calendarJournal,let client,!fixture else { error="Connect to Centre Cloud to check the calendar outcome.";return }
+        guard !signingOut,!busy,let calendarJournal,let client,!fixture else { error="Connect to Centre Cloud to check the calendar outcome.";return }
+        busy=true;defer { busy=false }
         do {
             var body:JSONValue = .object(["resolution":.string(applied ? "applied":"not_applied")])
             if applied,!organatoId.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { body["organatoId"] = .string(organatoId.trimmingCharacters(in:.whitespacesAndNewlines)) }
@@ -380,11 +396,17 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             try await calendarJournal.updateReceipt(receipt);await refresh();await sync()
         } catch { self.error=error.localizedDescription }
     }
+    func retryMissingCalendar(_ command:ConnectorCommand) async {
+        guard !signingOut,!busy,let calendarJournal,let client,!fixture else { error="Connect to Centre Cloud to try the saved change.";return }
+        busy=true;defer { busy=false }
+        do { try await calendarJournal.retryMissing(id:command.id,using:client);await refresh();await sync() }
+        catch { self.error=error.localizedDescription;await refresh() }
+    }
     func acknowledgeCalendar(_ command:ConnectorCommand) async {
         _ = await perform { try await calendarJournal?.acknowledge(command.id) }
     }
     func configureOrganato(baseURL:String,apiKey:String) async -> Bool {
-        guard let client,!fixture else { error="Connect to Centre Cloud before adding an Organato connection.";return false }
+        guard !signingOut,!busy,let client,!fixture else { error="Connect to Centre Cloud before adding an Organato connection.";return false }
         guard !apiKey.isEmpty,apiKey.utf16.count <= 2000,let url=URL(string:baseURL),(try? CloudURL.validate(url)) != nil else { error="Enter the Organato HTTPS address and its API key.";return false }
         busy=true;defer { busy=false }
         do {
@@ -393,7 +415,8 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         } catch { self.error=error.localizedDescription;return false }
     }
     func removeOrganato() async {
-        guard let client,!fixture else { error="Connect to Centre Cloud to remove this connection.";return }
+        guard !signingOut,!busy,let client,!fixture else { error="Connect to Centre Cloud to remove this connection.";return }
+        busy=true;defer { busy=false }
         do {
             let connection=try await client.call("/v1/organato/connection/remove",method:"POST",body:.object([:]))
             try await replica?.cacheConnector(.object(["connection":connection]));await refresh()
@@ -404,8 +427,8 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         let base=URL(string:"https://ui-fixture.invalid")!, key=try WorkspaceKey(baseURL:base,workspaceId:"offline-ui-fixture-v1")
         var store=try Replica(directory:directory,workspace:key)
         var journal=try ConnectorJournal(directory:directory,workspace:key)
-        let attachments=try AttachmentCache(directory:directory,workspace:key)
-        if ProcessInfo.processInfo.arguments.contains("-reset-fixture") { try await store.erase();try await journal.erase();try await attachments.erase();store=try Replica(directory:directory,workspace:key);journal=try ConnectorJournal(directory:directory,workspace:key) }
+        var attachments=try AttachmentCache(directory:directory,workspace:key)
+        if ProcessInfo.processInfo.arguments.contains("-reset-fixture") { try await store.erase();try await journal.erase();try await attachments.erase();store=try Replica(directory:directory,workspace:key);journal=try ConnectorJournal(directory:directory,workspace:key);attachments=try AttachmentCache(directory:directory,workspace:key) }
         replica=store;calendarJournal=journal;attachmentCache=attachments;session=CloudSession(token:"ctr_fixture_not_a_credential",deviceId:"ui-test",workspaceId:key.workspaceId,expiresAt:"2099-01-01T00:00:00.000Z");baseURL=base.absoluteString
         let existing=await store.snapshot()
         if existing.records.isEmpty {

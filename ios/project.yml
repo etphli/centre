@@ -32,6 +32,21 @@ targets:
     sources: [CentreApp]
     info:
       path: CentreApp/Info.plist
+      properties:
+        CFBundleDisplayName: Centre
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        CentreCloudURL: $(CENTRE_CLOUD_URL)
+        GIDClientID: $(GOOGLE_IOS_CLIENT_ID)
+        GIDServerClientID: $(GOOGLE_SERVER_CLIENT_ID)
+        CFBundleURLTypes:
+          - CFBundleURLName: app.centre.pairing
+            CFBundleURLSchemes: [centre]
+          - CFBundleURLName: app.centre.google
+            CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.centre.ios

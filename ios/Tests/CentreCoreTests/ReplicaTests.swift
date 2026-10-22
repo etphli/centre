@@ -115,6 +115,14 @@ final class ReplicaTests: XCTestCase {
         let network = ReplicaTransport(suspendFirstPut: true)
         let sync = Task { try await store.synchronize(using: network) }
         await network.waitForPut()
+        defer { Task { await network.releasePut() } }
+        do { try await store.erase(); XCTFail("Cannot erase a replica during an in-flight synchronization") }
+        catch let error as CentreError {
+            switch error {
+            case .unavailable: break
+            default: XCTFail("Expected synchronization erase guard, received \(error)")
+            }
+        } catch { XCTFail("Unexpected synchronization erase error: \(error)") }
         try await store.stage([edit("During request")])
         let pending = await store.snapshot()
         XCTAssertEqual(pending.outbox.count, 2)
@@ -234,4 +242,47 @@ final class ReplicaTests: XCTestCase {
         let sentGrades = await accepted.gradeCalls()
         XCTAssertEqual(sentGrades, [resubmission])
     }
+
+    func testErasedReplicaCannotRecreatePrivateCacheThroughRetainedActorHandle() async throws {
+        let retained = try replica()
+        try await retained.stage([edit("Private local edit")])
+        let remote = CloudRecord(kind: "resource", id: "r1", version: 5, cursor: "5", data: .object(["title": .string("Remote")]))
+        try await retained.synchronize(using: ReplicaTransport(response: .conflict(remote)))
+        let conflicted = await retained.snapshot()
+        let conflict = try XCTUnwrap(conflicted.conflicts.first)
+        let pending = AIRequest(chatId: "chat-after-signout", messageId: "message-after-signout")
+        try await retained.stage([], ai: .chat(pending, nil))
+        try await retained.cacheConnector(.object(["events": .array([.object(["title": .string("Private plan")])])]))
+        let file = directory.appendingPathComponent(try workspace().fileKey + ".json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+
+        try await retained.erase()
+        let erased = await retained.snapshot()
+        XCTAssertTrue(erased.records.isEmpty && erased.shadow.isEmpty && erased.outbox.isEmpty)
+        XCTAssertTrue(erased.ai.isEmpty && erased.conflicts.isEmpty)
+        XCTAssertEqual(erased.connector, .object([:]))
+        XCTAssertEqual(erased.cursor, "0")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+
+        func rejectsStaleHandle(_ operation: () async throws -> Void) async {
+            do { try await operation(); XCTFail("Erased actor accepted a stale operation") }
+            catch let error as CentreError { XCTAssertEqual(error, .authentication) }
+            catch { XCTFail("Expected authentication error, received \(error)") }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "Stale operation recreated signed-out cache")
+        }
+        await rejectsStaleHandle { try await retained.stage([self.edit("Late save")]) }
+        await rejectsStaleHandle { try await retained.cacheConnector(.object(["events": .array([])])) }
+        await rejectsStaleHandle { try await retained.resolve(conflict, useLocal: true) }
+        await rejectsStaleHandle { try await retained.dismissAI(id: pending.id) }
+        let network = ReplicaTransport()
+        await rejectsStaleHandle { try await retained.synchronize(using: network) }
+        let networkEvents = await network.eventLog()
+        XCTAssertTrue(networkEvents.isEmpty, "Signed-out actor must not contact transport")
+        let reopened = await (try replica()).snapshot()
+        XCTAssertTrue(reopened.records.isEmpty && reopened.outbox.isEmpty && reopened.conflicts.isEmpty && reopened.ai.isEmpty)
+        XCTAssertEqual(reopened.connector, .object([:]))
+        XCTAssertEqual(reopened.cursor, "0")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
 }

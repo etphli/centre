@@ -60,6 +60,7 @@ public actor Replica {
     private var state: ReplicaState
     private let file: URL
     private var synchronizing = false
+    private var erased=false
     public init(directory: URL, workspace: WorkspaceKey) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories:true, attributes:[.posixPermissions:0o700])
         file = directory.appendingPathComponent(workspace.fileKey + ".json")
@@ -73,6 +74,7 @@ public actor Replica {
     }
     public func snapshot() -> ReplicaState { state }
     public func stage(_ changes: [LocalChange], ai: PendingAI? = nil) throws {
+        try requireActive()
         var next = state
         for change in changes {
             guard !change.kind.isEmpty, !change.id.isEmpty else { throw CentreError.invalid("Missing record identity.") }
@@ -91,8 +93,9 @@ public actor Replica {
         if let ai, !next.ai.contains(where:{$0.id == ai.id}) { next.ai.append(ai) }
         try persist(next)
     }
-    public func cacheConnector(_ connector: JSONValue) throws { var next=state;next.connector=connector;try persist(next) }
+    public func cacheConnector(_ connector: JSONValue) throws { try requireActive();var next=state;next.connector=connector;try persist(next) }
     public func resolve(_ conflict: SyncConflict, useLocal: Bool) throws {
+        try requireActive()
         guard let current = state.conflicts.first(where:{$0.key == conflict.key}), current == conflict else { throw CentreError.invalid("This conflict changed. Reload it before choosing.") }
         var next=state
         next.outbox.removeAll(where:{$0.mutation.key == conflict.key})
@@ -110,12 +113,15 @@ public actor Replica {
         }
         try persist(next)
     }
-    public func dismissAI(id: String) throws { var next=state;next.ai.removeAll(where:{$0.id == id});try persist(next) }
+    public func dismissAI(id: String) throws { try requireActive();var next=state;next.ai.removeAll(where:{$0.id == id});try persist(next) }
     public func erase() throws {
         guard !synchronizing else { throw CentreError.unavailable("Wait for synchronization to finish before signing out.") }
         if FileManager.default.fileExists(atPath:file.path) { try FileManager.default.removeItem(at:file) }
+        erased=true
+        state=ReplicaState(schemaVersion:1,workspace:state.workspace,cursor:"0",shadow:[:],outbox:[],conflicts:[],ai:[],connector:.object([:]))
     }
     public func synchronize(using transport: any CloudTransport) async throws {
+        try requireActive()
         guard !synchronizing else { return }
         synchronizing=true; defer { synchronizing=false }
         // Mark sent before network. Timeout/restart must replay the exact same body and UUID.
@@ -185,10 +191,12 @@ public actor Replica {
         if let data=record.data, case .object = data {} else if !record.deleted { throw CentreError.invalid("Invalid cloud record payload.") }
     }
     private func persist(_ next:ReplicaState) throws {
+        try requireActive()
         let encoder=JSONEncoder();encoder.outputFormatting=[.sortedKeys]
         let bytes=try encoder.encode(next)
         try bytes.write(to:file,options:.atomic)
         try FileManager.default.setAttributes([.posixPermissions:0o600], ofItemAtPath:file.path)
         state=next
     }
+    private func requireActive() throws { if erased { throw CentreError.authentication } }
 }

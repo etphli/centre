@@ -1068,7 +1068,6 @@ private struct QuizView: View {
         }
         .task(id: DraftState(answers: answers, current: current)) {
             guard dirty, !frozen else { return }
-            try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled, dirty, markingState() == .none, !submitting else { return }
             dirty = false
             if await model.saveDraft(resource: resource, answers: answers, currentQuestion: current) {
@@ -1077,6 +1076,11 @@ private struct QuizView: View {
             } else {
                 dirty = true
             }
+        }
+        .onDisappear {
+            guard dirty,!frozen else { return }
+            let savedAnswers=answers,savedPosition=current
+            Task { _ = await model.saveDraft(resource:resource,answers:savedAnswers,currentQuestion:savedPosition) }
         }
         // While marking runs, check for the stored result for up to two minutes.
         .task(id: marking == .submitted) {
@@ -1570,7 +1574,10 @@ private struct CalendarTab: View {
                     ForEach(days, id: \.self) { day in
                         let ymd = When.ymd(day, tz)
                         let dayItems = items.filter { $0.date == ymd }.sorted { ($0.time ?? "") < ($1.time ?? "") }
-                        let deadlines = assignments.filter { ($0["dueDate"].string ?? "").prefix(10) == ymd }
+                        let deadlines = assignments.filter {
+                            if let instant=When.parse($0["dueAt"].string) { return When.ymd(instant,tz) == ymd }
+                            return ($0["dueDate"].string ?? "").prefix(10) == ymd
+                        }
                         Section(When.dayTitle(day, tz)) {
                             if dayItems.isEmpty && deadlines.isEmpty {
                                 Text("Nothing planned").foregroundStyle(palette.text3)
@@ -1690,11 +1697,12 @@ private struct CalendarTab: View {
 
     private func deadlineRow(_ item: JSONValue) -> some View {
         let subject = item["subjectId"].string.flatMap { Subjects.name(model, $0) }
+        let due=When.parse(item["dueAt"].string).map { "Due \(When.time($0,When.zone(model.preferences)))" } ?? "Due"
         return HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: "flag").foregroundStyle(palette.warn).frame(minWidth: 44).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(item["title"].string ?? "Untitled")
-                Text(["Due", subject, item["status"].string.nonEmpty].compactMap { $0 }.joined(separator: ", "))
+                Text([due, subject, item["status"].string.nonEmpty].compactMap { $0 }.joined(separator: ", "))
                     .font(.footnote).foregroundStyle(palette.text3)
             }
         }
@@ -1769,12 +1777,16 @@ private struct NewEventView: View {
     let command:ConnectorCommand
     @State private var organatoId=""
     @State private var confirmNotApplied=false
-    private var state:String { command.receipt?["status"].string ?? (command.sent ? "unknown":"queued") }
+    private var state:String { command.missingOnServer == true ? "missing":command.receipt?["status"].string ?? (command.sent ? "unknown":"queued") }
     var body:some View {
         VStack(alignment:.leading,spacing:10) {
             Label(label,systemImage:state == "queued" ? "clock":"exclamationmark.triangle")
                 .font(.subheadline).foregroundStyle(state == "queued" ? palette.text2:palette.warn)
             if let error=command.receipt?["error"]["message"].string { Text(error).font(.footnote).foregroundStyle(palette.text2) }
+            if state == "missing" {
+                Text("Centre Cloud has no receipt yet. Try the original saved change again; a late request will be recognized as the same change.").font(.footnote)
+                Button("Try saved change") { Task { await model.retryMissingCalendar(command) } }.disabled(model.busy)
+            }
             if state == "unknown" || state == "pending" {
                 Text("Check Organato before deciding. Centre will not send this change again automatically.").font(.footnote)
                 TextField("Organato item ID, if it was created",text:$organatoId).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -1792,6 +1804,7 @@ private struct NewEventView: View {
     private var label:String {
         switch state {
         case "queued":return "Planned change saved on iPhone, waiting to sync"
+        case "missing":return "Calendar change needs another try"
         case "unknown","pending":return "Calendar outcome needs confirmation"
         case "conflict":return "Session changed elsewhere. Refresh before editing again."
         default:return "Calendar change could not finish"
@@ -2586,7 +2599,7 @@ private enum When {
     /// Formats a stored "HH:mm" wall time; nil means an all-day item.
     static func wallTime(_ hhmm: String?, _ tz: TimeZone) -> String {
         guard let hhmm else { return "All day" }
-        let parts = hhmm.split(separator: ":").compactMap { Int($0) }
+        let parts = hhmm.split(separator: ":").prefix(2).compactMap { Int($0) }
         guard parts.count == 2, let date = calendar(tz).date(bySettingHour: parts[0], minute: parts[1], second: 0, of: Date()) else { return hhmm }
         return time(date, tz)
     }

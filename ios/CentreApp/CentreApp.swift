@@ -8,7 +8,7 @@ import CentreCore
         WindowGroup {
             CentreRootView().environmentObject(model)
                 .onOpenURL { model.receive($0) }
-                .simultaneousGesture(DragGesture(minimumDistance:0).onEnded { _ in model.touch() })
+                .background(ActivityObserver { model.touch() }.frame(width:0,height:0).accessibilityHidden(true))
                 .task {
                     while !Task.isCancelled {
                         try? await Task.sleep(for:.seconds(15))

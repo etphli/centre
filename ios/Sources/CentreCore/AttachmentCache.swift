@@ -32,6 +32,7 @@ public actor AttachmentCache {
     private let workspace: WorkspaceKey
     private let byteLimit: Int
     private var generation = 0
+    private var erased=false
     private static let chunkBytes = 256 * 1024
     private static let fileLimit = 20 * 1024 * 1024
     public init(directory: URL, workspace: WorkspaceKey, byteLimit: Int = 100 * 1024 * 1024) throws {
@@ -59,6 +60,7 @@ public actor AttachmentCache {
         } catch { throw CentreError.storage("This saved attachment is incomplete or damaged. Download it again while connected.") }
     }
     public func download(id: String, chatId: String, using transport: any AttachmentTransport) async throws -> AttachmentFile {
+        if erased { throw CentreError.authentication }
         let id = try Self.identity(id, chatId: chatId), started = generation
         if let file = try? cached(id: id, chatId: chatId) { return file }
         let metadataValue = try await transport.attachmentGet(Self.path(id, chatId: chatId))
@@ -100,7 +102,7 @@ public actor AttachmentCache {
         return AttachmentFile(url: final.appendingPathComponent(contentName), name: metadata.name, mimeType: metadata.mimeType)
     }
     public func erase() throws {
-        generation += 1
+        generation += 1;erased=true
         if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
     }
     private func location(_ id: String, chatId: String) -> URL {
