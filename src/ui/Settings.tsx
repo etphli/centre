@@ -332,7 +332,7 @@ export function SettingsPage() {
       {category === 'connections' ? <><Connections /><GoogleSection /><OrganatoSection /><p className="settings-foot">Credentials are stored in your macOS Keychain. <button type="button" className="link-button" onClick={() => void openExternal('https://organato.vercel.app').catch(() => undefined)}>Open Organato <ExternalLink size={12} aria-hidden /></button></p></> : null}
       {category === 'skills' ? <SkillsPreferences /> : null}
       {category === 'updates' ? <UpdatesSection /> : null}
-      {category === 'mobile' ? <MobileSettings /> : null}
+      {category === 'mobile' ? <MobileSettings onSignIn={() => setCategory('connections')} /> : null}
     </div>
   </div>;
 }

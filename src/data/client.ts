@@ -45,6 +45,7 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
 export const api = {
+  mobileCloudStatus: () => request('GET', '/cloud/status', z.object({authenticated:z.boolean()})),
   mobilePairing: () => request('POST', '/cloud/pairing', z.object({code:z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/),expiresAt:z.string().datetime(),baseUrl:z.string().url()}), {}),
   studyLog: () => request('GET', '/study-log', studyLogSchema),
   createStudy: (input: StudyTags & {id:string;segments:StudySegment[]}) => request('POST', '/study-log/sessions', studyLogSchema, input),
