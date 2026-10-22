@@ -1,8 +1,8 @@
 import { ConnectedFileView } from './ConnectedFileView';
 import { connectorCatalog } from '../../shared/connectors';
 import { DeleteResource } from './DeleteResource';
-import { Check, ChevronLeft, ChevronRight, Download, FolderInput, Printer, RotateCcw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Check, ChevronLeft, ChevronRight, Download, FolderInput, MoreHorizontal, Printer, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { z } from 'zod';
 import { api, downloadFile, printPaper } from '../data/client';
 import { practiceDraft } from '../data/practice-drafts';
@@ -92,7 +92,11 @@ function Quiz({ resource }: { resource: Resource }) {
   const [working, setBusy] = useState(false);
   const busy = working || progress.marking;
   const [error, setError] = useState<string | null>(null);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmReset, setConfirmReset] = useState<'start-over' | 'reload' | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const optionsId = useId();
+  const optionsTarget = useRef<HTMLButtonElement | null>(null);
+  const confirmTarget = useRef<HTMLButtonElement | null>(null);
   const focusTarget = useRef<HTMLElement | null>(null);
   const moved = useRef(false);
   const questions = resource.questions;
@@ -109,6 +113,8 @@ function Quiz({ resource }: { resource: Resource }) {
       setMarkedIndex(0);
     }
   }, [progress.started, latest?.id]);
+
+  useEffect(() => { if (confirmReset) confirmTarget.current?.focus(); }, [confirmReset]);
 
   useEffect(() => {
     // Only move focus after the student navigates, never on first load.
@@ -170,9 +176,21 @@ function Quiz({ resource }: { resource: Resource }) {
     setError(null);
     try {
       await draft.startOver();
-      setConfirmReset(false);
+      setConfirmReset(null);
       moved.current = true;
-    } catch (failure) { setError(errorMessage(failure)); }
+      requestAnimationFrame(() => focusTarget.current?.focus());
+    } catch { setError(draft.getSnapshot().error ? null : 'Start over didn’t finish. Your answers are still here.'); }
+    finally { setBusy(false); }
+  }
+
+  async function reloadSaved() {
+    setBusy(true);
+    setError(null);
+    try {
+      await draft.reload();
+      setConfirmReset(null);
+      requestAnimationFrame(() => focusTarget.current?.focus());
+    } catch { setError('The saved draft could not be loaded. Your local answers are still here.'); }
     finally { setBusy(false); }
   }
 
@@ -192,17 +210,19 @@ function Quiz({ resource }: { resource: Resource }) {
         </div>
       ) : null}
 
-      {!result && progress.started ? <div className="quiz__draft">
-        <span role="status">{progress.error ? 'Draft not saved. Your answers are still here.' : progress.saving ? 'Saving draft…' : 'Draft saved on this device.'}</span>
-        {progress.error ? <button type="button" className="link-button" disabled={busy} onClick={() => void draft.flush().catch(() => undefined)}>Retry save</button> : null}
-        {progress.error ? <button type="button" className="link-button" disabled={busy} onClick={() => void draft.reload().catch(failure => setError(errorMessage(failure)))}>Discard local changes and reload</button> : null}
-        <button type="button" className="link-button" disabled={busy} onClick={() => setConfirmReset(true)}>Start over</button>
-        {progress.error ? <p className="form__error" role="alert">{progress.error}</p> : null}
+      {!result && progress.started ? <div className={`quiz__draft${progress.error ? ' quiz__draft--error' : ''}`}>
+        <span role={progress.error ? 'alert' : 'status'}>{progress.error ? 'Couldn’t save your draft. Your answers are still here.' : progress.saving ? 'Saving draft…' : 'Draft saved on this device.'}</span>
+        {progress.error ? <button type="button" className="button button--small quiz__retry" disabled={busy} onClick={() => void draft.flush().catch(() => undefined)}>Retry save</button> : null}
+        <button type="button" ref={optionsTarget} className="button button--quiet button--small quiz__options-toggle" aria-label="Draft options" aria-expanded={optionsOpen} aria-controls={optionsId} disabled={busy} onClick={() => setOptionsOpen(open => !open)}><MoreHorizontal size={16} aria-hidden /></button>
       </div> : null}
-      {confirmReset ? <div className="quiz__reset">
-        <span>Discard all answers in this draft?</span>
-        <button type="button" className="button button--small" disabled={busy} onClick={() => void startOver()}>Discard and start over</button>
-        <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => setConfirmReset(false)}>Keep working</button>
+      {optionsOpen && !result ? <div className="quiz__options" id={optionsId} role="group" aria-label="Draft options">
+        <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setOptionsOpen(false); setConfirmReset('start-over'); }}>Start over</button>
+        <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setOptionsOpen(false); setConfirmReset('reload'); }}>Reload saved draft</button>
+      </div> : null}
+      {confirmReset ? <div className="quiz__reset" role="group" aria-label="Confirm draft action">
+        <span>{confirmReset === 'reload' ? 'Discard local changes and reload the saved draft?' : 'Discard all answers in this draft?'}</span>
+        <button type="button" ref={confirmTarget} className="button button--small quiz__discard" disabled={busy} onClick={() => void (confirmReset === 'reload' ? reloadSaved() : startOver())}>{confirmReset === 'reload' ? 'Discard and reload' : 'Discard and start over'}</button>
+        <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setConfirmReset(null); requestAnimationFrame(() => optionsTarget.current?.focus()); }}>Keep working</button>
       </div> : null}
 
       <nav className="quiz__progress" aria-label="Questions">
