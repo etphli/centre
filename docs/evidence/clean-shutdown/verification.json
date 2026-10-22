@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "exitCode": 0,
+  "checks": 45,
+  "rendererErrors": 0,
+  "shutdownIpcErrors": [],
+  "log": "Rerun scripts/verify-clean-shutdown.mjs for the full local native.log",
+  "base": "0c7771f8a2271a02d29f82abe88ba88dd11e6665",
+  "unitTests": {
+    "passed": 117,
+    "failed": 0
+  },
+  "typecheck": "pass",
+  "rendererBuild": "Unchanged production renderer from tested main Desktop/Log tree; Electron process rebuilt for this fix.",
+  "oauth": "Explicit nonfunctional fixture config, not live Google verification."
+}

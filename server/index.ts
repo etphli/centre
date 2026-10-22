@@ -471,7 +471,7 @@ export async function createService(options: { port?:number; token?:string; data
   server.requestTimeout = 360000;
   await new Promise<void>((accept,reject) => { server.once('error',reject); server.listen(options.port ?? 0,'127.0.0.1',accept); });
   const address = server.address(); if (!address || typeof address === 'string') throw new Error('Centre failed to bind its local service.');
-  return { port:address.port, token, close:async () => { try { await stopBackground?.(); server.closeAllConnections(); await new Promise<void>((accept,reject) => server.close(error => error ? reject(error) : accept())); await Promise.allSettled([...pending]); await store.save(); } finally { await releaseLock(); } } };
+  return { port:address.port, token, close:async () => { try { await stopBackground?.(); await new Promise<void>((accept,reject) => server.close(error => error ? reject(error) : accept())); await Promise.allSettled([...pending]); await store.save(); } finally { await releaseLock(); } } };
   } catch (error) { try { await stopBackground?.(); } finally { await releaseLock(); } throw error; }
 }
 if (process.argv[1] && /(?:^|\/)server\/index\.(?:ts|js)$/.test(process.argv[1])) {
