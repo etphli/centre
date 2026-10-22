@@ -14,6 +14,7 @@ import {
 import {
   interactiveResourceProgressId,
   interactiveResourceProgressSchema,
+  mergeInteractiveResourceProgress,
 } from "../shared/checklist-progress";
 import {
   canShareChatAttachment,
@@ -341,6 +342,28 @@ function entitiesFor(env: Env, auth: Auth, now: () => number) {
             fail(400, "validation", "Preferences ID must be preferences.");
           if (m.kind === "interactiveProgress") {
             const progress = interactiveResourceProgressSchema.parse(parsed);
+            const current = await get(m.kind, m.id);
+            if ((current?.version ?? 0) !== m.expectedVersion)
+              throw new HttpError(
+                409,
+                "conflict",
+                "Cloud record changed.",
+                current,
+              );
+            if (current && !current.deleted && current.data) {
+              const merged = mergeInteractiveResourceProgress(
+                current.data,
+                progress,
+              );
+              if (merged.kind === "local" || merged.kind === "conflict")
+                throw new HttpError(
+                  409,
+                  "conflict",
+                  "Checklist progress has a newer or conflicting domain revision.",
+                  current,
+                );
+              m.data = merged.value;
+            }
             if (
               m.id !==
               (await interactiveResourceProgressId(
@@ -686,7 +709,7 @@ function entitiesFor(env: Env, auth: Auth, now: () => number) {
     listLearningNeeds: async () => {
       const rows = await db
         .prepare(
-          "SELECT kind,id,version,CAST(cursor AS TEXT) AS cursor,updated_at,deleted,data,CAST((SELECT min(seq) FROM centre_mutation AS initial WHERE initial.workspace=centre_record.workspace AND initial.kind=centre_record.kind AND initial.id=centre_record.id) AS TEXT) AS created_cursor FROM centre_record WHERE workspace=? AND kind='practice.learningNeed' AND deleted=0 AND json_extract(data,'$.deletedAt') IS NULL ORDER BY json_extract(data,'$.needScore') DESC,json_extract(data,'$.updatedAt') DESC,id LIMIT 500",
+          "SELECT kind,id,version,CAST(cursor AS TEXT) AS cursor,updated_at,deleted,data,CAST((SELECT min(seq) FROM centre_mutation AS initial WHERE initial.workspace=centre_record.workspace AND initial.kind=centre_record.kind AND initial.id=centre_record.id) AS TEXT) AS created_cursor FROM centre_record WHERE workspace=? AND kind='practice.learningNeed' ORDER BY json_extract(data,'$.needScore') DESC,json_extract(data,'$.updatedAt') DESC,id LIMIT 500",
         )
         .bind(w)
         .all();

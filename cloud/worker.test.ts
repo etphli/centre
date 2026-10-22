@@ -1015,6 +1015,12 @@ test("learning-need quota retains all 500 records while permitting existing-reco
     deleted: true,
     data: null,
   });
+  const retained = await context.entities.listLearningNeeds();
+  assert.equal(retained.length, 500);
+  const tombstone = retained.find((record) => record.id === first.id);
+  assert.ok(tombstone);
+  assert.equal(tombstone.deleted, true);
+  assert.equal(tombstone.data, null);
   assert.equal(
     (
       await h.call(
@@ -1029,6 +1035,12 @@ test("learning-need quota retains all 500 records while permitting existing-reco
   await context.entities.put(need(first.id, "concept-0", 2));
   const second = records[1];
   await context.entities.put(need(second.id, "concept-1", 1, time));
+  const softDeleted = await context.entities.listLearningNeeds();
+  assert.equal(softDeleted.length, 500);
+  assert.equal(
+    softDeleted.find((record) => record.id === second.id)?.data?.deletedAt,
+    time,
+  );
   await assert.rejects(
     context.entities.put(need(crypto.randomUUID(), "replacement-2")),
   );
@@ -1431,7 +1443,7 @@ test("checklist progress requires the canonical resource/document UUID and conve
         token,
       )
     ).status,
-    400,
+    409,
   );
   assert.equal(
     (
@@ -1447,7 +1459,7 @@ test("checklist progress requires the canonical resource/document UUID and conve
         token,
       )
     ).status,
-    400,
+    409,
   );
 });
 test("attachment reads enforce immutable owner ancestry through archived parents across devices and accounts", async () => {
@@ -2185,4 +2197,101 @@ test("concurrent exact Review retry returns the first result without applying ev
   const need = await h.context()?.entities.get("practice.learningNeed", needId);
   assert.equal(need?.data?.needScore, 8);
   assert.equal((need?.data?.evidence as unknown[]).length, 1);
+});
+test("checklist canonical domain merge rejects stale/divergent revisions independently of transport CAS and timestamps", async () => {
+  const h = await harness(),
+    a = await h.login("alice"),
+    token = String(a.token),
+    documentRevision = await sha256("domain-merge-checklist"),
+    id = await interactiveResourceProgressId("diagram", documentRevision),
+    time = "2026-10-22T00:00:00.000Z";
+  const progress = (
+    expectedVersion: number,
+    revision: number,
+    checkedItemIds: string[],
+    updatedAt = time,
+  ): CloudMutation => ({
+    mutationId: crypto.randomUUID(),
+    kind: "interactiveProgress",
+    id,
+    schemaVersion: 1,
+    expectedVersion,
+    deleted: false,
+    data: {
+      schemaVersion: 1,
+      id,
+      revision,
+      resourceId: "diagram",
+      documentRevision,
+      checkedItemIds,
+      createdAt: time,
+      updatedAt,
+      deletedAt: null,
+    },
+  });
+  const initial = progress(0, 3, ["first"]),
+    saved = await h.call("/v1/records", "POST", initial, token);
+  assert.equal(saved.status, 200);
+  for (const incoming of [
+    progress(1, 2, [], "2026-10-24T00:00:00.000Z"),
+    progress(1, 3, ["second"], "2026-10-24T00:00:00.000Z"),
+  ]) {
+    const result = await h.call("/v1/records", "POST", incoming, token);
+    assert.equal(result.status, 409);
+    assert.deepEqual(result.value.current, saved.value.record);
+  }
+  const same = progress(1, 3, ["first"], "2026-10-20T00:00:00.000Z"),
+    sameSaved = await h.call("/v1/records", "POST", same, token);
+  assert.equal(sameSaved.status, 200);
+  assert.equal(object(sameSaved.value.record).version, 2);
+  assert.equal(object(object(sameSaved.value.record).data).revision, 3);
+  assert.equal(object(object(sameSaved.value.record).data).updatedAt, time);
+  const higher = progress(
+      2,
+      4,
+      ["first", "second"],
+      "2026-10-19T00:00:00.000Z",
+    ),
+    higherSaved = await h.call("/v1/records", "POST", higher, token);
+  assert.equal(higherSaved.status, 200);
+  assert.equal(object(higherSaved.value.record).version, 3);
+  assert.deepEqual(object(higherSaved.value.record).data, higher.data);
+  assert.deepEqual(await h.call("/v1/records", "POST", initial, token), saved);
+  assert.deepEqual(await h.call("/v1/records", "POST", same, token), sameSaved);
+  const deletedState = progress(3, 4, ["first", "second"]);
+  deletedState.data = { ...deletedState.data, deletedAt: time };
+  const conflict = await h.call("/v1/records", "POST", deletedState, token);
+  assert.equal(conflict.status, 409);
+  assert.deepEqual(conflict.value.current, higherSaved.value.record);
+  const base = h.env.DB;
+  let inject = true;
+  h.env.DB = {
+    prepare: (sql) => base.prepare(sql),
+    async batch(statements) {
+      if (inject) {
+        inject = false;
+        assert.equal(
+          (
+            await h.call(
+              "/v1/records",
+              "POST",
+              progress(3, 6, ["second"]),
+              token,
+            )
+          ).status,
+          200,
+        );
+      }
+      return base.batch(statements);
+    },
+  };
+  const raced = await h.call(
+    "/v1/records",
+    "POST",
+    progress(3, 5, ["first"]),
+    token,
+  );
+  assert.equal(raced.status, 409);
+  assert.equal(object(object(raced.value.current).data).revision, 6);
+  assert.equal(object(raced.value.current).version, 4);
 });
