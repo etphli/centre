@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import QuickLook
 import CentreCore
 
 // MARK: - Root
@@ -347,7 +348,8 @@ private struct MessageRow: View {
         let resources = data["resourceIds"].array.compactMap { $0.string }
             .compactMap { model.record(kind: "resource", id: $0) }
             .compactMap { model.data($0)["title"].string }
-        let attachments = data["attachmentIds"].array.count
+        let attachmentIds = data["attachmentIds"].array.compactMap(\.string)
+        let attachments=attachmentIds.count
         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
             if isUser {
                 Text(content)
@@ -363,13 +365,12 @@ private struct MessageRow: View {
             if !resources.isEmpty {
                 Text("Uses \(resources.joined(separator: ", "))").font(.footnote).foregroundStyle(palette.text3)
             }
-            if attachments > 0 {
-                Text(attachments == 1 ? "1 attachment, open it in Centre on your Mac" : "\(attachments) attachments, open them in Centre on your Mac")
-                    .font(.footnote).foregroundStyle(palette.text3)
+            if let chatId=data["chatId"].string {
+                ForEach(attachmentIds,id:\.self) { id in AttachmentButton(id:id,chatId:chatId) }
             }
         }
         .textSelection(.enabled)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(spokenLabel(isUser: isUser, content: content, resources: resources, attachments: attachments))
         .accessibilityIdentifier("chat.message.\(record.id)")
     }
@@ -378,8 +379,47 @@ private struct MessageRow: View {
     private func spokenLabel(isUser: Bool, content: String, resources: [String], attachments: Int) -> String {
         var parts = ["\(isUser ? "You" : "Centre"): \(String(Markdown.inline(content).characters))"]
         if !resources.isEmpty { parts.append("Uses \(resources.joined(separator: ", "))") }
-        if attachments > 0 { parts.append(attachments == 1 ? "1 attachment, open it in Centre on your Mac" : "\(attachments) attachments, open them in Centre on your Mac") }
+        if attachments > 0 { parts.append(attachments == 1 ? "1 attachment" : "\(attachments) attachments") }
         return parts.joined(separator: ". ")
+    }
+}
+
+@MainActor private struct AttachmentButton:View {
+    @EnvironmentObject private var model:AppModel
+    @Environment(\.centre) private var palette
+    let id:String
+    let chatId:String
+    @State private var loading=false
+    @State private var failure:String?
+    @State private var file:AttachmentPreview?
+    private var name:String { model.record(kind:"attachment",id:id)?.data?["name"].string ?? "Attachment" }
+    var body:some View {
+        VStack(alignment:.leading,spacing:4) {
+            Button {
+                loading=true;failure=nil
+                Task { do { file=AttachmentPreview(file:try await model.attachment(id:id,chatId:chatId)) } catch { failure=error.localizedDescription };loading=false }
+            } label:{ Label(loading ? "Downloading…":name,systemImage:"paperclip").font(.subheadline).frame(minHeight:44) }
+                .buttonStyle(.borderless).disabled(loading).accessibilityIdentifier("attachment.open.\(id)")
+            if let failure { Text(failure).font(.footnote).foregroundStyle(palette.warn) }
+        }.sheet(item:$file) { preview in
+            NavigationStack {
+                AttachmentQuickLook(file:preview.file).navigationTitle(preview.file.name).navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement:.confirmationAction) { Button("Done") { file=nil } } }
+            }
+        }
+    }
+}
+private struct AttachmentPreview:Identifiable { let id=UUID();let file:AttachmentFile }
+private struct AttachmentQuickLook:UIViewControllerRepresentable {
+    let file:AttachmentFile
+    func makeCoordinator()->Coordinator { Coordinator(file:file) }
+    func makeUIViewController(context:Context)->QLPreviewController { let controller=QLPreviewController();controller.dataSource=context.coordinator;return controller }
+    func updateUIViewController(_ controller:QLPreviewController,context:Context) {}
+    final class Coordinator:NSObject,QLPreviewControllerDataSource {
+        let file:AttachmentFile
+        init(file:AttachmentFile) { self.file=file }
+        func numberOfPreviewItems(in controller:QLPreviewController)->Int { 1 }
+        func previewController(_ controller:QLPreviewController,previewItemAt index:Int)->QLPreviewItem { file.url as NSURL }
     }
 }
 

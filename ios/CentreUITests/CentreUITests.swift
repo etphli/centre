@@ -168,6 +168,15 @@ final class CentreUITests: XCTestCase {
     }
 
 
+    func testCachedAttachmentOpensWithoutDesktopOrNetwork() {
+        tab("Chat")
+        tap("chat.row.07cc79cc-af72-4768-b211-94b365c50a64")
+        tap("attachment.open.45c6ec2f-2aa0-40a4-b5ba-fd6b301f1594")
+        XCTAssertTrue(app.navigationBars["Offline reading.txt"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["Done"].exists)
+        capture("14-cached-attachment-quick-look")
+    }
+
     func testSavedDiagramCancelsExternalNavigation() {
         tab("Resources")
         let row = app.buttons["resources.row.fdd186b8-aea0-4d85-9538-390f076f0379"]

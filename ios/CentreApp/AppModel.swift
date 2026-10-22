@@ -1,6 +1,7 @@
 import SwiftUI
 import CentreCore
 import GoogleSignIn
+import CryptoKit
 
 struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:String }
 
@@ -20,6 +21,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     @Published var calendarCommands:[ConnectorCommand]=[]
     private var replica:Replica?
     private var calendarJournal:ConnectorJournal?
+    private var attachmentCache:AttachmentCache?
     private var client:CloudHTTP?
     private var scheduledSync:Task<Void,Never>?
     private var syncing=false
@@ -49,6 +51,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
                 let workspace=try WorkspaceKey(baseURL:url,workspaceId:saved.session.workspaceId)
                 replica=try Replica(directory:directory,workspace:workspace)
                 calendarJournal=try ConnectorJournal(directory:directory,workspace:workspace)
+                attachmentCache=try AttachmentCache(directory:directory,workspace:workspace)
                 try await recoverTimers()
                 await refresh()
                 await sync()
@@ -278,7 +281,8 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         let store=try Replica(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
         let journal=try ConnectorJournal(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
         try SessionVault.save(SavedSession(baseURL:base.absoluteString,session:newSession))
-        self.baseURL=base.absoluteString;self.session=newSession;client=api;replica=store;calendarJournal=journal
+        let attachments=try AttachmentCache(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
+        self.baseURL=base.absoluteString;self.session=newSession;client=api;replica=store;calendarJournal=journal;attachmentCache=attachments
         try await recoverTimers();await refresh()
     }
     func logout(discard:Bool) async {
@@ -288,10 +292,20 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             try await backgroundAndErase()
             if let client,let session,!fixture { _ = try? await client.call("/v1/devices/revoke",method:"POST",body:.object(["deviceId":.string(session.deviceId)])) }
             try SessionVault.clear();GIDSignIn.sharedInstance.signOut()
-            scheduledSync?.cancel();session=nil;client=nil;replica=nil;calendarJournal=nil;calendarCommands=[];records=[];connector = .object([:]);pendingCount=0;conflicts=[];aiJobs=[];aiRuns=[];status="Signed out. Private data removed from this iPhone."
+            scheduledSync?.cancel();session=nil;client=nil;replica=nil;calendarJournal=nil;attachmentCache=nil;calendarCommands=[];records=[];connector = .object([:]);pendingCount=0;conflicts=[];aiJobs=[];aiRuns=[];status="Signed out. Private data removed from this iPhone."
         } catch { self.error=error.localizedDescription }
     }
-    private func backgroundAndErase() async throws { try await calendarJournal?.erase();try await replica?.erase() }
+    private func backgroundAndErase() async throws { try await attachmentCache?.erase();try await calendarJournal?.erase();try await replica?.erase() }
+    func attachment(id:String,chatId:String) async throws -> AttachmentFile {
+        guard record(kind:"chat",id:chatId) != nil,
+              items("message").contains(where:{$0.data?["chatId"].string == chatId && ($0.data?["attachmentIds"].array ?? []).contains(.string(id))}),
+              let attachmentCache else { throw CentreError.invalid("This file is not associated with an active chat.") }
+        if let file=try? await attachmentCache.cached(id:id,chatId:chatId) { return file }
+        guard let client,!fixture else { throw CentreError.unavailable("This file hasn't downloaded. Connect to Centre Cloud to save it for offline reading.") }
+        let file=try await attachmentCache.download(id:id,chatId:chatId,using:client)
+        guard record(kind:"chat",id:chatId) != nil else { throw CentreError.invalid("This chat was archived while the file downloaded.") }
+        return file
+    }
     func sync() async {
         guard !syncing,let replica else { return }
         if fixture { await refresh();status="Offline test workspace. Changes saved on iPhone.";return }
@@ -390,20 +404,23 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         let base=URL(string:"https://ui-fixture.invalid")!, key=try WorkspaceKey(baseURL:base,workspaceId:"offline-ui-fixture-v1")
         var store=try Replica(directory:directory,workspace:key)
         var journal=try ConnectorJournal(directory:directory,workspace:key)
-        if ProcessInfo.processInfo.arguments.contains("-reset-fixture") { try await store.erase();try await journal.erase();store=try Replica(directory:directory,workspace:key);journal=try ConnectorJournal(directory:directory,workspace:key) }
-        replica=store;calendarJournal=journal;session=CloudSession(token:"ctr_fixture_not_a_credential",deviceId:"ui-test",workspaceId:key.workspaceId,expiresAt:"2099-01-01T00:00:00.000Z");baseURL=base.absoluteString
+        let attachments=try AttachmentCache(directory:directory,workspace:key)
+        if ProcessInfo.processInfo.arguments.contains("-reset-fixture") { try await store.erase();try await journal.erase();try await attachments.erase();store=try Replica(directory:directory,workspace:key);journal=try ConnectorJournal(directory:directory,workspace:key) }
+        replica=store;calendarJournal=journal;attachmentCache=attachments;session=CloudSession(token:"ctr_fixture_not_a_credential",deviceId:"ui-test",workspaceId:key.workspaceId,expiresAt:"2099-01-01T00:00:00.000Z");baseURL=base.absoluteString
         let existing=await store.snapshot()
         if existing.records.isEmpty {
             let now=Clock.iso(Date()), chatId="07cc79cc-af72-4768-b211-94b365c50a64", resourceId="55dcb531-b6a9-497e-aa7b-955767275ec9"
             let resource:JSONValue = .object(["id":.string(resourceId),"subjectId":.null,"topicId":.null,"title":.string("Cell biology practice"),"kind":.string("quiz"),"createdAt":.string(now),"updatedAt":.string(now),"content":.string("Practise from a saved resource without a network connection."),"questions":.array([.object(["id":.string("q1"),"prompt":.string("Which organelle produces most cellular ATP?"),"answer":.string("Mitochondria"),"explanation":.string("Aerobic respiration produces ATP in mitochondria."),"marks":.number(1),"responseType":.string("multiple_choice"),"choices":.array([.string("Mitochondria"),.string("Nucleus"),.string("Ribosome")])])]),"questionTypes":.array([.string("multiple_choice")]),"testLength":.null,"durationMinutes":.null,"completedAt":.null,"deletedAt":.null])
             let chat:JSONValue = .object(["id":.string(chatId),"title":.string("Cell biology"),"createdAt":.string(now),"updatedAt":.string(now),"deletedAt":.null,"pinnedAt":.null,"folderId":.null,"sortOrder":.number(0),"modelSelection":.null,"lineage":.object(["schemaVersion":.number(1),"kind":.string("root")])])
             let messageId="c2b7dd30-cb15-473d-b615-f7457f170e43"
-            let message:JSONValue = .object(["id":.string(messageId),"chatId":.string(chatId),"role":.string("assistant"),"content":.string("This is a local UI test workspace. No hosted AI response has been requested.\n\nOpen Resources to practise your saved quiz, or record actual study in Log."),"createdAt":.string(now),"responseDurationMs":.null,"resourceIds":.array([.string(resourceId)]),"attachmentIds":.array([]),"requestContext":.null])
+            let attachmentId=UIAttachmentFixture.id
+            let message:JSONValue = .object(["id":.string(messageId),"chatId":.string(chatId),"role":.string("assistant"),"content":.string("This is a local UI test workspace. No hosted AI response has been requested.\n\nOpen Resources to practise your saved quiz, or record actual study in Log."),"createdAt":.string(now),"responseDurationMs":.null,"resourceIds":.array([.string(resourceId)]),"attachmentIds":.array([.string(attachmentId)]),"requestContext":.null])
             let reviewId="28a04f7b-70e9-44f2-925a-5c7559791aa4"
             let review:JSONValue = .object(["id":.string(reviewId),"subjectId":.null,"topicId":.null,"resourceId":.string(resourceId),"question":.string("How do mitochondria supply energy?"),"note":.string("Explain ATP in your own words."),"createdAt":.string(now),"nextReviewAt":.string(now),"resolvedAt":.null])
             let diagramId="fdd186b8-aea0-4d85-9538-390f076f0379"
             let diagram=resource.merging(.object(["id":.string(diagramId),"title":.string("Navigation containment"),"kind":.string("diagram"),"questions":.array([]),"content":.string("<h2>Saved drawing stays here</h2><p><a href=\"https://example.invalid/escape\">Attempt external navigation</a></p><script>window.location='https://example.invalid/script-escape'</script><img src=\"https://example.invalid/image-escape\"><form action=\"https://example.invalid/form-escape\"><input type=submit value=Escape></form>")]))
-            try await store.stage([LocalChange(kind:"resource",id:resourceId,data:resource),LocalChange(kind:"resource",id:diagramId,data:diagram),LocalChange(kind:"chat",id:chatId,data:chat),LocalChange(kind:"message",id:messageId,data:message),LocalChange(kind:"reviewMemory",id:reviewId,data:review)])
+            _ = try await attachments.download(id:attachmentId,chatId:chatId,using:UIAttachmentFixture())
+            try await store.stage([LocalChange(kind:"resource",id:resourceId,data:resource),LocalChange(kind:"resource",id:diagramId,data:diagram),LocalChange(kind:"chat",id:chatId,data:chat),LocalChange(kind:"message",id:messageId,data:message),LocalChange(kind:"attachment",id:attachmentId,data:UIAttachmentFixture.metadata),LocalChange(kind:"reviewMemory",id:reviewId,data:review)])
             try await store.cacheConnector(.object(["subjects":.array([]),"assignments":.array([]),"events":.array([])]))
         }
         try await recoverTimers();await refresh();status="Offline UI test workspace. All changes stay on this simulator."
@@ -411,3 +428,12 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     #endif
 
 }
+
+#if DEBUG
+private struct UIAttachmentFixture:AttachmentTransport {
+    static let id="45c6ec2f-2aa0-40a4-b5ba-fd6b301f1594"
+    static let bytes=Data("Saved attachment, available offline.\nThis file is an explicit simulator fixture. No cloud download was requested.\n".utf8)
+    static var metadata:JSONValue { .object(["id":.string(id),"name":.string("Offline reading.txt"),"mimeType":.string("text/plain"),"size":.number(Double(bytes.count)),"sha256":.string(SHA256.hash(data:bytes).map{String(format:"%02x",$0)}.joined())]) }
+    func attachmentGet(_ path:String) async throws -> JSONValue { path.contains("/chunks/") ? .object(["data":.string(Self.bytes.base64EncodedString())]):Self.metadata }
+}
+#endif
