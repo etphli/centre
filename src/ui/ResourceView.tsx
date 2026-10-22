@@ -275,7 +275,7 @@ function Quiz({ resource }: { resource: Resource }) {
               </div>
             ) : null}
             <details className="quiz__model">
-              <summary>Model answer</summary>
+              <summary><ChevronRight className="quiz__disclosure-chevron" size={14} aria-hidden /> Model answer</summary>
               <Markdown>{mathText(question.answer) + (question.explanation ? `\n\n${question.explanation}` : '')}</Markdown>
             </details>
           </>
