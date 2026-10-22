@@ -1300,6 +1300,7 @@ async function snapshot(ctx: OrganatoContext, c: Connection) {
           kind: r.kind,
           subjectId: r.subjectId,
           dueDate: clock(r, "Australia/Sydney")?.date ?? null,
+          dueAt: r.dueAt,
           status: r.workingStatus,
           version: r.version,
         }),

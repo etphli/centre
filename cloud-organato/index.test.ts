@@ -22,6 +22,11 @@ test('cloud Organato contract against actual migration and isolated SQLite',asyn
   let f:Fixture;
   t.beforeEach(context => {f=new Fixture();context.mock.method(globalThis,'fetch',f.fetch);});
   t.afterEach(() => {f.db.close();});
+  await t.test('snapshot preserves explicit assignment deadline instants and original IDs/versions',async()=>{
+    await f.connect(); const item=remoteItem({id:'timed-assignment',kind:'work',calendarEnabled:false,dueAt:'2026-10-04T14:30:00Z',version:7});f.items.set(item.id,item);
+    const response=await f.request('/snapshot');const body=response.body;const assignment=z.array(z.object({id:z.string(),version:z.number(),dueAt:z.string().nullable()})).parse(body.assignments).find(a=>a.id===item.id);
+    assert.deepEqual(assignment,{id:item.id,version:7,dueAt:item.dueAt});assert.equal(f.externalWrites().length,0);
+  });
 
   await t.test('namespace, authenticated workspace, explicit connection and removal',async () => {
     assert.equal(await handleOrganatoRequest(new Request('https://centre.test/v1/other'),f.context()),null);
