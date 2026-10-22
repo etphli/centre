@@ -7,3 +7,6 @@
 .diagram-progress [role=alert]{color:var(--danger,var(--accent))}
 .diagram-progress button{min-height:28px;padding:0 4px;border:0;background:transparent;color:var(--text);font:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .diagram-progress button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+.diagram-progress__saved{animation:checklist-saved 2s ease-out forwards}
+@keyframes checklist-saved{0%,75%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.diagram-progress__saved{animation:none}}

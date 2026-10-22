@@ -153,7 +153,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
     }
   }
   let pending=false;
-  const report=()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;parent.postMessage({type:'centre:diagram-size',height:Math.ceil(document.body.getBoundingClientRect().height)},'*')})};
+  const report=()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;const input=document.querySelector('input[type=checkbox][data-centre-checklist-id]');const anchor=input?.labels?.[0]||input;const inset=anchor?Math.max(0,Math.min(512,Math.round(anchor.getBoundingClientRect().left))):0;parent.postMessage({type:'centre:diagram-size',height:Math.ceil(document.body.getBoundingClientRect().height),inset},'*')})};
   new ResizeObserver(report).observe(document.body);addEventListener('load',report);report();
 })();
 </script>${checklistScript}<!--/centre:bridge--></body></html>`;
@@ -215,7 +215,7 @@ export function diagramArtifactDocument(html:string, theme:DiagramTheme|undefine
   addEventListener('message',event=>{
     const data=event.data;if(!data||typeof data!=='object'||Array.isArray(data))return;
     if(event.source===frame.contentWindow){
-      if(data.type==='centre:diagram-size'&&keys(data)==='height,type'&&typeof data.height==='number'&&Number.isFinite(data.height)&&data.height>=0&&data.height<=100000){frame.style.height=Math.ceil(data.height)+'px';parent.postMessage({type:data.type,height:data.height+(notice.hidden?0:notice.getBoundingClientRect().height)},'*');return}
+      if(data.type==='centre:diagram-size'&&keys(data)==='height,inset,type'&&typeof data.height==='number'&&Number.isFinite(data.height)&&data.height>=0&&data.height<=100000&&typeof data.inset==='number'&&Number.isFinite(data.inset)&&data.inset>=0&&data.inset<=512){frame.style.height=Math.ceil(data.height)+'px';parent.postMessage({type:data.type,height:data.height+(notice.hidden?0:notice.getBoundingClientRect().height),inset:data.inset},'*');return}
       if(data.resourceId!==scope.resourceId||data.documentRevision!==scope.documentRevision)return;
       if(data.type==='centre:checklist-alive'&&keys(data)==='documentRevision,nonce,resourceId,type'&&data.nonce===probe){probe=null;return}
       if(data.type==='centre:checklist-ready'&&keys(data)==='documentRevision,resourceId,type'){if(lastTheme)frame.contentWindow.postMessage(lastTheme,'*');if(lastRestore)frame.contentWindow.postMessage(lastRestore,'*');parent.postMessage(data,'*');return}

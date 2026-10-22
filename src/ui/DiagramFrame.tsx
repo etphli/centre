@@ -13,7 +13,7 @@ type ReadyPreview = { status:'ready';url:string;documentRevision:string;itemIds:
 type Preview = { status:'loading' } | ReadyPreview | { status:'error';message:string };
 type ChecklistScope = Omit<ReadyPreview,'status'|'url'> & {resourceId:string};
 const progressQueue = new ChecklistProgressQueue((scope,itemId,checked) => api.saveChecklistProgress(scope.resourceId,scope.documentRevision,itemId,checked));
-const diagramSizeMessageSchema = z.object({type:z.literal('centre:diagram-size'),height:z.number().finite().min(0).max(100_000)}).strict();
+const diagramSizeMessageSchema = z.object({type:z.literal('centre:diagram-size'),height:z.number().finite().min(0).max(100_000),inset:z.number().finite().min(0).max(512)}).strict();
 
 function frameTheme() {
   const root = document.documentElement;
@@ -30,7 +30,13 @@ export function DiagramFrame({ resource, thumbnail = false }: { resource:Resourc
   const checkedItems = useRef<Set<string>>(new Set());
   const [preview,setPreview] = useState<Preview>({status:'loading'});
   const [height,setHeight] = useState(420);
+  const [inset,setInset] = useState(0);
   const [saveState,setSaveState] = useState<ChecklistSaveStatus>('idle');
+  useEffect(() => {
+    if (saveState !== 'saved') return;
+    const timer = setTimeout(() => setSaveState('idle'),2000);
+    return () => clearTimeout(timer);
+  },[saveState]);
   useEffect(() => {
     let live = true;
     let unsubscribe = () => {};
@@ -83,6 +89,7 @@ export function DiagramFrame({ resource, thumbnail = false }: { resource:Resourc
       const size = diagramSizeMessageSchema.safeParse(event.data);
       if (size.success && !thumbnail) {
         setHeight(Math.max(200,Math.min(2200,size.data.height + 2)));
+        setInset(Math.min(size.data.inset,Math.max(0,(frame.current?.clientWidth ?? 0) - 160)));
       }
     }
     window.addEventListener('message',received);
@@ -94,9 +101,9 @@ export function DiagramFrame({ resource, thumbnail = false }: { resource:Resourc
   if (preview.status === 'loading') return <p className="preview-empty" role={thumbnail ? undefined : 'status'}><span className="spinner spinner--small" aria-hidden /> Loading diagram</p>;
   return <>
     <iframe ref={frame} className={thumbnail ? 'card-preview__frame' : 'diagram-embed'} title={thumbnail ? '' : resource.title} sandbox="allow-scripts" referrerPolicy="no-referrer" tabIndex={thumbnail ? -1 : undefined} src={preview.url} style={thumbnail ? undefined : {height}} onLoad={() => frame.current?.contentWindow?.postMessage(frameTheme(),'*')} />
-    {!thumbnail && preview.itemIds.length ? <div className="diagram-progress">
+    {!thumbnail && preview.itemIds.length ? <div className="diagram-progress" style={{paddingLeft:inset}}>
       {saveState === 'saving' ? <span role="status">Saving checklist progress…</span> : null}
-      {saveState === 'saved' ? <span role="status">Checklist progress saved.</span> : null}
+      {saveState === 'saved' ? <span className="diagram-progress__saved" role="status">Saved</span> : null}
       {saveState === 'error' ? <><span role="alert">Checklist progress wasn’t saved. Retry before leaving this page.</span><button type="button" onClick={() => { if (scope.current) progressQueue.retry(scope.current); }}>Retry save</button></> : null}
     </div> : null}
   </>;
