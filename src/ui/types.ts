@@ -2,11 +2,11 @@ import type { PageContext, ResourceKind, Snapshot } from '../../shared/schema';
 
 export type Route =
   | { kind: 'home' }
-  | { kind: 'chat'; chatId: string }
+  | { kind: 'chat'; chatId: string; messageId?: string }
   | { kind: 'resources' }
   | { kind: 'subject'; subjectId: string }
   | { kind: 'topic'; subjectId: string; topicId: string }
-  | { kind: 'resource'; resourceId: string }
+  | { kind: 'resource'; resourceId: string; questionId?: string }
   | { kind: 'calendar' }
   | { kind: 'log' }
   | { kind: 'review' }

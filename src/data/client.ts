@@ -1,5 +1,6 @@
 import { studyLogSchema, type StudyTags, type StudySegment, type TimerAction } from '../../shared/study-log';
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
+import { searchQuerySchema, searchResultsSchema } from '../../shared/search';
 import { z } from 'zod';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import type { DesktopAction, DesktopActionRequest } from '../../shared/desktop-actions';
@@ -64,6 +65,7 @@ export const api = {
   timerStudy: (id:string,action:TimerAction,expectedRevision:number,activity = false) => request('POST', `/study-log/timer/${encodeURIComponent(id)}/${action}`, studyLogSchema, {expectedRevision,activity}),
   saveStudyGoal: (input:{id:string;weekStart:string;timeZone:string;targetMinutes:number;expectedRevision?:number}) => request('POST', '/study-log/goals', studyLogSchema, input),
   state: () => request('GET', '/state', snapshotSchema),
+  search: (query: string) => request('GET', `/search?q=${encodeURIComponent(searchQuerySchema.parse(query))}`, searchResultsSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),
   forgetMemory: (id:string) => request('POST', `/assistant-memories/${encodeURIComponent(id)}/forget`, okSchema, {}),
   pollState: () => request('GET', '/state/poll', snapshotSchema.nullable()),
