@@ -18,7 +18,7 @@ const routes = [
   ['POST', /^\/api\/connectors\/(google\/start|notion|disconnect|cancel)$/],
   ['POST', /^\/api\/chats$/],
   ['POST', /^\/api\/questions\/[^/]+\/answer$/],
-  ['POST', /^\/api\/chats\/[^/]+\/(messages|cancel|archive|restore)$/],
+  ['POST', /^\/api\/chats\/[^/]+\/(messages|cancel|archive|restore|branch|retry)$/],
   ['POST', /^\/api\/attachments$/],
   ['GET', /^\/api\/attachments\/[0-9a-f-]{36}$/],
   ['PATCH', /^\/api\/chats\/[^/]+\/(organize|model)$/],

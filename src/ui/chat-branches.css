@@ -1,0 +1,198 @@
+/* Chat branches: per-message actions, inline prompt editing, and where a branch came from. */
+
+.thread__item {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+  min-width: 0;
+}
+
+.thread .message--user {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* Lineage */
+
+.branch-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 0.8125rem;
+}
+
+.branch-banner p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-banner__icon {
+  flex: none;
+}
+
+.branch-banner__title {
+  color: var(--text-2);
+}
+
+.branch-banner__open {
+  flex: none;
+  white-space: nowrap;
+}
+
+.branch-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  color: var(--text-3);
+  font-size: 0.75rem;
+}
+
+.message--assistant .branch-label {
+  margin-bottom: 8px;
+}
+
+.branch-label__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-2);
+}
+
+/* Per-message actions: quiet until the message is hovered or focused, always shown on the latest message. */
+
+.message-actions {
+  display: flex;
+  gap: 2px;
+  margin-top: -18px;
+  opacity: 0;
+}
+
+.message-actions--user {
+  justify-content: flex-end;
+}
+
+.message-actions--assistant {
+  margin-left: -7px;
+}
+
+.thread__item:hover .message-actions,
+.message-actions:focus-within,
+.message-actions.is-shown {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .message-actions {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .message-actions {
+    transition: opacity 120ms var(--ease);
+  }
+}
+
+.message-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: var(--radius-s);
+  color: var(--text-3);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.message-action:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.message-action:disabled {
+  opacity: 0.5;
+}
+
+.thread--compact .message-actions {
+  margin-top: -12px;
+}
+
+.thread--compact .message-action {
+  padding: 0 6px;
+}
+
+/* Inline prompt editor, in the place of the sent bubble */
+
+.prompt-editor {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 620px);
+}
+
+.prompt-editor__field {
+  min-height: 64px;
+  max-height: 320px;
+  padding: 10px 14px;
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+  resize: none;
+  overflow-wrap: anywhere;
+}
+
+.prompt-editor__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.prompt-editor__hint {
+  flex: 1 1 180px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: 0.75rem;
+}
+
+/* A missing reply that was never answered and isn't an error yet. */
+
+.thread-error--quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  justify-content: flex-start;
+}
+
+.retry-note { display:block; margin-top:4px; color:var(--text-3); font-size:0.75rem; }
+
+.branch-banner .branch-banner__open { color:var(--text-2); }
+.prompt-editor__field:focus-visible {
+  outline:none;
+  border-color:var(--text-2);
+  box-shadow:0 0 0 2px color-mix(in oklab,var(--text) 20%,transparent);
+}
+.message-action:focus-visible,
+.branch-banner__open:focus-visible,
+.prompt-editor .button:focus-visible { outline:2px solid var(--text-2); outline-offset:2px; }
+
+.branch-banner,
+.branch-label,
+.message-action,
+.prompt-editor__hint,
+.retry-note { color:var(--text-2); }
+.branch-banner__title { color:var(--text); }
+
+.thread--compact .prompt-editor__hint { flex-basis:100%; }

@@ -206,9 +206,10 @@ export default function CentreApp() {
     inFlight.current.add(chatId);
     seq.current += 1;
     const id = seq.current;
+    const messageId = crypto.randomUUID();
     const update = (patch: Partial<Turn>) => setTurns((list) => list.map((turn) => (turn.id === id ? { ...turn, ...patch } : turn)));
     const remove = () => setTurns((list) => list.filter((turn) => turn.id !== id));
-    setTurns((list) => [...list.filter((turn) => turn.chatId !== chatId), { id, chatId, content, context, attachmentIds, resourceRequest, status: 'working', startedAt: Date.now() }]);
+    setTurns((list) => [...list.filter((turn) => turn.chatId !== chatId), { id,messageId, chatId, content, context, attachmentIds, resourceRequest, status: 'working', startedAt: Date.now() }]);
     let target = chatId;
     try {
       if (!target) {
@@ -221,7 +222,7 @@ export default function CentreApp() {
         await quietRefresh();
         onCreated?.(target);
       }
-      await api.sendMessage(target, content, context,attachmentIds,resourceRequest);
+      await api.sendMessage(target, content, context,attachmentIds,resourceRequest,messageId);
       await quietRefresh();
       remove();
     } catch (failure) {

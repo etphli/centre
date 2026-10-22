@@ -6,6 +6,7 @@ export type TurnStatus = 'working' | 'stopping' | 'error';
 
 export interface Turn {
   id: number;
+  messageId?:string;
   chatId: string | null;
   content: string;
   attachmentIds: string[];

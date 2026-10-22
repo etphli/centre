@@ -146,10 +146,10 @@ test('chat reordering stays within the target group and rejects missing or archi
 test('removing a folder moves chats out and preserves their histories', async () => {
   const f = await fixture();
   try {
-    const activeInbox = makeChat('inbox-chat', { messages: [{ id: 'inbox-message', role: 'user', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, content: 'Inbox text', createdAt: now }] });
-    const folderChat = makeChat('folder-chat', { messages: [{ id: 'folder-message', role: 'user', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, content: 'Keep this history', createdAt: now }] });
-    const pinnedChat = makeChat('pinned-chat', { messages: [{ id: 'pinned-message', role: 'assistant', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, content: 'Pinned history', createdAt: now }] });
-    const archivedChat = makeChat('archived-chat', { messages: [{ id: 'archived-message', role: 'user', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, content: 'Archived history', createdAt: now }] });
+    const activeInbox = makeChat('inbox-chat', { messages: [{ id: 'inbox-message', role: 'user', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, requestContext:null, codexTurns:[], content: 'Inbox text', createdAt: now }] });
+    const folderChat = makeChat('folder-chat', { messages: [{ id: 'folder-message', role: 'user', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, requestContext:null, codexTurns:[], content: 'Keep this history', createdAt: now }] });
+    const pinnedChat = makeChat('pinned-chat', { messages: [{ id: 'pinned-message', role: 'assistant', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, requestContext:null, codexTurns:[], content: 'Pinned history', createdAt: now }] });
+    const archivedChat = makeChat('archived-chat', { messages: [{ id: 'archived-message', role: 'user', resourceIds:[], attachmentIds:[], activity:[], responseDurationMs:null, requestContext:null, codexTurns:[], content: 'Archived history', createdAt: now }] });
     f.store.state.chats.push(activeInbox, folderChat, pinnedChat, archivedChat);
     const folder = chatFolderSchema.parse(await call(f.store, 'POST', '/api/chat-folders', { name: 'Old folder' }));
     await call(f.store, 'PATCH', '/api/chats/folder-chat/organize', { folderId: folder.id });
