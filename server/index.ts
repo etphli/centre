@@ -380,7 +380,7 @@ export async function createService(options: { port?:number; token?:string; data
     const subject = store.state.subjects.find(x => x.id === (context.subjectId ?? topic?.subjectId ?? resource?.subjectId));
     const {nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty} = store.state.settings;
     const savedResources = store.state.resources.filter(resource => !resource.deletedAt).map(({id,title,kind,subjectId,topicId,createdAt,completedAt}) => ({id,title,kind,subjectId,topicId,createdAt,completedAt}));
-    return { page:context, subject, topic, resource,savedResources,learnerPreferences:{nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty},curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel), subjects:store.state.subjects, topics:store.state.topics, memories:store.state.memories.filter(x => !x.resolvedAt), assistantMemories:store.state.assistantMemories, upcomingWork:store.state.assignments.filter(x => !['completed','submitted'].includes(x.status)), studyEvents:store.state.events.filter(x => !x.completedAt), attempts:store.state.attempts.filter(x => x.resourceId === context.resourceId),availableConnectors:connectors.status().connectors,availableSkills:await listSkills(), date:new Date().toISOString() };
+    return { page:context, subject, topic, resource,savedResources,learnerPreferences:{nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty},curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel), subjects:store.state.subjects, topics:store.state.topics, memories:store.state.memories.filter(x => !x.resolvedAt), assistantMemories:store.state.assistantMemories, upcomingWork:store.state.assignments.filter(x => !['completed','submitted'].includes(x.status)), studyEvents:store.state.events.filter(x => !x.deletedAt && !x.completedAt), attempts:store.state.attempts.filter(x => x.resourceId === context.resourceId),availableConnectors:connectors.status().connectors,availableSkills:await listSkills(), date:new Date().toISOString() };
   }
   async function route(method: string, path: string, value: unknown, searchParams = new URLSearchParams()) {
     const organization = await chatOrganizationRoute(store,method,path,value);
@@ -508,6 +508,12 @@ export async function createService(options: { port?:number; token?:string; data
     if (match) { const id = decodeURIComponent(match[1] ?? ''); if (method === 'GET' && match[2] === 'export') return resources.export(id); if (method === 'POST' && match[2] === 'feedback') { const input = feedbackSchema.omit({ resourceId:true }).strict().parse(value); return resources.feedback(id,input.notes,input.questionIds,input.confident); } }
     if (method === 'POST' && path === '/api/quiz/grade') { const input = gradeSchema.parse(value); return resources.grade(input.resourceId,input.answers); }
     if (method === 'POST' && path === '/api/events') return createEvent(value);
+    match = /^\/api\/events\/([^/]+)\/archive$/.exec(path);
+    if (match && method === 'POST') {
+      const archived = await organato.archiveEvent(decodeURIComponent(match[1] ?? ''),value);
+      await searchIndex.rebuild(store.state);
+      return archived;
+    }
     match = /^\/api\/events\/([^/]+)$/.exec(path);
     if (match && method === 'PATCH') return updateEvent(decodeURIComponent(match[1] ?? ''),value);
     match = /^\/api\/memories\/([^/]+)\/resolve$/.exec(path);

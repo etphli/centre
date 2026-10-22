@@ -129,6 +129,7 @@ function Upcoming({ subjectId }: { subjectId: string }) {
   const today = todayKey();
   const items = [
     ...state.events
+      .filter(event => !event.deletedAt)
       .filter((event) => event.subjectId === subjectId && !event.completedAt && event.date >= today)
       .map((event) => ({ id: event.id, title: event.title, date: event.date, detail: [relativeDay(event.date), formatTime(event.time)].filter(Boolean).join(', '), source: 'Study' })),
     ...state.assignments

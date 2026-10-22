@@ -32,6 +32,7 @@ const routes = [
   ['POST', /^\/api\/resources\/[^/]+\/(feedback|archive|restore|refresh)$/],
   ['POST', /^\/api\/quiz\/grade$/],
   ['POST', /^\/api\/events$/],
+  ['POST', /^\/api\/events\/[^/]+\/archive$/],
   ['PATCH', /^\/api\/events\/[^/]+$/],
   ['POST', /^\/api\/memories\/[^/]+\/resolve$/],
   ['POST', /^\/api\/organato\/(sync|items)$/],
