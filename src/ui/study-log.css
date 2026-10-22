@@ -14,7 +14,7 @@
 .study-week-chart__column:hover { background: var(--surface-2); }
 .study-week-chart__column.is-selected { background: var(--surface-2); color: var(--text); }
 .study-week-chart__track { height: 100px; width: 100%; max-width: 60px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line-strong); }
-.study-week-chart__track > span { width: 100%; background: var(--text-3); border-radius: 3px 3px 0 0; min-height: 2px; }
+.study-week-chart__track > span { width: 100%; background: var(--text-3); border-radius: 3px 3px 0 0; }
 .study-week-chart__column.is-selected .study-week-chart__track > span { background: var(--text-2); }
 .study-week-chart__value { font-variant-numeric: tabular-nums; color: var(--text); }
 .study-caption { color: var(--text-2); font-size: 0.75rem; margin: 16px 0 0; }
@@ -28,7 +28,7 @@
 .study-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
 .study-days__day { display: flex; flex-direction: column; align-items: center; gap: 9px; font-size: 0.6875rem; color: var(--text-2); }
 .study-days__track { height: 90px; width: 16px; background: var(--surface-2); display: flex; align-items: flex-end; border-radius: 3px; overflow: hidden; }
-.study-days__track > span { width: 100%; background: var(--accent); min-height: 1px; }
+.study-days__track > span { width: 100%; background: var(--accent); }
 .study-subjects { border-top: 1px solid var(--line); padding-top: 20px; }
 .study-subjects ul, .study-entries ul { list-style: none; padding: 0; margin: 12px 0 0; }
 .study-subjects li { display: grid; grid-template-columns: minmax(130px, 1fr) 2fr 75px; gap: 24px; align-items: center; margin: 12px 0; font-size: 0.8125rem; }

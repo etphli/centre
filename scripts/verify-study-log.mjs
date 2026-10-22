@@ -52,10 +52,14 @@ const click = text => evaluate('(()=>{const b=[...(document.querySelector("dialo
 const hasLabel = label => '[...document.querySelectorAll("button")].some(b=>b.getAttribute("aria-label")==='+JSON.stringify(label)+'&&!b.disabled)';
 const clickLabel = label => evaluate('(()=>{const b=[...document.querySelectorAll("button")].find(b=>b.getAttribute("aria-label")==='+JSON.stringify(label)+');if(!b)throw new Error("Labelled button missing");b.click();})()');
 async function field(selector, value) { await evaluate('(()=>{const e=document.querySelector('+JSON.stringify(selector)+');Object.getOwnPropertyDescriptor(e.tagName==="TEXTAREA"?HTMLTextAreaElement.prototype:e.tagName==="SELECT"?HTMLSelectElement.prototype:HTMLInputElement.prototype,"value").set.call(e,'+JSON.stringify(value)+');e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));})()'); }
-async function shot(name) { for(let attempt=0;attempt<3;attempt++) { try { await writeFile(shots[name], (await window.webContents.capturePage()).toPNG()); return; } catch(error) { if(attempt===2)throw error; await delay(200); } } }
-async function finish(error) { if(done)return; done=true; if(error)console.error(error); await writeFile(${JSON.stringify(report)}, JSON.stringify({passed:!error,phase:process.env.CENTRE_STUDY_PHASE,checks,errors,screenshots:shots,error:error?.message},null,2)); if(error)app.exit(1);else app.quit(); }
+async function shot(name) {
+  await wait('document.querySelector("h1")?.textContent==="Log"');
+  await evaluate('(async()=>{await Promise.allSettled(document.getAnimations().filter(a=>a.effect?.getComputedTiming().endTime!==Infinity).map(a=>a.finished));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()');
+  for(let attempt=0;attempt<3;attempt++) { try { await writeFile(shots[name], (await window.webContents.capturePage()).toPNG()); return; } catch(error) { if(attempt===2)throw error; await delay(200); } }
+}
+async function finish(error) { if(done)return; done=true; if(error)console.error(error); await writeFile(${JSON.stringify(report)}, JSON.stringify({passed:!error,phase:process.env.CENTRE_STUDY_PHASE,renderer:process.env.CENTRE_RENDERER_URL,checks,errors,screenshots:shots,error:error?.message},null,2)); if(error)app.exit(1);else app.quit(); }
 app.on('browser-window-created', (_event, win) => {
-  if(window)return; window=win; window.setSize(1280,900);
+  if(window)return; window=win; window.setSize(1280,900); window.webContents.setBackgroundThrottling(false);
   window.webContents.on('console-message', event => { if(event.level==='error') errors.push(event.message); });
   window.webContents.once('did-finish-load', async()=>{ try {
     await wait('Boolean(window.centre)&&Boolean(document.querySelector(".study-timer button:not(:disabled)"))');
@@ -91,6 +95,7 @@ app.on('browser-window-created', (_event, win) => {
     await click('Cancel');
     await evaluate('window.dispatchEvent(new CustomEvent("centre:study-log-action",{detail:{id:"native-manual",mode:"manual"}}))');
     await check('Repeated action ID does not reopen a form', '!document.querySelector("dialog[open]")');
+    await check('Zero study days have no filled chart marker', '[...document.querySelectorAll(".study-days__day")].filter(e=>e.textContent.startsWith("0 min")).every(e=>e.querySelector(".study-days__track > span").getBoundingClientRect().height===0)');
     await click('Set weekly aim'); await field('dialog input[type=number]','5'); await click('Save weekly aim');
     await wait('!document.querySelector("dialog[open]")');
     await check('Weekly aim saves and displays progress', 'document.querySelector(".study-aim").textContent.includes("5h weekly aim")');
