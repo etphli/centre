@@ -8,7 +8,7 @@ import {
   eventInterval, type WeekDeadline, type WeekSession,
 } from '../../shared/calendar-time';
 import { useApp } from './context';
-import { EventDialog, RemoveEventDialog } from './Dialogs';
+import { EventDialog, RemoveEventDialog, sessionRemovalDescription } from './Dialogs';
 import { addDays, formatTime, fromDateKey, longDay, relativeDay, toDateKey } from './format';
 import { subjectTint } from './icons';
 import './calendar.css';
@@ -210,7 +210,7 @@ function EventDetails({ event, timeZone, overlaps, onClose, onEdit, onRemove }: 
             <button type="button" className="button button--small" onClick={onEdit}><Pencil size={13} /> Edit or move</button>
             <button type="button" className="button button--small button--quiet event-details__remove" onClick={onRemove}><Trash2 size={13} /> Remove</button>
           </div>
-          <p className="event-details__hint">Done keeps the session on your calendar. Remove takes the plan off it. Neither changes your Log hours, assignments or due dates.</p>
+          <p className="event-details__hint">Done keeps the session on your calendar. {sessionRemovalDescription}</p>
         </>
       ) : event.origin === 'organato' ? (
         <p className="event-details__hint">Organato owns this item. Change it in Organato.</p>

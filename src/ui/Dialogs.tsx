@@ -172,6 +172,8 @@ export function EventDialog({ initialDate, initialEvent, onClose }: { initialDat
   );
 }
 
+export const sessionRemovalDescription = 'Remove archives this session in Organato. Your Log and other assignments stay unchanged.';
+
 export function RemoveEventDialog({event,onClose}:{event:StudyEvent;onClose:()=>void}) {
   const {refresh,notify} = useApp();
   const [busy,setBusy] = useState(false);
@@ -185,8 +187,8 @@ export function RemoveEventDialog({event,onClose}:{event:StudyEvent;onClose:()=>
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'The session could not be removed.'); }
     finally { setBusy(false); }
   }
-  return <Dialog title="Remove study session?" description={event.title} size="sm" onClose={onClose} dismissible={!busy} footer={<><button type="button" className="button button--quiet" disabled={busy} onClick={onClose}>Keep session</button><button type="button" className="button button--danger" disabled={busy} onClick={() => void remove()}>{busy ? 'Removing' : 'Remove session'}</button></>}>
-    <p>This archives the linked study-session item in Organato and removes the planned block from your calendar. It does not mark the session complete or change Log hours.</p>
+  return <Dialog title="Remove study session?" description={event.title} size="sm" onClose={onClose} dismissible={!busy} footer={<><button type="button" className="button button--quiet" disabled={busy} onClick={onClose}>Keep session</button><button type="button" className="button calendar-remove-confirm" disabled={busy} onClick={() => void remove()}>{busy ? 'Removing' : 'Remove session'}</button></>}>
+    <p>{sessionRemovalDescription}</p>
     {error ? <p className="form__error" role="alert">{error}</p> : null}
   </Dialog>;
 }

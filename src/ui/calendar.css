@@ -9,6 +9,16 @@
   border: 0;
 }
 
+.button.calendar-remove-confirm {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger) 55%, var(--line));
+  background: color-mix(in oklab, var(--danger) 9%, var(--surface));
+}
+
+.button.calendar-remove-confirm:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--danger) 17%, var(--surface));
+}
+
 .calendar-head {
   flex-wrap: wrap;
 }
