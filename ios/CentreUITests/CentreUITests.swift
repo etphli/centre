@@ -1,63 +1,190 @@
 import XCTest
 
 final class CentreUITests: XCTestCase {
-    private var app:XCUIApplication!
-    override func setUp() { continueAfterFailure=false;app=XCUIApplication();app.launchArguments=["-ui-testing","-reset-fixture"];app.launch() }
-    private func capture(_ name:String) {
-        let evidence=XCTAttachment(screenshot:app.screenshot());evidence.name=name;evidence.lifetime = .keepAlways;add(evidence)
-    }
-    private func tab(_ name:String) { let button=app.tabBars.buttons[name];XCTAssertTrue(button.waitForExistence(timeout:15));button.tap() }
-    private func waitText(_ text:String) { XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@",text)).firstMatch.waitForExistence(timeout:10),text) }
-    private func restart() { app.terminate();app.launchArguments=["-ui-testing"];app.launch();XCTAssertTrue(app.tabBars.buttons["Resources"].waitForExistence(timeout:15)) }
+    private var app: XCUIApplication!
+    private let quizId = "55dcb531-b6a9-497e-aa7b-955767275ec9"
 
-    func testOfflineNotesQuizAndTimerSurviveRestart() {
-        XCTAssertTrue(app.tabBars.buttons["Chat"].waitForExistence(timeout:15))
-        capture("01-chat-dark-offline")
+    override func setUp() {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-reset-fixture"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Chat"].waitForExistence(timeout: 15))
+    }
+    override func tearDown() { capture("final-\(name)") }
+    private func capture(_ name: String) {
+        let evidence = XCTAttachment(screenshot: app.screenshot())
+        evidence.name = name; evidence.lifetime = .keepAlways; add(evidence)
+    }
+    private func tab(_ name: String) {
+        let button = app.tabBars.buttons[name]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        button.tap()
+        let selected = expectation(for: NSPredicate(format: "selected == true"), evaluatedWith: button)
+        wait(for: [selected], timeout: 10)
+    }
+    private func scrollContainer() -> XCUIElement {
+        if app.collectionViews.firstMatch.exists { return app.collectionViews.firstMatch }
+        if app.tables.firstMatch.exists { return app.tables.firstMatch }
+        if app.scrollViews.firstMatch.exists { return app.scrollViews.firstMatch }
+        return app
+    }
+    private func reveal(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        for _ in 0..<7 {
+            if element.exists && element.isHittable { return }
+            scrollContainer().swipeUp()
+        }
+        XCTAssertTrue(element.exists && element.isHittable, "Element must be reachable by scrolling: \(element)", file: file, line: line)
+    }
+    private func tap(_ id: String) {
+        let button = app.buttons[id]
+        if !button.waitForExistence(timeout: 5) || !button.isHittable { reveal(button) }
+        XCTAssertTrue(button.isEnabled, "Disabled button \(id)")
+        button.tap()
+    }
+    private func waitText(_ text: String) {
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.waitForExistence(timeout: 10), text)
+    }
+    private func restart() {
+        app.terminate(); app.launchArguments = ["-ui-testing"]; app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Resources"].waitForExistence(timeout: 15))
+    }
+    private func openQuiz() {
         tab("Resources")
-        app.buttons["New note"].tap()
-        let title=app.textFields["Title"];XCTAssertTrue(title.waitForExistence(timeout:5));title.tap();title.typeText("Offline cell summary")
-        let body=app.textViews["Note"];body.tap();body.typeText("Mitochondria supply ATP for cell activity.")
-        app.navigationBars.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Offline cell summary"].waitForExistence(timeout:10))
-        capture("02-saved-offline-note")
-        restart();tab("Resources")
-        XCTAssertTrue(app.staticTexts["Offline cell summary"].waitForExistence(timeout:5))
-        app.staticTexts["Cell biology practice"].tap()
-        let choice=app.buttons.containing(NSPredicate(format:"label CONTAINS %@","Mitochondria")).firstMatch
-        XCTAssertTrue(choice.waitForExistence(timeout:5));choice.tap()
-        waitText("Draft saved")
-        capture("03-offline-quiz-draft")
-        restart();tab("Resources");app.staticTexts["Cell biology practice"].tap()
-        let restored=app.buttons.containing(NSPredicate(format:"label CONTAINS %@","Mitochondria")).firstMatch
-        XCTAssertTrue(restored.waitForExistence(timeout:5))
-        XCTAssertTrue(restored.isSelected || String(describing:restored.value ?? "").localizedCaseInsensitiveContains("selected"),"Selected answer must restore from the real persisted draft")
-        tab("Log")
-        let timerTitle=app.textFields["What are you studying?"]
-        XCTAssertTrue(timerTitle.waitForExistence(timeout:5));timerTitle.tap();timerTitle.typeText("Cell biology reading")
-        app.buttons["Start timer"].tap()
-        XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout:5))
-        restart();tab("Log")
-        XCTAssertTrue(app.buttons["Resume"].waitForExistence(timeout:5),"Terminated timer must recover paused")
-        XCTAssertFalse(app.buttons["Pause"].exists)
-        capture("04-log-recovered-paused")
-        app.buttons["Stop"].tap()
-        XCTAssertTrue(app.buttons["Start timer"].waitForExistence(timeout:5))
-        app.buttons["Set a weekly goal"].tap()
-        XCTAssertTrue(app.navigationBars.buttons["Save"].waitForExistence(timeout:5));app.navigationBars.buttons["Save"].tap()
-        XCTAssertTrue(app.buttons["Change weekly goal"].waitForExistence(timeout:5))
-        capture("05-log-weekly-goal")
-        tab("Review")
-        capture("06-review")
-        tab("Calendar")
-        capture("07-offline-calendar-empty-state")
-        app.buttons["Settings"].tap()
-        capture("08-settings-pending-and-provider")
+        let row = app.buttons["resources.row.\(quizId)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
+        XCTAssertTrue(app.staticTexts["quiz.prompt"].waitForExistence(timeout: 5))
     }
 
-    func testLargeTextAndHonestUnconfiguredAccount() {
-        app.terminate();app.launchArguments=["-ui-testing","-reset-fixture","-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"];app.launch()
-        tab("Log");capture("09-accessibility-large-log")
-        XCTAssertTrue(app.buttons["Start timer"].exists)
-        app.buttons["Settings"].tap();capture("10-accessibility-large-settings")
+    func testOfflineNoteBodySurvivesRestart() {
+        capture("01-chat-dark-offline")
+        tab("Resources"); tap("resources.newNote")
+        let title = app.textFields["note.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("Offline cell summary")
+        let body = app.textViews["note.body"]
+        reveal(body); body.tap(); body.typeText("Mitochondria supply ATP for cell activity.")
+        tap("note.save")
+        XCTAssertTrue(app.staticTexts["Offline cell summary"].waitForExistence(timeout: 10))
+        restart(); tab("Resources")
+        let saved = app.staticTexts["Offline cell summary"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 5)); saved.tap()
+        waitText("Mitochondria supply ATP for cell activity.")
+        XCTAssertTrue(app.buttons["note.edit"].exists)
+        capture("02-note-body-restored-from-disk")
     }
+
+    func testOfflineQuizAnswerSurvivesRestartWithoutInventedGrade() {
+        openQuiz(); tap("quiz.choice.0")
+        let draft = app.staticTexts["quiz.draftStatus"]
+        reveal(draft)
+        let saved = expectation(for: NSPredicate(format: "label CONTAINS %@", "Draft saved"), evaluatedWith: draft)
+        wait(for: [saved], timeout: 10)
+        capture("03-offline-quiz-draft")
+        restart(); openQuiz()
+        let restored = app.buttons["quiz.choice.0"]
+        reveal(restored)
+        XCTAssertTrue(restored.isSelected, "Answer selection must restore from the persisted draft")
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "quiz.latestResult").firstMatch.exists, "A saved draft is not a grade")
+        capture("04-quiz-answer-restored")
+    }
+
+    func testTimerRecoversPausedAndCompletedLogAndGoalPersist() {
+        tab("Log")
+        let title = app.textFields["timer.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("Cell biology reading\n")
+        tap("timer.start")
+        XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout: 5))
+        restart(); tab("Log")
+        XCTAssertTrue(app.buttons["timer.resume"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["timer.pause"].exists)
+        waitText("Time while it was closed isn't counted.")
+        waitText("Cell biology reading")
+        capture("05-timer-recovered-paused")
+        tap("timer.stop")
+        XCTAssertTrue(app.buttons["timer.start"].waitForExistence(timeout: 5))
+        tap("goal.edit"); tap("goal.save")
+        let goal = app.buttons["goal.edit"]
+        reveal(goal); XCTAssertEqual(goal.label, "Change weekly goal")
+        restart(); tab("Log")
+        reveal(app.buttons["goal.edit"])
+        XCTAssertEqual(app.buttons["goal.edit"].label, "Change weekly goal")
+        let completed = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "log.session.", "Cell biology reading")).firstMatch
+        reveal(completed)
+        capture("06-completed-log-and-goal-restored")
+    }
+
+    func testReviewCalendarAndSettingsReportOfflineState() {
+        tab("Review")
+        let review = app.descendants(matching: .any).matching(identifier: "review.item.28a04f7b-70e9-44f2-925a-5c7559791aa4").firstMatch
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        capture("07-review-saved-memory")
+        tab("Calendar")
+        XCTAssertTrue(app.buttons["calendar.nextWeek"].waitForExistence(timeout: 5))
+        tap("calendar.nextWeek"); tap("calendar.previousWeek")
+        capture("08-offline-calendar")
+        tap("settings.open")
+        let pending = app.descendants(matching: .any).matching(identifier: "settings.pending").firstMatch
+        XCTAssertTrue(pending.waitForExistence(timeout: 5))
+        let waiting = pending.label + " " + String(describing: pending.value ?? "")
+        XCTAssertTrue(waiting.range(of: "[1-9][0-9]* changes?", options: .regularExpression) != nil, "Offline pending edits must remain visible")
+        waitText("All changes stay on this simulator.")
+        reveal(app.staticTexts["Llama 3.1 in Centre Cloud"])
+        capture("09-settings-pending-and-provider")
+        tap("settings.done")
+        XCTAssertTrue(app.buttons["settings.open"].waitForExistence(timeout: 5))
+    }
+
+    func testLargeTextLogControlsRemainReachable() {
+        app.terminate()
+        app.launchArguments = ["-ui-testing", "-reset-fixture", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch(); tab("Log")
+        let title = app.textFields["timer.title"]
+        reveal(title); title.tap(); title.typeText("Large text revision\n")
+        tap("timer.start")
+        reveal(app.buttons["timer.pause"])
+        capture("10-accessibility-large-log")
+        tap("settings.open")
+        XCTAssertTrue(app.buttons["settings.done"].waitForExistence(timeout: 5))
+        let pending = app.descendants(matching: .any).matching(identifier: "settings.pending").firstMatch
+        reveal(pending)
+        capture("11-accessibility-large-settings")
+    }
+
+    func testUnconfiguredAccountRequiresConnectionAndRejectsCredentialURL() {
+        app.terminate(); app.launchArguments = ["-ui-testing-unconfigured"]; app.launch()
+        let address = app.textFields["connect.url"]
+        XCTAssertTrue(address.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.tabBars.buttons["Chat"].exists)
+        XCTAssertFalse(app.buttons["connect.pair"].isEnabled)
+        XCTAssertTrue(app.buttons["connect.google"].exists)
+        address.tap(); address.typeText("https://user:password@cloud.invalid")
+        let code = app.textFields["connect.code"]
+        code.tap(); code.typeText(String(repeating: "x", count: 43) + "\n")
+        tap("connect.pair")
+        let error = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "without a path or credentials")).firstMatch
+        reveal(error)
+        XCTAssertFalse(app.tabBars.buttons["Chat"].exists, "Invalid address must not fabricate a connected account")
+        capture("12-unconfigured-account-rejects-credential-url")
+    }
+
+
+    func testSavedDiagramCancelsExternalNavigation() {
+        tab("Resources")
+        let row = app.buttons["resources.row.fdd186b8-aea0-4d85-9538-390f076f0379"]
+        reveal(row); row.tap()
+        let drawing = app.webViews.firstMatch
+        XCTAssertTrue(drawing.waitForExistence(timeout: 10))
+        let localText = drawing.staticTexts["Saved drawing stays here"]
+        XCTAssertTrue(localText.waitForExistence(timeout: 10))
+        let externalLink = drawing.links["Attempt external navigation"]
+        XCTAssertTrue(externalLink.exists); externalLink.tap()
+        let blocked = app.staticTexts["diagram.blockedNavigationCount"]
+        XCTAssertTrue(blocked.waitForExistence(timeout: 10))
+        let cancelled = expectation(for: NSPredicate(format: "label == %@", "1 navigation blocked"), evaluatedWith: blocked)
+        wait(for: [cancelled], timeout: 10)
+        XCTAssertTrue(localText.exists)
+        XCTAssertEqual(app.state, .runningForeground)
+        capture("13-saved-diagram-navigation-cancelled")
+    }
+
 }
