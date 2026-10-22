@@ -224,7 +224,7 @@ test("mounted Organato connection authenticates, encrypts credentials and exclud
       const request = new Request(input, init);
       assert.equal(request.url, "https://organato.test/api/v1/subjects");
       assert.equal(request.headers.get("Authorization"), "Bearer " + apiKey);
-      assert.equal(request.redirect, "error");
+      assert.equal(request.redirect, "manual");
       return Response.json({ subjects: [] });
     },
   );

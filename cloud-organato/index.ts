@@ -314,7 +314,7 @@ async function remote(
   try {
     const response = await fetch(c.base_url + path, {
       method,
-      redirect: "error",
+      redirect: "manual",
       signal: controller.signal,
       headers: {
         Authorization: `Bearer ${key}`,
@@ -324,6 +324,15 @@ async function remote(
       },
       ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
     });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new Failure(
+        502,
+        "upstream_redirect",
+        "Organato redirects are not followed.",
+        method !== "GET",
+      );
+    }
     if (!response.ok) {
       await response.body?.cancel();
       const state =

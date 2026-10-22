@@ -94,7 +94,7 @@ export class Fixture {
   readonly fetch:typeof fetch = async (input,init) => {
     const request=new Request(input,init);
     assert.equal(new URL(request.url).origin,'https://organato.test','No fixture request may reach a real service');
-    assert.equal(request.redirect,'error');
+    assert.equal(request.redirect,'manual','Workers supports manual redirects; callers must reject redirect responses explicitly');
     assert.equal(request.headers.get('authorization'),`Bearer ${this.token}`);
     const body=request.method === 'GET' ? null : object.parse(await request.clone().json());
     this.calls.push({url:request.url,method:request.method,body});

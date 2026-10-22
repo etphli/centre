@@ -4,14 +4,16 @@
   "main": "index.ts",
   "compatibility_date": "2026-10-22",
   "workers_dev": true,
-  "d1_databases": [{
-    "binding": "DB",
-    "database_name": "centre-production",
-    "database_id": "00000000-0000-0000-0000-000000000000",
-    "migrations_dir": "migrations"
-  }],
-  "vars": {
-    "GOOGLE_CLIENT_IDS": "",
-    "GOOGLE_ALLOWED_SUBJECTS": ""
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "centre-production",
+      "database_id": "16c45b97-0c59-4293-9c79-e1f1aa0ef081",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "account_id": "9a11949235ee2de5a154b31a725c464b",
+  "ai": {
+    "binding": "AI"
   }
 }

@@ -60,9 +60,21 @@ test('cloud Organato contract against actual migration and isolated SQLite',asyn
       assert.equal((await f.request('/connection','POST',{apiKey:f.token,baseUrl})).status,400);
     }
     assert.equal(f.calls.length,0);
-    f.intercept=async request => {assert.equal(request.redirect,'error');throw new TypeError('fetch failed: redirect');};
-    assert.equal((await f.request('/connection','POST',{apiKey:f.token,baseUrl:'https://organato.test/api/v1'})).status,502);
+    f.intercept=async request => {assert.equal(request.redirect,'manual');return new Response(null,{status:302,headers:{Location:'https://evil.test/steal'}});};
+    const redirected=await f.request('/connection','POST',{apiKey:f.token,baseUrl:'https://organato.test/api/v1'});
+    assert.equal(redirected.status,502);assert.equal(object.parse(redirected.body.error).code,'upstream_redirect');
     assert.equal(f.calls.length,1);assert.equal((await f.request('/connection')).body.state,'unconfigured');
+  });
+
+  await t.test('a write redirect remains ambiguous and exact retries never replay it',async()=>{
+    await f.connect();
+    f.intercept=async request => request.method==='POST' ? new Response(null,{status:307,headers:{Location:'https://evil.test/steal'}}) : null;
+    const {data,operationId,result}=await f.create();
+    assert.equal(result.status,202);assert.equal(receipt(result.body).status,'unknown');
+    assert.equal(receipt(result.body).error?.code,'write_unconfirmed');
+    const repeated=await f.request('/sessions','POST',{operationId,id:data.id,data});
+    assert.equal(receipt(repeated.body).status,'unknown');
+    assert.equal(f.externalWrites().length,1);assert.equal(f.writes.length,0);assert.equal(f.items.size,0);
   });
 
   await t.test('request and upstream stream byte limits apply without content-length',async () => {

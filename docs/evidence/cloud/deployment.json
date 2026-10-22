@@ -1,0 +1,67 @@
+{
+  "origin": "https://centre-cloud.etphli.workers.dev",
+  "checkedAt": "2026-10-22T20:21:12.884Z",
+  "checks": [
+    "Unauthenticated access and invalid Google identity denied",
+    "Authenticated deployed router and independent D1 binding",
+    "Durable record write, exact retry, stale CAS rejection and two-workspace isolation",
+    "One-time native pairing, rejected replay and device revocation",
+    "REAL Workers AI inference, durable assistant message, replay and foreign-run denial",
+    "Archived chat blocks later AI result access"
+  ],
+  "liveGoogleLogin": false,
+  "liveOrganatoWrites": false,
+  "passed": true,
+  "liveAi": {
+    "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+    "status": "completed",
+    "responseCharacters": 5
+  },
+  "revokedTemporaryDevices": 3,
+  "identityProof": "Short-lived administrative verification sessions, not a live Google login. Dummy records remain only in isolated verification workspaces.",
+  "organato": {
+    "origin": "https://centre-cloud.etphli.workers.dev",
+    "credentialAvailable": true,
+    "organatoWrites": false,
+    "passed": true,
+    "provisioned": true,
+    "liveSnapshot": {
+      "subjects": 10,
+      "assignments": 10,
+      "events": 2
+    },
+    "temporarySessionRevoked": true,
+    "identityProof": "Deployment admin session scoped to the current account verified Google subject. Existing API key transferred only over TLS to Centre own workspace and encrypted by Worker; no Organato write or library upload."
+  },
+  "workerVersion": "9ee95d5b-4ef8-4214-bbed-570cb45320ca",
+  "databaseId": "16c45b97-0c59-4293-9c79-e1f1aa0ef081",
+  "migrationsApplied": 4,
+  "plan": "Workers Free; custom CPU limit rejected by Cloudflare with error 100328; no paid plan configured.",
+  "localVerification": {
+    "tests": 398,
+    "failed": 0,
+    "typecheck": "pass",
+    "productionRendererBuild": "pass",
+    "electronBuild": "pass",
+    "workerDryRun": "pass",
+    "nativeDesktopFlows": 46,
+    "rendererErrors": 0,
+    "textSizes": [
+      "small",
+      "standard",
+      "large"
+    ],
+    "persistedAfterReload": "large",
+    "cloudOrganatoTests": 61
+  },
+  "nativeDistribution": {
+    "downloadAvailable": false,
+    "xcodeAvailable": false,
+    "signingIdentities": 0,
+    "portableVerifierChecks": 5,
+    "transportSimulated": true,
+    "finalSettingsTintSimulatorCapture": "unverified",
+    "priorSimulatorFlows": 12,
+    "priorCoreTests": 64
+  }
+}

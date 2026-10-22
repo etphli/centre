@@ -1,6 +1,6 @@
 # Centre cloud foundation
 
-Centre owns a separate Cloudflare Worker and D1 database. `cloud/wrangler.jsonc` contains a placeholder database ID. It must never bind Organato's database. Organato remains the authority for imported subjects, assignments and calendar items through its authenticated API.
+Centre owns a separate Cloudflare Worker and D1 database. `cloud/wrangler.jsonc` binds the deployed Centre database `16c45b97-0c59-4293-9c79-e1f1aa0ef081`. The private service is `https://centre-cloud.etphli.workers.dev` on Workers Free. It must never bind Organato's database. Organato remains the authority for imported subjects, assignments and calendar items through its authenticated API.
 
 Local study works without cloud configuration. Connections offers a separate Google sign-in and an explicit **Import and enable sync** action. Import first persists a private local backup, verifies the account/device binding, and records pending mutations. Sign-in alone uploads no study records. Disconnect keeps local and cloud data.
 
@@ -53,7 +53,7 @@ The Organato module owns encrypted per-workspace connector state and its operati
 
 Store transactions stage before writing and publish after rename. They re-prepare if legacy callers changed live state during an awaited write. Chat/resource imports preserve live object identity so an asynchronous response does not write to a detached object. Conflict decisions run inside the same queue. Imported running timers remain pending recovery edits.
 
-Search PR #11 must rebuild its local index from committed source records after sync applies them. Its derived data must never be copied into D1. Chat PR #14, checklist PR #15, practice PR #16 and iOS PR #13 still own their full domain/UI implementations; this branch imports only their documented portable boundaries and hosted modules. These combined feature flows require integration verification when those PRs join main.
+Search PR #11 must rebuild its local index from committed source records after sync applies them. Its derived data must never be copied into D1. Chat PR #14, checklist PR #15, practice PR #16 and iOS PR #13 are merged. The combined source passed 396 local tests before deployment. Deployment verification is recorded in `docs/evidence/cloud/deployment.json`; native distribution remains separately blocked.
 
 ## Verification
 
