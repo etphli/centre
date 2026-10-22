@@ -1,5 +1,5 @@
 // Override in Config.local.xcconfig. Public client identifiers are not secrets.
-CENTRE_CLOUD_URL =
+CENTRE_CLOUD_URL = https:/$()/centre-cloud.etphli.workers.dev
 GOOGLE_IOS_CLIENT_ID =
 GOOGLE_SERVER_CLIENT_ID =
 GOOGLE_REVERSED_CLIENT_ID = centre-google-unconfigured
