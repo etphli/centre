@@ -8,7 +8,7 @@ type TestQuestion = Resource['questions'][number];
 
 const question: TestQuestion = {
   id: 'triangle',
-  responseType: 'multiple_choice',
+  concept:'', responseType: 'multiple_choice',
   choices: [
     'x = √(13² + 5²)',
     'x = 13 − 5',

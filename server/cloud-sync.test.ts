@@ -7,19 +7,20 @@ import { test, type TestContext } from 'node:test';
 import { z } from 'zod';
 import { createCloudTestHarness } from '../cloud/test-support';
 import { cloudChangesSchema, cloudMutationSchema, cloudRecordSchema } from '../shared/cloud';
-import { attemptSchema, assistantMemorySchema, chatSchema, memorySchema, resourceSchema } from '../shared/schema';
+import { attemptSchema, assistantMemorySchema, chatSchema, memorySchema, resourceSchema, snapshotSchema, messageSchema } from '../shared/schema';
 import { studySessionSchema, weeklyStudyGoalSchema } from '../shared/study-log';
 import { canShareChatAttachment } from '../shared/chat-lineage';
 import { cloudAttachmentSchema } from '../shared/cloud-entities';
 import { AttachmentStore } from './attachments';
 import { CloudSync } from './cloud-sync';
 import type { CredentialName, Credentials } from './credentials';
-import { Store } from './store';
+import { Store, writeStateFile } from './store';
+import { StudyLogService } from './study-log';
 
 const instant = '2026-10-22T00:00:00.000Z';
 type Harness = Awaited<ReturnType<typeof createCloudTestHarness>>;
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
-const journalSchema = z.object({ cursor: z.string(), outbox: z.array(cloudMutationSchema), shadow: z.record(z.string(), cloudRecordSchema), conflicts: z.record(z.string(), cloudRecordSchema) });
+const journalSchema = z.object({ cursor: z.string(), outbox: z.array(cloudMutationSchema), shadow: z.record(z.string(), cloudRecordSchema), conflicts: z.record(z.string(), cloudRecordSchema), materialized: z.array(z.string()) });
 async function journal(directory: string) { return journalSchema.parse(JSON.parse(await readFile(join(directory, 'cloud-sync.json'), 'utf8'))); }
 async function backend(t: TestContext) {
   const cloud = await createCloudTestHarness();
@@ -28,7 +29,6 @@ async function backend(t: TestContext) {
 }
 async function device(t: TestContext, cloud: Harness, fetcher: Fetcher = cloud.fetch) {
   const directory = await mkdtemp(join(tmpdir(), 'centre-cloud-test-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
   const values = new Map<CredentialName, string>();
   const credentials: Pick<Credentials, 'get' | 'set'> = {
     async get(name) { return values.get(name) ?? ''; },
@@ -36,6 +36,7 @@ async function device(t: TestContext, cloud: Harness, fetcher: Fetcher = cloud.f
   };
   const store = await Store.open(directory), attachments = new AttachmentStore(directory);
   const sync = await CloudSync.open(store, credentials, attachments, fetcher);
+  t.after(async () => { await sync.close(); await rm(directory, { recursive: true, force: true }); });
   await sync.configure('https://centre.example');
   await sync.authenticate(await cloud.identity('alice'));
   return { directory, store, attachments, credentials, sync, fetcher };
@@ -61,13 +62,14 @@ function chat(attachmentIds: string[] = []) {
 test('explicit import backs up existing study data and roundtrips portable records across persisted devices', async t => {
   const cloud = await backend(t), a = await device(t, cloud);
   await a.credentials.set('organatoApiKey', 'secret-organato-key');
+  const attemptId = randomUUID(), learnerMemoryId = randomUUID();
   await a.store.update(state => {
     state.resources.push(resource()); state.chats.push(chat());
     state.chatFolders.push({ id: 'folder', name: 'Maths', sortOrder: 1, collapsed: true });
     state.topics.push({ id: 'topic', subjectId: 'maths', name: 'Algebra', description: 'Polynomials' });
-    state.attempts.push(attemptSchema.parse({ id: randomUUID(), resourceId: 'notes', answers: { q: 'x' }, result: { score: 1, total: 1, feedback: [] }, createdAt: instant }));
+    state.attempts.push(attemptSchema.parse({ id: attemptId, resourceId: 'notes', answers: { q: 'x' }, result: { score: 1, total: 1, feedback: [] }, createdAt: instant }));
     state.memories.push(memorySchema.parse({ id: 'review', subjectId: null, topicId: null, resourceId: 'notes', question: 'Factor?', note: 'Review signs', createdAt: instant, nextReviewAt: instant }));
-    state.assistantMemories.push(assistantMemorySchema.parse({ id: randomUUID(), key: 'learning', content: 'Use worked examples', createdAt: instant, updatedAt: instant }));
+    state.assistantMemories.push(assistantMemorySchema.parse({ id: learnerMemoryId, key: 'learning', content: 'Use worked examples', createdAt: instant, updatedAt: instant }));
     state.settings.theme = 'midnight'; state.settings.googleClientId = 'private-google-client';
     state.settings.account = { name: 'Private Account', email: 'private@example.com' };
     state.activeResponses.push({ chatId: 'chat', startedAt: 1, status: 'working' });
@@ -384,7 +386,9 @@ test('concurrent weekly goals require resolution and converge on one persisted g
   assert.deepEqual(b.store.state.studyLog.goals, [second]);
   const reopened = await reopen(b);
   await reopened.sync.resolve('studyGoal', second.id, 'local');
-  assert.equal((await reopened.sync.sync()).error, null);
+  const resolved = await reopened.sync.sync();
+  assert.equal(resolved.error, null);
+  assert.deepEqual(resolved.conflicts, []);
   const remoteGoals = (await changes(cloud, reopened)).filter(value => value.kind === 'studyGoal' && !value.deleted);
   assert.equal(remoteGoals.length, 1);
   assert.equal(remoteGoals[0]?.id, first.id);
@@ -393,4 +397,216 @@ test('concurrent weekly goals require resolution and converge on one persisted g
   assert.equal(reopened.store.state.studyLog.goals[0]?.id, first.id);
   assert.equal((await a.sync.sync()).error, null);
   assert.equal(a.store.state.studyLog.goals[0]?.targetMinutes, 240);
+});
+
+test('failed state writes do not acknowledge remote imports and deferred messages materialize once on retry', async t => {
+  const cloud = await backend(t), a = await device(t, cloud);
+  assert.equal((await a.sync.enableImport()).error, null);
+  let failResource = true, failDeferred = false;
+  const store = await Store.open(a.directory, async (directory, content) => {
+    const proposed = snapshotSchema.parse(JSON.parse(content));
+    if (failResource && proposed.resources.some(value => value.id === 'write-failure-resource')) {
+      failResource = false;
+      throw new Error('Injected resource persistence failure');
+    }
+    if (failDeferred && proposed.chats.some(value => value.id === 'write-failure-chat' && value.messages.some(message => message.id === 'write-failure-message'))) {
+      failDeferred = false;
+      throw new Error('Injected deferred-message persistence failure');
+    }
+    await writeStateFile(directory, content);
+  });
+  const sync = await CloudSync.open(store, a.credentials, a.attachments, a.fetcher);
+  const initialJournal = await journal(a.directory);
+  const initialStateFile = await readFile(join(a.directory, 'state.json'), 'utf8');
+  await seed(cloud, a, 'resource', 'write-failure-resource', resource('write-failure-resource'));
+  assert.match((await sync.sync()).error ?? '', /Injected resource persistence failure/);
+  assert.equal(store.state.resources.length, 0);
+  assert.equal(await readFile(join(a.directory, 'state.json'), 'utf8'), initialStateFile);
+  const failedJournal = await journal(a.directory);
+  assert.equal(failedJournal.cursor, initialJournal.cursor);
+  assert.deepEqual(failedJournal.shadow, initialJournal.shadow);
+  assert.deepEqual(failedJournal.materialized, initialJournal.materialized);
+  assert.equal((await sync.sync()).error, null);
+  assert.equal(store.state.resources.filter(value => value.id === 'write-failure-resource').length, 1);
+  assert.equal((await Store.open(a.directory)).state.resources.filter(value => value.id === 'write-failure-resource').length, 1);
+  await seed(cloud, a, 'message', 'write-failure-message', { id: 'write-failure-message', chatId: 'write-failure-chat', role: 'assistant', content: 'Deferred import survives a failed write', createdAt: instant, responseDurationMs: null, resourceIds: [], attachmentIds: [], requestContext: null });
+  assert.equal((await sync.sync()).error, null);
+  const deferredJournal = await journal(a.directory);
+  assert.ok(deferredJournal.shadow['message:write-failure-message']);
+  assert.ok(!deferredJournal.materialized.includes('message:write-failure-message'));
+  await seed(cloud, a, 'chat', 'write-failure-chat', { id: 'write-failure-chat', title: 'Deferred chat', createdAt: instant, updatedAt: instant, deletedAt: null, pinnedAt: null, folderId: null, sortOrder: 0, modelSelection: null, lineage: { schemaVersion: 1, kind: 'root' } });
+  failDeferred = true;
+  assert.match((await sync.sync()).error ?? '', /Injected deferred-message persistence failure/);
+  assert.deepEqual(store.state.chats.find(value => value.id === 'write-failure-chat')?.messages, []);
+  assert.deepEqual((await Store.open(a.directory)).state.chats.find(value => value.id === 'write-failure-chat')?.messages, []);
+  const interrupted = await journal(a.directory);
+  assert.equal(interrupted.cursor, deferredJournal.cursor);
+  assert.ok(!interrupted.materialized.includes('message:write-failure-message'));
+  assert.equal((await sync.sync()).error, null);
+  assert.equal((await sync.sync()).error, null);
+  const localMessages = store.state.chats.find(value => value.id === 'write-failure-chat')?.messages;
+  const diskMessages = (await Store.open(a.directory)).state.chats.find(value => value.id === 'write-failure-chat')?.messages;
+  assert.ok(localMessages);
+  assert.equal(localMessages.length, 1);
+  assert.equal(localMessages[0]?.content, 'Deferred import survives a failed write');
+  assert.deepEqual(diskMessages, localMessages);
+  assert.equal((await journal(a.directory)).materialized.filter(key => key === 'message:write-failure-message').length, 1);
+});
+
+test('a local study entry queued during cloud persistence preserves both sessions on disk', async t => {
+  const cloud = await backend(t), a = await device(t, cloud);
+  assert.equal((await a.sync.enableImport()).error, null);
+  const remoteId = randomUUID(), localId = randomUUID();
+  let queued = false;
+  let localWrite: Promise<unknown> | undefined;
+  let service: StudyLogService | undefined;
+  const store = await Store.open(a.directory, async (directory, content) => {
+    const proposed = snapshotSchema.parse(JSON.parse(content));
+    if (!queued && proposed.studyLog.sessions.some(value => value.id === remoteId)) {
+      queued = true;
+      assert.ok(service);
+      localWrite = service.route('POST', '/api/study-log/sessions', {
+        id: localId, subjectId: null, taskId: null, title: 'Concurrent local study', notes: '', timeZone: 'Australia/Sydney',
+        segments: [{ start: '2026-10-22T01:00:00.000Z', end: '2026-10-22T01:15:00.000Z' }],
+      });
+    }
+    await writeStateFile(directory, content);
+  });
+  service = new StudyLogService(store, () => Date.parse('2026-10-22T02:00:00.000Z'));
+  const sync = await CloudSync.open(store, a.credentials, a.attachments, a.fetcher);
+  const remote = studySessionSchema.parse({
+    schemaVersion: 1, id: remoteId, revision: 1, createdAt: instant, updatedAt: instant, deletedAt: null,
+    subjectId: null, taskId: null, title: 'Imported cloud study', notes: '', timeZone: 'Australia/Sydney', source: 'manual',
+    segments: [{ start: instant, end: '2026-10-22T00:15:00.000Z' }], state: { kind: 'completed' },
+  });
+  await seed(cloud, a, 'studySession', remoteId, remote);
+  assert.equal((await sync.sync()).error, null);
+  assert.ok(localWrite);
+  await localWrite;
+  const expectedIds = [remoteId, localId].sort();
+  assert.deepEqual(store.state.studyLog.sessions.map(value => value.id).sort(), expectedIds);
+  const reopened = await Store.open(a.directory);
+  assert.deepEqual(reopened.state.studyLog.sessions, store.state.studyLog.sessions);
+  assert.equal((await sync.sync()).error, null);
+  assert.deepEqual((await changes(cloud, a)).filter(value => value.kind === 'studySession' && !value.deleted).map(value => value.id).sort(), expectedIds);
+});
+
+test('direct resource edits during an awaited import write remain local and require conflict resolution', async t => {
+  const cloud = await backend(t), a = await device(t, cloud);
+  await a.store.update(state => { state.resources.push(resource()); });
+  await a.sync.enableImport();
+  const b = await device(t, cloud); await b.sync.enableImport();
+  await b.store.update(state => { state.resources[0]!.content = 'Remote content awaiting persistence'; });
+  assert.equal((await b.sync.sync()).error, null);
+  let inject = true;
+  let retained: ReturnType<typeof resource> | undefined;
+  let queuedSave: Promise<void> | undefined;
+  const store = await Store.open(a.directory, async (directory, content) => {
+    const proposed = snapshotSchema.parse(JSON.parse(content));
+    if (inject && proposed.resources.some(value => value.content === 'Remote content awaiting persistence')) {
+      inject = false;
+      assert.ok(retained);
+      retained.content = 'Direct local edit during awaited writer';
+      queuedSave = store.save();
+    }
+    await writeStateFile(directory, content);
+  });
+  retained = store.state.resources[0];
+  assert.ok(retained);
+  const sync = await CloudSync.open(store, a.credentials, a.attachments, a.fetcher);
+  t.after(() => sync.close());
+  const result = await sync.sync();
+  assert.ok(queuedSave);
+  await queuedSave;
+  assert.deepEqual(result.conflicts.map(({ kind, id }) => ({ kind, id })), [{ kind: 'resource', id: 'notes' }]);
+  assert.equal(store.state.resources[0], retained);
+  assert.equal(retained.content, 'Direct local edit during awaited writer');
+  assert.equal((await Store.open(a.directory)).state.resources[0]?.content, retained.content);
+  assert.equal((await changes(cloud, b)).find(value => value.kind === 'resource')?.data?.content, 'Remote content awaiting persistence');
+  await sync.resolve('resource', 'notes', 'local');
+  assert.equal((await sync.sync()).error, null);
+  assert.equal((await changes(cloud, b)).find(value => value.kind === 'resource')?.data?.content, retained.content);
+});
+
+test('a retained chat reference survives a remote title import and saves a later assistant message', async t => {
+  const cloud = await backend(t), a = await device(t, cloud);
+  await a.store.update(state => { state.chats.push(chat()); });
+  await a.sync.enableImport();
+  const retained = a.store.state.chats[0];
+  assert.ok(retained);
+  const b = await device(t, cloud); await b.sync.enableImport();
+  await b.store.update(state => { state.chats[0]!.title = 'Cloud title for retained chat'; });
+  assert.equal((await b.sync.sync()).error, null);
+  const imported = await a.sync.sync();
+  assert.equal(imported.error, null);
+  assert.deepEqual(imported.conflicts, []);
+  assert.equal(a.store.state.chats[0], retained);
+  assert.equal(retained.title, 'Cloud title for retained chat');
+  assert.equal(retained.codexThreadId, 'private-cli-thread');
+  assert.equal(retained.activity[0]?.text, 'private terminal activity');
+  retained.messages.push(messageSchema.parse({ id: 'retained-reference-assistant', role: 'assistant', content: 'Assistant completed through its retained chat reference', createdAt: '2026-10-22T00:01:00.000Z' }));
+  await a.store.save();
+  await a.sync.close();
+  assert.equal(a.store.state.chats[0]?.messages.filter(value => value.id === 'retained-reference-assistant').length, 1);
+  assert.equal((await Store.open(a.directory)).state.chats[0]?.messages.find(value => value.id === 'retained-reference-assistant')?.content, 'Assistant completed through its retained chat reference');
+  const savedJournal = await journal(a.directory);
+  assert.ok(savedJournal.outbox.some(value => value.kind === 'message' && value.id === 'retained-reference-assistant'));
+  const reopened = await reopen(a);
+  assert.equal((await reopened.sync.sync()).error, null);
+  assert.equal((await changes(cloud, reopened)).find(value => value.kind === 'message' && value.id === 'retained-reference-assistant')?.data?.content, 'Assistant completed through its retained chat reference');
+});
+
+test('removing the only attachment message cancels an interrupted stage and releases quota after restart', async t => {
+  const cloud = await backend(t);
+  let loseChunkResponse = true, loseCancellationResponse = false;
+  const a = await device(t, cloud, async (input, init) => {
+    const response = await cloud.fetch(input, init);
+    if (loseChunkResponse && /\/chunks\/0$/.test(new URL(input).pathname) && init?.method === 'PUT') {
+      loseChunkResponse = false;
+      assert.equal(response.status, 200);
+      throw new Error('Chunk response lost after storage');
+    }
+    if (loseCancellationResponse && new URL(input).pathname === '/v1/records' && init?.method === 'POST') {
+      const mutation = cloudMutationSchema.parse(JSON.parse(String(init.body)));
+      if (mutation.kind === 'attachment' && mutation.deleted) {
+        loseCancellationResponse = false;
+        assert.equal(response.status, 200);
+        throw new Error('Cancellation response lost after storage');
+      }
+    }
+    return response;
+  });
+  const bytes = Buffer.from('Cancel this abandoned attachment stage');
+  const attachment = await a.attachments.upload({ name: 'abandoned.txt', mimeType: 'text/plain', data: bytes.toString('base64') });
+  await a.store.update(state => { state.chats.push(chat([attachment.id])); });
+  assert.match((await a.sync.enableImport()).error ?? '', /Chunk response lost after storage/);
+  const workspaceId = (await a.sync.status()).workspaceId;
+  assert.ok(workspaceId);
+  assert.equal(cloud.db.sqlite.prepare('SELECT complete FROM centre_attachment WHERE workspace=? AND id=?').get(workspaceId, attachment.id)?.complete, 0);
+  assert.equal(cloud.db.sqlite.prepare('SELECT attachment_bytes FROM centre_workspace_usage WHERE workspace=?').get(workspaceId)?.attachment_bytes, bytes.length);
+  const readStages = async () => z.object({ uploads: z.record(z.string(), z.object({ mutationId: z.string(), cancelMutationId: z.string().optional() })), downloads: z.array(z.string()) }).parse(JSON.parse(await readFile(join(a.directory, 'cloud-sync.json'), 'utf8')));
+  assert.ok((await readStages()).uploads[attachment.id]);
+  await a.store.update(state => { state.chats[0]!.messages = []; });
+  loseCancellationResponse = true;
+  assert.match((await a.sync.sync()).error ?? '', /Cancellation response lost after storage/);
+  const interrupted = await readStages();
+  const cancellationId = interrupted.uploads[attachment.id]?.cancelMutationId;
+  assert.ok(cancellationId);
+  await a.sync.close();
+  const reopened = await reopen(a);
+  assert.equal((await reopened.sync.sync()).error, null);
+  assert.equal((await reopened.sync.sync()).pending, 0);
+  assert.deepEqual((await readStages()).uploads, {});
+  assert.deepEqual((await readStages()).downloads, []);
+  assert.deepEqual(reopened.store.state.chats[0]?.messages, []);
+  const remote = (await changes(cloud, reopened)).find(value => value.kind === 'attachment' && value.id === attachment.id);
+  assert.equal(remote?.deleted, true);
+  assert.equal(remote?.version, 1);
+  assert.equal(cloud.db.sqlite.prepare('SELECT count(*) AS count FROM centre_mutation WHERE workspace=? AND mutation_id=?').get(workspaceId, cancellationId)?.count, 1);
+  const stage = cloud.db.sqlite.prepare('SELECT complete,size FROM centre_attachment WHERE workspace=? AND id=?').get(workspaceId, attachment.id);
+  assert.equal(stage?.complete, 0);
+  assert.equal(stage?.size, 0);
+  assert.equal(cloud.db.sqlite.prepare('SELECT attachment_bytes FROM centre_workspace_usage WHERE workspace=?').get(workspaceId)?.attachment_bytes, 0);
+  assert.equal(cloud.db.sqlite.prepare('SELECT count(*) AS count FROM centre_chunk WHERE workspace=? AND id=?').get(workspaceId, attachment.id)?.count, 0);
+  await assert.rejects(reopened.attachments.exportContent(attachment.id), /deleted/);
 });

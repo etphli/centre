@@ -40,8 +40,8 @@ test('test sections use fixed response order, omit empty groups, and keep source
     marks: section.marks,
     questionIds: section.questions.map(question => question.id),
   })), [
-    { letter: 'A', name: 'Multiple choice', responseType: 'multiple_choice', startNumber: 1, questionCount: 1, marks: 1, questionIds: ['mc-one'] },
-    { letter: 'B', name: 'Short response', responseType: 'short_response', startNumber: 2, questionCount: 2, marks: 5, questionIds: ['short-one', 'short-two'] },
+    { letter: 'A', name: 'Multiple choice', concept:'', responseType: 'multiple_choice', startNumber: 1, questionCount: 1, marks: 1, questionIds: ['mc-one'] },
+    { letter: 'B', name: 'Short response', concept:'', responseType: 'short_response', startNumber: 2, questionCount: 2, marks: 5, questionIds: ['short-one', 'short-two'] },
     { letter: 'C', name: 'Long response', responseType: 'long_response', startNumber: 4, questionCount: 1, marks: 5, questionIds: ['long-one'] },
   ]);
   assert.equal(sections[0]?.questions[0], questions[2]);

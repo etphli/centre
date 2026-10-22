@@ -9,7 +9,7 @@ import type { Snapshot } from '../shared/schema';
 import { weeklyStudyGoalSchema } from '../shared/study-log';
 import { learningNeedSchema } from '../shared/practice';
 import { canShareChatAttachment } from '../shared/chat-lineage';
-import { Store } from './store';
+import { Store, type StoreMutation } from './store';
 import type { Credentials } from './credentials';
 import { AttachmentStore } from './attachments';
 import { HttpError, errorMessage } from './errors';
@@ -18,7 +18,7 @@ import { applyStudyRecord, projectStudyData, projectedKinds, recordKey, sameReco
 const journalSchema = z.object({
   schemaVersion:z.literal(1),baseUrl:z.string().default(''),workspaceId:z.string().nullable().default(null),deviceId:z.string().nullable().default(null),expiresAt:z.string().nullable().default(null),enabled:z.boolean().default(false),
   cursor:z.string().default('0'),shadow:z.record(z.string(),cloudRecordSchema).default({}),outbox:z.array(cloudMutationSchema).default([]),
-  conflicts:z.record(z.string(),cloudRecordSchema).default({}),uploads:z.record(z.string(),z.object({sha256:z.string(),mutationId:z.string().uuid()})).default({}),
+  conflicts:z.record(z.string(),cloudRecordSchema).default({}),uploads:z.record(z.string(),z.object({sha256:z.string(),mutationId:z.string().uuid(),cancelMutationId:z.string().uuid().optional()})).default({}),
   downloads:z.array(z.string().uuid()).default([]),materialized:z.array(z.string()).default([]),lastSyncedAt:z.string().nullable().default(null),error:z.string().nullable().default(null),
 }).strict();
 type Journal = z.infer<typeof journalSchema>;
@@ -36,6 +36,12 @@ export function validCloudBase(input: string) {
 export class CloudSync {
   private writing:Promise<void> = Promise.resolve();
   private running:Promise<CloudStatus>|null = null;
+  private importing = 0;
+  private unsubscribe = ()=>{};
+  private async importAtomic<T>(prepare:(current:Snapshot)=>StoreMutation<T>):Promise<T> {
+    this.importing++;
+    try { return await this.store.atomic(prepare); } finally { this.importing--; }
+  }
   private constructor(private readonly store:Store,private readonly credentials:Pick<Credentials,'get'|'set'>,private readonly attachments:AttachmentStore,private journal:Journal,private readonly fetcher:Fetch) {}
   static async open(store:Store,credentials:Pick<Credentials,'get'|'set'>,attachments:AttachmentStore,fetcher:Fetch=fetch) {
     let state = journalSchema.parse({schemaVersion:1});
@@ -43,7 +49,15 @@ export class CloudSync {
     catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('The cloud sync journal could not be read. Existing study data and sync writes have been preserved.',{cause:error}); }
     store.state.settings.cloudSyncEnabled = state.enabled;
     if (!state.workspaceId) store.state.settings.cloudAccount = null;
-    return new CloudSync(store,credentials,attachments,state,fetcher);
+    const sync = new CloudSync(store,credentials,attachments,state,fetcher);
+    sync.unsubscribe = store.onCommitted(()=>{
+      if (!sync.journal.enabled || sync.importing) return;
+      try {
+        sync.capture();
+        void sync.persist().catch(error=>{sync.journal.error=errorMessage(error);});
+      } catch (error) { sync.journal.error=errorMessage(error); }
+    });
+    return sync;
   }
   private persist() {
     const content = JSON.stringify(journalSchema.parse(this.journal),null,2);
@@ -182,7 +196,7 @@ export class CloudSync {
         const key = recordKey(remote),previous = this.journal.shadow[key];
         if (previous && previous.version>=remote.version) continue;
         const appliedAt = Date.now();
-        const decision = await this.store.atomic<{accepted:boolean;applied:boolean;conflictKey:string|null}>(current=>{
+        const decision = await this.importAtomic<{accepted:boolean;applied:boolean;conflictKey:string|null}>(current=>{
           // Decide inside the writer queue, then publish journal changes only after persistence.
           if (remote.kind==='studyGoal' && !remote.deleted) {
             const incoming = weeklyStudyGoalSchema.parse(remote.data);
@@ -215,7 +229,7 @@ export class CloudSync {
       }
       const deferredAt = Date.now();
       // Messages may precede their chat in another device's outbox.
-      const materialized = await this.store.atomic(current=>{
+      const materialized = await this.importAtomic(current=>{
         const rows = Object.values(this.journal.shadow).filter(remote=>{
           const key = recordKey(remote);
           if (remote.kind!=='message' || remote.deleted || this.journal.conflicts[key] || this.journal.materialized.includes(key) || this.journal.outbox.some(value=>recordKey(value)===key)) return false;
@@ -237,6 +251,23 @@ export class CloudSync {
     const scoped = chats.map(chat=>({workspaceId,chat}));
     const targets = (id:string) => chats.filter(chat=>!chat.deletedAt && canShareChatAttachment(scoped,id,{workspaceId,chatId:chat.id},{workspaceId,chatId:chat.id}));
     const ids = new Set(chats.flatMap(chat=>chat.messages.flatMap(message=>message.attachmentIds)).filter(id=>targets(id).length>0));
+    for (const [id,upload] of Object.entries(this.journal.uploads)) {
+      if (ids.has(id)) continue;
+      // A removed message can abandon a staged upload. Release its quota durably;
+      // active descendants remain in ids through the canonical ancestry helper.
+      upload.cancelMutationId ??= randomUUID();
+      await this.persist();
+      const key=recordKey({kind:'attachment',id});
+      const reply=z.object({record:cloudRecordSchema}).parse(await this.request('/v1/records','POST',{
+        mutationId:upload.cancelMutationId,kind:'attachment',id,schemaVersion:1,
+        expectedVersion:this.journal.shadow[key]?.version ?? 0,deleted:true,data:null,
+      }));
+      this.journal.shadow[key]=reply.record;
+      delete this.journal.uploads[id];
+      this.journal.downloads=this.journal.downloads.filter(value=>value!==id);
+      await this.attachments.markDeleted(id);
+      await this.persist();
+    }
     for (const id of ids) {
       const key = recordKey({kind:'attachment',id});
       if (this.journal.shadow[key]) {
@@ -306,7 +337,7 @@ export class CloudSync {
     if (remote.id!==id) {
       const mutation = this.journal.outbox.find(value=>recordKey(value)===key);
       if (kind==='studyGoal' && mutation?.expectedVersion===0) {
-        await this.store.update(state=>{
+        await this.importAtomic(()=>({value:undefined,apply:(state:Snapshot)=>{
           const local = state.studyLog.goals.find(goal=>goal.id===id);
           state.studyLog.goals = state.studyLog.goals.filter(goal=>goal.id!==id);
           if (choice==='local') {
@@ -315,20 +346,20 @@ export class CloudSync {
             const goal = {...desired,id:incoming.id,createdAt:incoming.createdAt,updatedAt:new Date(resolvedAt).toISOString(),revision:Math.max(desired.revision,incoming.revision)+1};
             state.studyLog.goals = [...state.studyLog.goals.filter(value=>value.id!==incoming.id),goal];
           } else applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);
-        });
+        }}));
       } else if (kind==='practice.learningNeed' && mutation?.expectedVersion===0) {
-        await this.store.update(state=>{
+        await this.importAtomic(()=>({value:undefined,apply:(state:Snapshot)=>{
           const local = state.learningNeeds.find(need=>need.id===id);
           state.learningNeeds = state.learningNeeds.filter(need=>need.id!==id);
           if (choice==='local') {
             const incoming = learningNeedSchema.parse(remote.data),desired = learningNeedSchema.parse(local);
             state.learningNeeds = [...state.learningNeeds.filter(need=>need.id!==incoming.id),{...desired,id:incoming.id,createdAt:incoming.createdAt,updatedAt:new Date(resolvedAt).toISOString(),revision:Math.max(incoming.revision,desired.revision)+1}];
           } else applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);
-        });
+        }}));
       } else if (kind==='practice.attempt' && choice==='cloud') {
-        await this.store.update(state=>{state.attempts = state.attempts.filter(attempt=>attempt.id!==id); applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);});
+        await this.importAtomic(()=>({value:undefined,apply:(state:Snapshot)=>{state.attempts = state.attempts.filter(attempt=>attempt.id!==id); applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);}}));
       } else throw new HttpError(409,'These records have different identities. Use the saved cloud result or review the domain record before retrying.');
-    } else if (choice==='cloud') await this.store.update(state=>{applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);});
+    } else if (choice==='cloud') await this.importAtomic(()=>({value:undefined,apply:(state:Snapshot)=>{applyStudyRecord(state,remote,resolvedAt,this.journal.shadow);}}));
     this.journal.shadow[remoteKey] = remote;
     if (!this.journal.materialized.includes(remoteKey)) this.journal.materialized.push(remoteKey);
     delete this.journal.conflicts[key];
@@ -343,5 +374,5 @@ export class CloudSync {
     catch { failure = 'Disconnected on this device. Cloud session revocation could not be confirmed; revoke it from another signed-in device.'; }
     await this.credentials.set('cloudSession',''); this.journal.expiresAt = null; this.journal.error = failure; await this.persist(); return this.status();
   }
-  async close() { await this.running; await this.writing; }
+  async close() { this.unsubscribe(); await this.running; await this.writing; }
 }

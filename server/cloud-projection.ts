@@ -27,8 +27,8 @@ export function projectStudyData(state: Snapshot, shadow: Record<string, CloudRe
   };
   for (const topic of state.topics) add('topic', topic);
   for (const resource of state.resources) {
-    const { id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,questionTypes,testLength,durationMinutes,completedAt,deletedAt } = resource;
-    add('resource', { id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,questionTypes,testLength,durationMinutes,completedAt,deletedAt:deletedAt ?? null });
+    const { id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,practiceFocus,questionTypes,testLength,durationMinutes,completedAt,deletedAt } = resource;
+    add('resource', { id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,practiceFocus,questionTypes,testLength,durationMinutes,completedAt,deletedAt:deletedAt ?? null });
   }
   for (const chat of state.chats) {
     // Archive keeps ancestry and retained associations available to active descendants.
@@ -62,7 +62,8 @@ export function applyStudyRecord(state: Snapshot, record: CloudRecord, now = Dat
     case 'resource': {
       const existing = state.resources.find(item => item.id === record.id);
       if (value === null) { if (existing) existing.deletedAt = record.updatedAt; }
-      else state.resources = replace(state.resources,record.id,resourceSchema.parse({...existing,...resourceSchema.parse(value)}));
+      else if (existing) Object.assign(existing,resourceSchema.parse(value));
+      else state.resources = replace(state.resources,record.id,resourceSchema.parse(value));
       break;
     }
     case 'chat': {
@@ -70,7 +71,8 @@ export function applyStudyRecord(state: Snapshot, record: CloudRecord, now = Dat
       if (value === null) { if (existing) existing.deletedAt = record.updatedAt; }
       else {
         const parsed = chatSchema.omit({messages:true}).parse(value);
-        state.chats = replace(state.chats,record.id,chatSchema.parse({...parsed,codexThreadId:existing?.codexThreadId ?? null,activity:existing?.activity ?? [],responseError:existing?.responseError ?? null,messages:existing?.messages ?? []}));
+        if (existing) Object.assign(existing,parsed,{codexThreadId:existing.codexThreadId,activity:existing.activity,responseError:existing.responseError});
+        else state.chats = replace(state.chats,record.id,chatSchema.parse({...parsed,messages:[]}));
       }
       break;
     }
@@ -99,9 +101,9 @@ export function applyStudyRecord(state: Snapshot, record: CloudRecord, now = Dat
     case 'learnerMemory': state.assistantMemories = replace(state.assistantMemories,record.id,value === null ? null : assistantMemorySchema.parse(value)); break;
     case 'preferences': if (value !== null) Object.assign(state.settings,preferencesSchema.parse(value)); break;
     case 'studySession': case 'studyGoal': state.studyLog = applyStudyCloudRecord(state.studyLog,record,now); break;
-    case 'practice.draft': state.practiceDrafts = replace(state.practiceDrafts,record.id,value === null ? null : quizDraftSchema.parse(value)); break;
-    case 'practice.learningNeed': state.learningNeeds = replace(state.learningNeeds,record.id,value === null ? null : learningNeedSchema.parse(value)); break;
-    case 'interactiveProgress': state.interactiveResourceProgress = replace(state.interactiveResourceProgress,record.id,value === null ? null : interactiveResourceProgressSchema.parse(value)); break;
+    case 'practice.draft': { const prior=state.practiceDrafts.find(row=>row.id===record.id); state.practiceDrafts = replace(state.practiceDrafts,record.id,value === null ? prior ? {...prior,deletedAt:record.updatedAt} : null : quizDraftSchema.parse(value)); break; }
+    case 'practice.learningNeed': { const prior=state.learningNeeds.find(row=>row.id===record.id); state.learningNeeds = replace(state.learningNeeds,record.id,value === null ? prior ? {...prior,deletedAt:record.updatedAt} : null : learningNeedSchema.parse(value)); break; }
+    case 'interactiveProgress': { const prior=state.interactiveResourceProgress.find(row=>row.id===record.id); state.interactiveResourceProgress = replace(state.interactiveResourceProgress,record.id,value === null ? prior ? {...prior,deletedAt:record.updatedAt} : null : interactiveResourceProgressSchema.parse(value)); break; }
     case 'calendarEvent': {
       const existing = state.events.find(item=>item.id===record.id);
       if (value === null) {

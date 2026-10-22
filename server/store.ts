@@ -16,6 +16,9 @@ export async function writeStateFile(directory:string, content:string): Promise<
 
 export class Store {
   private queue: Promise<void> = Promise.resolve();
+  private readonly committed = new Set<()=>void>();
+  onCommitted(listener:()=>void) { this.committed.add(listener); return ()=>{this.committed.delete(listener);}; }
+  private publishCommit() { for (const listener of this.committed) listener(); }
   private constructor(readonly directory: string, readonly state: Snapshot, private readonly writer:StateWriter) {}
   static async open(directory: string, writer:StateWriter = writeStateFile) {
     await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -33,7 +36,7 @@ export class Store {
     return this.writer(this.directory, JSON.stringify(snapshotSchema.parse(state), null, 2));
   }
   save(): Promise<void> {
-    return this.enqueue(() => this.write(this.state));
+    return this.enqueue(async () => { await this.write(this.state); this.publishCommit(); });
   }
   saveStudyLog(studyLog:StudyLog):Promise<void> {
     return this.atomic(() => ({value:undefined,apply:state=>{state.studyLog=studyLog;}}));
@@ -44,13 +47,21 @@ export class Store {
   /** Prepare stable IDs/timestamps once; apply the same patch before persistence and after success. */
   atomic<T>(prepare:(current:Snapshot) => StoreMutation<T>):Promise<T> {
     return this.enqueue(async () => {
-      const proposed = structuredClone(this.state);
-      const mutation = prepare(proposed);
-      if (!mutation.apply) return mutation.value;
-      mutation.apply(proposed);
-      await this.write(proposed);
-      mutation.apply(this.state);
-      return mutation.value;
+      let retry = false;
+      for (;;) {
+        const before = JSON.stringify(this.state);
+        const proposed = structuredClone(this.state);
+        const mutation = prepare(proposed);
+        if (!mutation.apply && !retry) return mutation.value;
+        mutation.apply?.(proposed);
+        await this.write(proposed);
+        // Legacy callers can still edit live state before their queued save. Re-prepare
+        // against those edits instead of publishing a stale import over them.
+        if (JSON.stringify(this.state)!==before) { retry=true; continue; }
+        mutation.apply?.(this.state);
+        this.publishCommit();
+        return mutation.value;
+      }
     });
   }
 }
