@@ -1,0 +1,18 @@
+{
+  "finding": "FINAL-NARROW-1",
+  "actualBrowser": "T3 collaborative preview",
+  "viewport": {
+    "width": 760,
+    "height": 900,
+    "theme": "dark",
+    "textSize": "large"
+  },
+  "dayHeaders": 7,
+  "allNameAndDateBoundsContained": true,
+  "allDatesBelowWeekdayLabel": true,
+  "horizontalBodyOverflow": false,
+  "tests": 267,
+  "typecheck": "pass",
+  "provider": "Disposable local Organato fixture; no production calls",
+  "rootCodeAuthor": "GPT-6.1 Sol"
+}

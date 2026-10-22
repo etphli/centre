@@ -1,0 +1,23 @@
+{
+  "baseline-a9634ae": {
+    "passed": true,
+    "checks": 45,
+    "rendererErrors": 0,
+    "report": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/baseline-a9634ae/.runtime/qa-results.json",
+    "fullLog": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/baseline-a9634ae/.runtime/baseline-flow.log",
+    "verifierSha256": "fea8d442dbbd539857e118f6213d32d5828c0c0e3eea06fd6e75dfb2f4d2d79d",
+    "electronSha256": "e61967cb9b013ead3e1fbfc8bebadca29012fb1ab5d94c1b3f70f939a299de7e"
+  },
+  "search-ee94690": {
+    "passed": true,
+    "checks": 45,
+    "rendererErrors": 0,
+    "report": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/search-ee94690/.runtime/qa-results.json",
+    "fullLog": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/search-ee94690/.runtime/search-flow.log",
+    "verifierSha256": "fea8d442dbbd539857e118f6213d32d5828c0c0e3eea06fd6e75dfb2f4d2d79d",
+    "electronSha256": "5771055908a4889b6274fd1a993f9725a3bfc1616ddc1087ae50e4099d027936"
+  },
+  "checkedAt": "2026-10-22T10:29:17.500235+00:00",
+  "conclusion": "Both45-check native runs pass including diagrams. Original missing-frame failure did not reproduce; its cause remains unknown. No claim that unchanged source establishes cause.",
+  "candidateArtifactProvenance": "Baseline freshly built from detached a9634ae. Search isolated ee94690 uses exact clean owner checkout production artifacts via read-only symlinks, no duplicate candidate build."
+}
