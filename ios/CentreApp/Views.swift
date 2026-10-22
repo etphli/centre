@@ -2326,6 +2326,8 @@ private struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .labeledContentStyle(CentreLabeledContentStyle())
             .background(palette.bg)
+            .tint(palette.accent)
+            .centreWindowTint(palette.accent)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("settings.done") } }
