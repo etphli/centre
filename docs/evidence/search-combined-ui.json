@@ -1,0 +1,87 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "Production renderer uses private desktop IPC",
+      "passed": true
+    },
+    {
+      "name": "Body, prompt, saved connected file and extracted PDF appear together",
+      "passed": true,
+      "details": [
+        "Notes content",
+        "Quiz prompt",
+        "Saved Google Docs",
+        "PDF attachment"
+      ]
+    },
+    {
+      "name": "Matched terms are highlighted",
+      "passed": true
+    },
+    {
+      "name": "Keyboard moves selection and active descendant",
+      "passed": true
+    },
+    {
+      "name": "Body result opens its actual resource",
+      "passed": true
+    },
+    {
+      "name": "Explanation result opens question two",
+      "passed": true
+    },
+    {
+      "name": "Question target is visibly marked",
+      "passed": true
+    },
+    {
+      "name": "Repeat question hit returns from another question",
+      "passed": true
+    },
+    {
+      "name": "Repeat flashcard hit resets card and answer side",
+      "passed": true
+    },
+    {
+      "name": "Attachment result anchors its owning message in a long chat",
+      "passed": true,
+      "details": {
+        "top": 385,
+        "bottom": 512,
+        "visible": true,
+        "attachments": 2
+      }
+    },
+    {
+      "name": "Message destination is visibly marked",
+      "passed": true
+    },
+    {
+      "name": "Destination marker clears on next interaction",
+      "passed": true
+    },
+    {
+      "name": "Reopening the same hit marks and scrolls it again",
+      "passed": true
+    },
+    {
+      "name": "DOCX sidecar has a clear attachment label",
+      "passed": true
+    },
+    {
+      "name": "No renderer console errors",
+      "passed": true,
+      "details": []
+    }
+  ],
+  "screenshots": {
+    "search-results-dark": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/combined-branches-search/.runtime/search-ui/search-results-dark.png",
+    "search-question-target": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/combined-branches-search/.runtime/search-ui/search-question-target.png",
+    "search-attachment-target": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/combined-branches-search/.runtime/search-ui/search-attachment-target.png",
+    "search-docx": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/combined-branches-search/.runtime/search-ui/search-docx.png",
+    "search-empty": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/combined-branches-search/.runtime/search-ui/search-empty.png",
+    "search-results-light": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/verification/combined-branches-search/.runtime/search-ui/search-results-light.png"
+  },
+  "errors": []
+}
