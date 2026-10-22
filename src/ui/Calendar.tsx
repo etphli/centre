@@ -7,6 +7,7 @@ import {
   addCalendarDays, aggregateCalendarWeek, calendarDateLabel, calendarTimeLabel, calendarTodayKey, calendarWeekStart,
   eventInterval, type WeekDeadline, type WeekSession,
 } from '../../shared/calendar-time';
+import { formatDurationMinutes } from '../../shared/date-time-fields';
 import { useApp } from './context';
 import { EventDialog, RemoveEventDialog, sessionRemovalDescription } from './Dialogs';
 import { addDays, formatTime, fromDateKey, longDay, relativeDay, toDateKey } from './format';
@@ -59,13 +60,6 @@ function monthGrid(month: Date): string[] {
   const offset = (first.getDay() + 6) % 7;
   const start = toDateKey(new Date(first.getFullYear(), first.getMonth(), 1 - offset));
   return Array.from({ length: 42 }, (_, index) => addDays(start, index));
-}
-
-function minutesLabel(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (!hours) return `${rest} min`;
-  return rest ? `${hours} h ${rest} min` : `${hours} h`;
 }
 
 function clockMinutes(time: string | null): number | null {
@@ -144,7 +138,7 @@ function ItemRow({ item, onOpen }: { item: DayItem; onOpen: (id: string) => void
       <span className="todo__text">
         <button type="button" className="todo__title todo__open" onClick={() => onOpen(item.id)}>{item.title}</button>
         {item.time || planned || item.event.notes ? (
-          <span className="todo__detail">{[formatTime(item.time), planned ? `${minutesLabel(planned)} planned` : '', item.event.notes].filter(Boolean).join(', ')}</span>
+          <span className="todo__detail">{[formatTime(item.time), planned ? `${formatDurationMinutes(planned)} planned` : '', item.event.notes].filter(Boolean).join(', ')}</span>
         ) : null}
       </span>
     </li>
@@ -186,7 +180,7 @@ function EventDetails({ event, timeZone, overlaps, onClose, onEdit, onRemove }: 
         {planned && event.plannedDurationMinutes ? (
           <>
             <dt>Planned</dt>
-            <dd>{minutesLabel(event.plannedDurationMinutes)}<span className="event-details__zone">A plan, not logged study time</span></dd>
+            <dd>{formatDurationMinutes(event.plannedDurationMinutes)}<span className="event-details__zone">A plan, not logged study time</span></dd>
           </>
         ) : null}
         {subject ? (<><dt>Subject</dt><dd>{subject.name}</dd></>) : null}
@@ -244,7 +238,7 @@ function SessionBlock({ session, color, selected, timeZone, onOpen }: {
   const label = [
     session.event.title,
     `${start} to ${end}`,
-    `${minutesLabel(session.plannedDurationMinutes)} planned`,
+    `${formatDurationMinutes(session.plannedDurationMinutes)} planned`,
     done ? 'done' : '',
     session.overlapIds.length ? `overlaps ${session.overlapIds.length} other session${session.overlapIds.length === 1 ? '' : 's'}` : '',
     session.continuesFromPreviousDay ? 'continues from the previous day' : '',
