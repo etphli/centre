@@ -14,6 +14,7 @@ const makeQuestion = (
   answer = `Answer ${id}.`,
 ): TestQuestion => ({
   id,
+  concept: '',
   responseType,
   choices: responseType === 'multiple_choice' ? ['Choice A', 'Choice B'] : [],
   prompt,
