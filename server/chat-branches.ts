@@ -69,8 +69,10 @@ export function createChatBranch(parent: Chat, value: BranchInput): ChatBranch {
     return copied;
   });
   const titlePrefix = input.operation === 'edit' ? 'Edited: ' : input.operation === 'regenerate' ? 'Alternate: ' : 'Branch: ';
+  const sourceExcerpt = (input.operation === 'edit' ? input.content : selected.content).replace(/\s+/g,' ').trim();
+  const titleExcerpt = (sourceExcerpt || parent.title.replace(/\s+/g,' ').trim()).slice(0,60);
   const chat = chatSchema.parse({
-    id:randomUUID(), title:`${titlePrefix}${parent.title}`.slice(0,200), createdAt:now, updatedAt:now,
+    id:randomUUID(), title:`${titlePrefix}${titleExcerpt}`.slice(0,200), createdAt:now, updatedAt:now,
     modelSelection:structuredClone(parent.modelSelection), pinnedAt:parent.pinnedAt,
     folderId:parent.folderId, sortOrder:-Date.now(), messages,
     activity:[], codexThreadId:null,

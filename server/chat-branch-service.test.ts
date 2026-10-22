@@ -105,7 +105,7 @@ test('early edit forks before its turn, preserves the parent and persists indepe
     assert.equal(response.status,200);
     const child = chatSchema.parse(response.body);
     assert.equal(child.messages.length,1); assert.equal(child.messages[0]?.content,'edited prompt');
-    assert.equal(child.title,`Edited: ${original.title}`);
+    assert.equal(child.title,'Edited: edited prompt');
     assert.ok((await f.state()).activeResponses.some(response => response.chatId === child.id));
     const completed = await f.settled(child.id);
     assert.equal(completed.messages.length,2); assert.deepEqual(await f.chat(parent.id),original);
@@ -133,9 +133,9 @@ test('regenerate and continue select exact checkpoints; rejected targets create 
     assert.equal((await f.state()).chats.length,2);
     const regenerated = chatSchema.parse((await f.request(`/chats/${parent.id}/branch`,'POST',{operation:'regenerate',messageId:assistant.id})).body);
     assert.equal((await f.settled(regenerated.id)).messages.length,2);
-    assert.equal(regenerated.title,`Alternate: ${original.title}`);
+    assert.equal(regenerated.title,`Alternate: ${assistant.content}`);
     const continued = chatSchema.parse((await f.request(`/chats/${parent.id}/branch`,'POST',{operation:'continue',messageId:user.id})).body);
-    assert.equal(continued.title,`Branch: ${original.title}`);
+    assert.equal(continued.title,`Branch: ${user.content}`);
     assert.deepEqual(continued.messages.map(message => message.content),original.messages.slice(0,2).map(message => message.content));
     assert.equal((await f.state()).activeResponses.some(response => response.chatId === continued.id),false);
     const forks = (await f.calls()).filter(call => call.method === 'thread/fork');
@@ -334,4 +334,27 @@ test('client-assigned prompt IDs reject duplicate and foreign sends while retry 
     assert.equal(completed.messages.filter(message => message.id === failedId).length,1);
     assert.equal(completed.messages[1]?.content,'Tool success: false');
   } finally { await f.close(); }
+});
+
+test('branch titles distinguish edits, normalize selected excerpts and bound resource-only fallbacks',() => {
+  const now = '2026-10-22T00:00:00.000Z';
+  const parent = chatSchema.parse({id:'title-parent',title:'Original source chat',createdAt:now,updatedAt:now,messages:[
+    {id:'title-user',role:'user',content:'Original \n user prompt',createdAt:now},
+    {id:'title-assistant',role:'assistant',content:'Original \n assistant response',createdAt:now},
+  ]});
+  const first = createChatBranch(parent,{operation:'edit',messageId:'title-user',content:'  First \n alternate\tidea  '}).chat;
+  const second = createChatBranch(parent,{operation:'edit',messageId:'title-user',content:'Second alternate idea'}).chat;
+  assert.equal(first.title,'Edited: First alternate idea');
+  assert.equal(second.title,'Edited: Second alternate idea');
+  assert.notEqual(first.title,second.title);
+  assert.equal(createChatBranch(parent,{operation:'continue',messageId:'title-user'}).chat.title,'Branch: Original user prompt');
+  assert.equal(createChatBranch(parent,{operation:'regenerate',messageId:'title-assistant'}).chat.title,'Alternate: Original assistant response');
+  const long = createChatBranch(parent,{operation:'edit',messageId:'title-user',content:'x'.repeat(500)}).chat;
+  assert.equal(long.title,`Edited: ${'x'.repeat(60)}`);
+  const assistant = parent.messages[1]; assert.ok(assistant);
+  assistant.content = ''; assistant.resourceIds = ['resource-only'];
+  parent.title = '  Resource \n source '+ 'y'.repeat(250);
+  const resourceOnly = createChatBranch(parent,{operation:'continue',messageId:'title-assistant'}).chat;
+  assert.equal(resourceOnly.title,`Branch: ${parent.title.replace(/\s+/g,' ').trim().slice(0,60)}`);
+  assert.ok(resourceOnly.title.length <= 200);
 });
