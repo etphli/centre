@@ -12,4 +12,6 @@ These are actual captures of Centre with isolated synthetic local study data. Th
 
 Run `node scripts/verify-study-log.mjs` after renderer and Electron builds. It drives the real production Electron app through desktop IPC and temporary disk state, waits for navigation/animation/paint, then captures the exercised UI. The final run passed 29 initial and 5 restart checks with no renderer errors. Reports and additional captures are written under ignored `.runtime/`.
 
-See [verification.json](verification.json) for actual commands, results and limitations, and [design-review-fixes.md](design-review-fixes.md) for the per-finding response. Corrected captures are awaiting the coordinator's live recheck. PR #10 remains draft.
+See [verification.json](verification.json) for actual commands, results and limitations, and [design-review-fixes.md](design-review-fixes.md) for the per-finding response. The coordinator live-rechecked charts, date/time fields and narrow layouts. The final hours spinner correction is shown in `duration-light.png`; type=number and keyboard semantics remain. The user subsequently authorized merging after the AI logging check.
+
+`ai-chat.png` and `ai-entry.png` show the real built app sending a chat request through the AI tool protocol and displaying the persisted entry. Model reasoning is substituted by the deterministic CLI fixture, while Electron, IPC, tool validation and disk are real. The separate AI UI verifier passed five checks with no renderer errors.

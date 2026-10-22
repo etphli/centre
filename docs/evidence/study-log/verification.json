@@ -3,7 +3,7 @@
   "viewport": "Built Electron1280x900 and minimum960x660/960x900. T3 browser760x900 against isolated local service. Dark/light/midnight, standard and large text, compact and comfortable spacing.",
   "tests": {
     "command": "npm test",
-    "passed": 94,
+    "passed": 95,
     "failed": 0
   },
   "finalTypecheck": {
@@ -17,7 +17,7 @@
       "npx vite build"
     ],
     "result": "passed",
-    "notes": "One npm run build passed after shared control implementation; final renderer-only npx vite build includes daily accessible image roles. Earlier Electron main build used explicit nonfunctional local OAuth fixture values; Google login was not verified. No Electron main source changed during the visual corrections."
+    "notes": "Latest npm run build and Electron main build pass after adding AI tools. Electron uses nonfunctional local OAuth fixture values, not a verified Google sign-in."
   },
   "nativeStudyFlows": {
     "command": "node scripts/verify-study-log.mjs",
@@ -43,7 +43,7 @@
     "result": "passed"
   },
   "independentCorrectnessReview": "GPT-6.1 Sol medium reproduced three persistence/import bugs, all fixed and rechecked. Read-only shared-control pass found focus selection, arbitrary minute choice and viewport clipping issues, all corrected; no repository edits by reviewer.",
-  "visualGate": "Claude Opus5.5 medium round1 findings X-1/X-2/LOG1-4 addressed in eb050d8 + faa90f8. Corrected real captures supplied. Awaiting coordinator live recheck; PR remains draft. User requested no new Claude reviews.",
+  "visualGate": "Coordinator live T3 recheck cleared charts/date-time/narrow-layout findings. Final shared duration spinner fixed4f192d4; real light capture and numeric semantics verified. User explicitly authorized merge after AI path verification.",
   "limitations": [
     "No hosted D1 deployment or production sync verified",
     "No Google OAuth sign-in verified with local fixture credentials",
@@ -56,7 +56,10 @@
     "Capture before navigation/animation paint corrected by waiting for Log, finite animation completion and compositor frames",
     "Development-renderer IPC fallback rejected by desktop authority and excluded from passing evidence",
     "First expanded native verifier had an incorrectly escaped selector expression; corrected verifier passes34checks with0renderer errors.",
-    "Existing45-check flow verifier passes/exit0 with0renderer errors, then emits IPC socket warnings while its temporary service closes during shutdown."
+    "Existing45-check flow verifier passes/exit0 with0renderer errors, then emits IPC socket warnings while its temporary service closes during shutdown.",
+    "AI protocol test initially inspected transient chat activity rather than the persisted assistant-message activity; corrected assertion passes.",
+    "Initial new provider prop referenced nullable state; typecheck caught it and it now reads validated actions.state.",
+    "Browser getComputedStyle does not expose the internal WebKit spinner pseudo-element reliably; verification asserts actual input appearance=textfield/type=number and inspects the real light capture."
   ],
   "browser760": {
     "tool": "T3 preview",
@@ -77,6 +80,21 @@
   },
   "sourceFixCommits": [
     "eb050d86d8283ef628339561764cb5a701e6d619",
-    "faa90f8a7bfb56fac12a391c1a710c84d3a4e554"
-  ]
+    "faa90f8a7bfb56fac12a391c1a710c84d3a4e554",
+    "4f192d485c908e83843707edb43175c71398ab20",
+    "3254fe13e1022c9023981d83839c7b6fbbb5497a"
+  ],
+  "aiStudyFlows": {
+    "passed": true,
+    "checks": [
+      "Chat completes actual Log tool call",
+      "AI entry appears in real Log without reload",
+      "AI-created entry is confirmed on disk",
+      "Light duration keeps numeric keyboard semantics and removes native spinner chrome",
+      "No renderer console errors"
+    ],
+    "errors": [],
+    "modelBoundary": "Deterministic CLI protocol fixture, real production Electron/IPC/service/disk. Live model reasoning not verified.",
+    "command": "node scripts/verify-study-log-ai.mjs"
+  }
 }

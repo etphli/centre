@@ -52,6 +52,16 @@ Every route requires the existing local bearer capability or validated Electron 
 
 Timer actions are `heartbeat`, `pause`, `resume`, `stop`, and `confirm`. Only completed sessions can be edited or deleted. Validation failures return 400, missing entries 404, and overlap or revision conflicts 409. Existing authentication and request-size limits apply. The Electron allowlist exposes only these methods and paths.
 
+## AI logging from chat
+
+The chat model has `centre_get_study_log` and `centre_log_study`. For example, ask “Log my algebra study yesterday from 6 pm to 7:30 pm in Sydney.” It reads current records, then records an actual completed manual entry with the student's title, subject/task links and notes. Log refreshes from confirmed service state after chat changes without requiring a reload.
+
+`server/study-log-tools.ts` exports `logStudyInputSchema`, `logStudy` and `studyLogInstructions`. Write arguments are `{id,confirmedByUser:true,title,notes,subjectId,taskId,timeZone,segments:[{start,end}]}`. Tool segments contain local ISO date-times without offsets, such as `2026-10-21T18:00`. The adapter converts them with canonical `localStudyInstant` and calls the same persisted manual-entry service. It returns only the confirmed saved record. Stable UUID retries are idempotent.
+
+A write requires an active, uncancelled student chat and explicit-request confirmation. Guided resource generation cannot write study records. The model is instructed to ask for missing actual times, never invent intervals from duration alone, never infer study from a chat or Calendar plan, and report success only after a successful save. The tool cannot start timers or edit/delete existing records. Existing future-time, overlap, reference and DST rejection rules apply.
+
+`server/study-log-tools.test.ts` runs the real Codex protocol handler, authenticated HTTP routes, dynamic tools and disk persistence with a deterministic model CLI fixture. `node scripts/verify-study-log-ai.mjs` drives the built app's actual chat and Log screens through that fixture and captures the saved entry. This verifies wiring and persistence, not live model reasoning or a hosted integration.
+
 ## Cloud integration
 
 Feature 3 owns Centre's independent Cloudflare D1 database and Worker. This change does not configure, migrate, or deploy a remote database. Organato remains canonical for subjects, tasks, and planned Calendar entries.

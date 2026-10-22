@@ -13,4 +13,4 @@ Source report: the updated program `reviews/design-round1.json` and `round1-fix-
 
 The read-only Sol correctness review also caught selected-time focus, restricted minute values and short-window clipping while the shared controls were built. They were corrected before the focused shared commit. [Minimum-height capture](date-picker-small.png) and native assertions verify picker bounds.
 
-All owned findings have implementation and capture evidence. They remain pending the coordinator's visual recheck. No new Claude review was started. Nothing was merged, deployed or migrated remotely.
+All owned findings have implementation and capture evidence. The coordinator live recheck cleared charts, date/time controls, narrow layout and action targets. The remaining native duration spinner is removed by `4f192d4`, shown in [light duration](duration-light.png) and checked in the actual built app. No new Claude review was started. The user subsequently authorized merge after the AI logging check. Deployment and remote migrations remain unauthorized.
