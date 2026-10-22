@@ -221,7 +221,7 @@ function Quiz({ resource }: { resource: Resource }) {
       {!result && progress.started ? <div className={`quiz__draft${progress.error ? ' quiz__draft--error' : ''}`}>
         <span role={progress.error ? 'alert' : 'status'}>{progress.error ? 'Couldn’t save your draft. Your answers are still here.' : progress.saving ? 'Saving draft…' : 'Draft saved on this device.'}</span>
         {progress.error ? <button type="button" className="button button--small quiz__retry" disabled={busy} onClick={() => void draft.flush().catch(() => undefined)}>Retry save</button> : null}
-        <button type="button" ref={optionsTarget} className="button button--quiet button--small quiz__options-toggle" aria-label="Draft options" aria-expanded={optionsOpen} aria-controls={optionsId} disabled={busy} onClick={() => setOptionsOpen(open => !open)}><MoreHorizontal size={16} aria-hidden /></button>
+        <button type="button" ref={optionsTarget} className="button button--quiet button--small quiz__options-toggle" aria-label="Draft options" title="Draft options" aria-expanded={optionsOpen} aria-controls={optionsId} disabled={busy} onClick={() => setOptionsOpen(open => !open)}><MoreHorizontal size={16} aria-hidden /></button>
       </div> : null}
       {optionsOpen && !result ? <div className="quiz__options" id={optionsId} role="group" aria-label="Draft options">
         <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setOptionsOpen(false); setConfirmReset('start-over'); }}>Start over</button>

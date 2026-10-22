@@ -5,7 +5,8 @@
 .quiz__draft .form__error { flex-basis: 100%; margin: 0; }
 .quiz__draft--error > [role=alert] { color: var(--danger); }
 .quiz__retry { border-color: var(--line-strong); background: transparent; }
-.quiz__options-toggle { margin-left: auto; width: 28px; padding: 0; }
+.quiz .quiz__options-toggle { margin-left: auto; width: 32px; padding: 0; justify-content: center; }
+.quiz__options-toggle svg { flex: none; }
 .quiz__options { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px; }
 .quiz__draft .link-button { color: var(--text-2); }
 .quiz__draft .link-button:hover { color: var(--text); }

@@ -23,6 +23,7 @@ try {
  console.log('QUIZ '+await page.locator('.quiz').innerText());
  await step('adaptive focus is backed by actual fixture grade and generation',async()=>{await page.getByText('Practice focus from recent feedback: Inverse operations.',{exact:true}).waitFor();const s=await state();assert.ok(s.learningNeeds.some(n=>n.conceptLabel==='Inverse operations'&&n.evidence.some(e=>e.source==='grade')));});
  await page.getByRole('radio').first().check();await saved();
+ await step('draft options shows a full ellipsis icon with an accessible name and tooltip',async()=>{const trigger=page.getByRole('button',{name:'Draft options',exact:true});assert.equal(await trigger.getAttribute('title'),'Draft options');const bounds=await trigger.locator('svg').boundingBox();assert.ok(bounds&&bounds.width>=16&&bounds.height>=16);});
  await shot('selected-and-saved');
  await page.getByRole('button',{name:'Next',exact:true}).click();
  await page.locator('textarea.question__answer').fill('y = 5. I divided both sides by 5.');await saved();
