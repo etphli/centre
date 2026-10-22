@@ -282,7 +282,7 @@ app.on('browser-window-created', (_event, createdWindow) => {
       const diagramValue = async expression => {const frame=diagramFrame();if(!frame)throw new Error('Diagram child frame missing');return frame.executeJavaScript(expression);};
       for(let i=0;i<40 && !(diagramFrame() && await diagramValue("Boolean(document.getElementById('explore'))"));i++)await pause(100);
       await pause(500);
-      const darkDiagram = await diagramValue("({theme:document.documentElement.dataset.theme,bg:getComputedStyle(document.body).backgroundColor,panel:getComputedStyle(document.querySelector('.panel')).backgroundColor,ink:getComputedStyle(document.querySelector('p')).color,height:Math.ceil(document.body.getBoundingClientRect().height)})");
+      const darkDiagram = await diagramValue("({theme:document.documentElement.dataset.theme,bg:getComputedStyle(document.body).backgroundColor,panel:getComputedStyle(document.querySelector('.panel')).backgroundColor,ink:getComputedStyle(document.querySelector('p')).color,height:Math.ceil(document.getElementById('last-checklist-item').getBoundingClientRect().bottom)})");
       check('Legacy light diagrams follow the dark app palette',darkDiagram.theme==='dark' && darkDiagram.bg==='rgb(27, 27, 26)' && darkDiagram.panel==='rgb(32, 32, 31)' && darkDiagram.ink==='rgb(236, 235, 231)',darkDiagram);
       check('A minimally styled checklist keeps its final checkbox visible', await diagramValue("document.getElementById('last-checklist-item').getBoundingClientRect().bottom <= innerHeight"));
       const embedHeight = await evaluate("Number.parseFloat(getComputedStyle(document.querySelector('iframe.diagram-embed')).height)");
