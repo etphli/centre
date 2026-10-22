@@ -28,6 +28,8 @@ const routes = [
   ['POST', /^\/api\/topics$/],
   ['POST', /^\/api\/resources\/generate$/],
   ['PATCH', /^\/api\/resources\/[^/]+\/location$/],
+  ['PATCH', /^\/api\/resources\/[^/]+\/practice-draft$/],
+  ['POST', /^\/api\/resources\/[^/]+\/practice-draft\/start-over$/],
   ['GET', /^\/api\/resources\/[^/]+\/(export|preview)$/],
   ['POST', /^\/api\/resources\/[^/]+\/checklist-progress$/],
   ['POST', /^\/api\/resources\/[^/]+\/(feedback|archive|restore|refresh)$/],

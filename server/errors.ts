@@ -1,5 +1,5 @@
 export class HttpError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  constructor(readonly status: number, message: string, options?: ErrorOptions) { super(message, options); }
 }
 export const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
 export function requireFound<T>(value: T | undefined, label: string): T {

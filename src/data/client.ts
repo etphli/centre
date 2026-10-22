@@ -6,7 +6,7 @@ import { checklistProgressUpdateSchema, diagramPreviewSchema } from '../../share
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import type { DesktopAction, DesktopActionRequest } from '../../shared/desktop-actions';
 import type { LauncherOperation, LauncherList } from '../../shared/desktop-launchers';
-import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
+import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, quizDraftSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent, type QuizDraft } from '../../shared/schema';
 
 export interface ExportedFile { filename: string; content: string; mimeType: string }
 export interface AttachmentUploadInput { name:string; mimeType:string; data:string }
@@ -91,12 +91,14 @@ export const api = {
   deleteResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/archive`,okSchema,{}),
   restoreResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/restore`,okSchema,{}),
   moveResource: (id:string,location:{subjectId:string|null;topicId:string|null}) => request('PATCH',`/resources/${encodeURIComponent(id)}/location`,resourceSchema,location),
+  saveQuizDraft: (resourceId:string,input:{id:string;expectedRevision:number|null;answers:Record<string,string>;currentQuestion:number}):Promise<QuizDraft> => request('PATCH',`/resources/${encodeURIComponent(resourceId)}/practice-draft`,quizDraftSchema,input),
+  startOverQuizDraft: (resourceId:string,input:{id:string;expectedRevision:number}) => request('POST',`/resources/${encodeURIComponent(resourceId)}/practice-draft/start-over`,okSchema,input),
   exportResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/export`, exportSchema),
   refreshConnectedFile: (id:string) => request('POST', `/resources/${encodeURIComponent(id)}/refresh`,resourceSchema,{}),
   previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, diagramPreviewSchema),
   saveChecklistProgress: (id:string,documentRevision:string,itemId:string,checked:boolean) => request('POST',`/resources/${encodeURIComponent(id)}/checklist-progress`,okSchema,checklistProgressUpdateSchema.parse({documentRevision,itemId,checked})),
   saveFeedback: (id: string, notes: string, questionIds: string[] = [], confident = false) => request('POST', `/resources/${encodeURIComponent(id)}/feedback`, okSchema, { notes, questionIds, confident }),
-  gradeQuiz: (resourceId: string, answers: Record<string, string>) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers }),
+  gradeQuiz: (resourceId: string, answers: Record<string, string>, submission?:{draftId:string;expectedDraftRevision:number}) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers, ...(submission ?? {}) }),
   createEvent: (input: Pick<StudyEvent, 'title' | 'date'> & Partial<Pick<StudyEvent, 'time' | 'plannedDurationMinutes' | 'subjectId' | 'notes'>>) => request('POST', '/events', eventSchema, input),
   updateEvent: (id:string,input:Partial<Pick<StudyEvent,'title'|'date'|'time'|'plannedDurationMinutes'|'subjectId'|'notes'>> & {expectedRevision:number}) => request('PATCH',`/events/${encodeURIComponent(id)}`,eventSchema,input),
   completeEvent: (id: string, completed: boolean, expectedRevision?:number) => request('PATCH', `/events/${encodeURIComponent(id)}`, eventSchema, { completedAt: completed ? new Date().toISOString() : null,...(expectedRevision === undefined ? {} : {expectedRevision}) }),
