@@ -80,6 +80,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
         out.push({ id: `resource-${resource.id}`, group: 'Resources', label: resource.title, detail: [kindLabels[resource.kind], topic?.name].filter(Boolean).join(', '), icon: kindIcons[resource.kind], run: go(() => navigate({ kind: 'resource', resourceId: resource.id })) });
       }
       for (const event of state.events) {
+        if (event.deletedAt) continue;
         if (!matches(event.title, event.notes)) continue;
         out.push({ id: `event-${event.id}`, group: 'Calendar', label: event.title, detail: relativeDay(event.date), icon: CalendarDays, run: go(() => navigate({ kind: 'calendar' })) });
       }
