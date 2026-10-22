@@ -1,5 +1,5 @@
 import {
-  ArrowDown, ArrowUp, Clock3, CalendarDays, Check, ChevronRight, Folder, FolderMinus, FolderPlus, Inbox, Library, MoreHorizontal,
+  ArrowDown, ArrowUp, Clock3, CalendarDays, Check, ChevronRight, Folder, FolderMinus, FolderPlus, GitBranch, Inbox, Library, MoreHorizontal,
   PanelLeft, Pencil, Pin, PinOff, Plus, Search, Settings, Target, Trash2,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -371,6 +371,8 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   function renderChat(chat: Chat, nested: boolean) {
     const active = route.kind === 'chat' && route.chatId === chat.id;
     const title = chatTitle(chat);
+    const branchParent = chat.lineage.kind === 'branch' ? chatById.get(chat.lineage.parentChatId) : undefined;
+    const branchOrigin = chat.lineage.kind === 'branch' ? `From ${branchParent ? chatTitle(branchParent) : 'an earlier chat'}` : null;
     const edge = drop?.kind === 'chat' && drop.chatId === chat.id ? drop.edge : null;
     const menuOpen = menu?.kind === 'chat' && menu.chatId === chat.id;
     return (
@@ -386,18 +388,23 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
         <button
           type="button"
           data-row-focus
-          className="chat-nav__item"
+          className={cx('chat-nav__item', branchOrigin !== null && 'chat-nav__item--branch')}
+          aria-label={title}
           onPointerEnter={() => { void preloadMarkdown().catch(() => {}); }}
           onFocus={() => { void preloadMarkdown().catch(() => {}); }}
           draggable
           aria-current={active ? 'page' : undefined}
-          title={title}
+          title={branchOrigin ? `${title} · ${branchOrigin}` : title}
           onClick={() => navigate({ kind: 'chat', chatId: chat.id })}
           onKeyDown={(event) => rowKeys(event, { kind: 'chat', chatId: chat.id }, (step) => nudgeChat(chat, step))}
           onDragStart={(event) => startDrag(event, { kind: 'chat', chatId: chat.id }, title)}
           onDragEnd={endDrag}
         >
-          <span className="chat-nav__title">{title}</span>
+          {branchOrigin ? <GitBranch size={13} className="chat-nav__branch-glyph" aria-hidden /> : null}
+          <span className="chat-nav__text">
+            <span className="chat-nav__title">{title}</span>
+            {branchOrigin ? <span className="chat-nav__origin">{branchOrigin}</span> : null}
+          </span>
           {workingChats.has(chat.id) ? <span className="spinner spinner--small chat-nav__spinner" aria-label="Working" /> : null}
         </button>
         <button

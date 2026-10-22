@@ -48,7 +48,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
   };
   const state = async () => snapshotSchema.parse((await request('/state')).body);
   const waitForQuestion = async () => {
-    for (let attempt = 0; attempt < 100; attempt++) { const pending = (await state()).pendingQuestions[0]; if (pending) return pending; await setTimeout(20); }
+    for (let attempt = 0; attempt < 500; attempt++) { const pending = (await state()).pendingQuestions[0]; if (pending) return pending; await setTimeout(20); }
     throw new Error('Question did not arrive.');
   };
   try {

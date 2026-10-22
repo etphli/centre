@@ -1,5 +1,6 @@
 import { studyLogSchema, type StudyTags, type StudySegment, type TimerAction } from '../../shared/study-log';
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
+import { searchQuerySchema, searchResultsSchema } from '../../shared/search';
 import { z } from 'zod';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import type { DesktopAction, DesktopActionRequest } from '../../shared/desktop-actions';
@@ -64,6 +65,7 @@ export const api = {
   timerStudy: (id:string,action:TimerAction,expectedRevision:number,activity = false) => request('POST', `/study-log/timer/${encodeURIComponent(id)}/${action}`, studyLogSchema, {expectedRevision,activity}),
   saveStudyGoal: (input:{id:string;weekStart:string;timeZone:string;targetMinutes:number;expectedRevision?:number}) => request('POST', '/study-log/goals', studyLogSchema, input),
   state: () => request('GET', '/state', snapshotSchema),
+  search: (query: string) => request('GET', `/search?q=${encodeURIComponent(searchQuerySchema.parse(query))}`, searchResultsSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),
   forgetMemory: (id:string) => request('POST', `/assistant-memories/${encodeURIComponent(id)}/forget`, okSchema, {}),
   pollState: () => request('GET', '/state/poll', snapshotSchema.nullable()),
@@ -71,7 +73,9 @@ export const api = {
   createChat: (modelSelection:ModelSelection|null = null) => request('POST', '/chats', chatSchema, {modelSelection}),
   selectChatModel: (id:string,selection:ModelSelection) => request('PATCH',`/chats/${encodeURIComponent(id)}/model`,chatSchema,modelSelectionSchema.parse(selection)),
   organizeChat: (chatId: string, input: { pinned?: boolean; folderId?: string | null; beforeChatId?: string | null }) => request('PATCH', `/chats/${encodeURIComponent(chatId)}/organize`, chatSchema, input),
-  sendMessage: (chatId: string, content: string, context: PageContext, attachmentIds: string[] = [], resourceRequest?:CreateResource) => request('POST', `/chats/${encodeURIComponent(chatId)}/messages`, chatSchema, { content, context, attachmentIds, resourceRequest }),
+  sendMessage: (chatId: string, content: string, context: PageContext, attachmentIds: string[] = [], resourceRequest?:CreateResource, messageId?:string) => request('POST', `/chats/${encodeURIComponent(chatId)}/messages`, chatSchema, { content, context, attachmentIds, resourceRequest,messageId }),
+  branchChat: (chatId:string,input:{operation:'continue'|'edit'|'regenerate';messageId:string;content?:string}) => request('POST',`/chats/${encodeURIComponent(chatId)}/branch`,chatSchema,input),
+  retryMessage: (chatId:string,messageId:string) => request('POST',`/chats/${encodeURIComponent(chatId)}/retry`,chatSchema,{messageId}),
   uploadAttachment: (file: AttachmentUploadInput): Promise<Attachment> => request('POST','/attachments',attachmentSchema,file),
   getAttachment: (id: string): Promise<Attachment> => request('GET',`/attachments/${encodeURIComponent(id)}`,attachmentSchema),
   answerQuestion: (id:string,answers:Record<string,string>) => request('POST',`/questions/${encodeURIComponent(id)}/answer`,okSchema,{answers}),

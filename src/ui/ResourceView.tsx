@@ -12,6 +12,7 @@ import { kindIcons, kindLabels } from './icons';
 import { Markdown } from './Markdown';
 import { Missing, SubjectBadge } from './Resources';
 import './quiz.css';
+import { useSearchTarget } from './useSearchTarget';
 import { MoveResource } from './MoveResource';
 import { PaperPreview } from './PaperPreview';
 import { DiagramFrame,OpenDiagramButton } from './DiagramFrame';
@@ -76,20 +77,26 @@ function markTone(mark: Mark | undefined) {
   return mark.score >= mark.maxScore ? 'is-right' : mark.score > 0 ? 'is-partial' : 'is-wrong';
 }
 
-function Quiz({ resource }: { resource: Resource }) {
-  const { state, act, notify } = useApp();
+function Quiz({ resource, questionId }: { resource: Resource; questionId?: string }) {
+  const { state, act, notify, navigationId } = useApp();
   const latest = state.attempts
     .filter((attempt) => attempt.resourceId === resource.id)
     .reduce<(typeof state.attempts)[number] | undefined>((best, attempt) => (!best || attempt.createdAt > best.createdAt ? attempt : best), undefined);
   const [answers, setAnswers] = useState<Record<string, string>>(() => latest?.answers ?? {});
   const [result, setResult] = useState<GradeResult | null>(() => latest?.result ?? null);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => Math.max(0, resource.questions.findIndex(question => question.id === questionId)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const focusTarget = useRef<HTMLElement | null>(null);
   const moved = useRef(false);
   const questions = resource.questions;
   const question = questions[Math.min(index, questions.length - 1)];
+  const targetIndex = Math.max(0, questions.findIndex(question => question.id === questionId));
+
+  useEffect(() => {
+    if (questionId) setIndex(targetIndex);
+  }, [questionId, targetIndex, navigationId]);
+  useSearchTarget(questionId && index === targetIndex ? `resource-question-${questionId}` : undefined);
 
   useEffect(() => {
     // Only move focus after the student navigates, never on first load.
@@ -180,7 +187,7 @@ function Quiz({ resource }: { resource: Resource }) {
         </ol>
       </nav>
 
-      <section className={`question question--single ${markTone(mark)}`} aria-labelledby={promptId}>
+      <section id={`resource-question-${question.id}`} className={`question question--single ${markTone(mark)}`} aria-labelledby={promptId}>
         <div className="question__head">
           <div id={promptId} className="question__prompt"><Markdown>{mathText(question.prompt)}</Markdown></div>
           <span className="question__marks">{plural(question.marks, 'mark')}</span>
@@ -270,15 +277,21 @@ function TestPaper({ resource }: { resource: Resource }) {
   );
 }
 
-function Flashcards({ resource }: { resource: Resource }) {
-  const { openFeedback } = useApp();
+function Flashcards({ resource, questionId }: { resource: Resource; questionId?: string }) {
+  const { openFeedback, navigationId } = useApp();
   const parsed = useMemo(() => readCards(resource), [resource]);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => parsed.ok ? Math.max(0, parsed.cards.findIndex(card => card.id === questionId)) : 0);
   const [flipped, setFlipped] = useState(false);
   const [again, setAgain] = useState<Set<string>>(new Set());
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const cards = parsed.ok ? parsed.cards : [];
   const card = cards[index];
+  const targetIndex = Math.max(0, cards.findIndex(card => card.id === questionId));
+
+  useEffect(() => {
+    if (questionId) { setIndex(targetIndex); setFlipped(false); }
+  }, [questionId, targetIndex, navigationId]);
+  useSearchTarget(questionId && index === targetIndex ? `resource-question-${questionId}` : undefined);
 
   const move = useCallback((step: number) => {
     setIndex((current) => Math.min(cards.length - 1, Math.max(0, current + step)));
@@ -321,7 +334,7 @@ function Flashcards({ resource }: { resource: Resource }) {
   return (
     <div className="cards">
       <p className="cards__progress" aria-live="polite">Card {index + 1} of {cards.length}{again.size ? `, ${again.size} to go over again` : ''}</p>
-      <button type="button" className={`flashcard${flipped ? ' is-flipped' : ''}`} onClick={() => setFlipped((value) => !value)} aria-label={flipped ? 'Answer side. Press to show the question.' : 'Question side. Press to show the answer.'}>
+      <button id={`resource-question-${card.id}`} type="button" className={`flashcard${flipped ? ' is-flipped' : ''}`} onClick={() => setFlipped((value) => !value)} aria-label={flipped ? 'Answer side. Press to show the question.' : 'Question side. Press to show the answer.'}>
         <span className="flashcard__inner">
           <span className="flashcard__face flashcard__face--front" aria-hidden={flipped}>
             <Markdown>{card.front}</Markdown>
@@ -348,12 +361,13 @@ function Flashcards({ resource }: { resource: Resource }) {
   );
 }
 
-export function ResourceView({ resourceId }: { resourceId: string }) {
+export function ResourceView({ resourceId, questionId }: { resourceId: string; questionId?: string }) {
   const { state, navigate, notify, openFeedback } = useApp();
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [moving,setMoving] = useState(false);
   const resource = state.resources.find((item) => item.id === resourceId);
+  useSearchTarget(resource?.kind === 'test' && questionId ? `resource-question-${questionId}` : undefined);
   if (!resource) return <Missing what="resource" />;
   const subject = state.subjects.find((item) => item.id === resource.subjectId);
   const topic = state.topics.find((item) => item.id === resource.topicId);
@@ -422,9 +436,9 @@ export function ResourceView({ resourceId }: { resourceId: string }) {
           </div>
         </div>
       </header>
-      {resource.kind === 'quiz' ? <Quiz key={resource.id} resource={resource} /> : null}
+      {resource.kind === 'quiz' ? <Quiz key={resource.id} resource={resource} questionId={questionId} /> : null}
       {resource.kind === 'test' ? <TestPaper resource={resource} /> : null}
-      {resource.kind === 'flashcards' ? <Flashcards key={resource.id} resource={resource} /> : null}
+      {resource.kind === 'flashcards' ? <Flashcards key={resource.id} resource={resource} questionId={questionId} /> : null}
       {resource.kind === 'diagram' ? <div className="diagram"><DiagramFrame resource={resource} /></div> : null}
       {resource.connectedFile ? <ConnectedFileView key={resource.id} resource={resource} /> : null}
       {resource.kind === 'notes' && !resource.connectedFile ? (resource.content.trim() ? <article className="notes"><Markdown>{resource.content}</Markdown></article> : <ParseProblem resource={resource} reason="The notes are empty." />) : null}

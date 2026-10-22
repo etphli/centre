@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { printPaperSchema, saveFileSchema, validateExternalUrl, validateRequest } from './security';
 
 test('IPC accepts only service routes and their intended methods', () => {
-  for (const [method, path] of [['GET', '/api/state'], ['POST','/api/questions/00000000-0000-4000-8000-000000000000/answer'], ['PATCH','/api/chats/chat-1/model'], ['POST','/api/resources/quiz-1/archive'], ['POST','/api/resources/quiz-1/restore'], ['POST', '/api/chats/chat-123/messages'], ['POST', '/api/chats/chat-123/cancel'], ['POST','/api/attachments'], ['GET','/api/attachments/00000000-0000-4000-8000-000000000000'], ['PATCH', '/api/settings'], ['GET', '/api/resources/test_1/export'], ['GET', '/api/resources/diagram_1/preview']]) {
+  for (const [method, path] of [['GET', '/api/state'], ['POST','/api/questions/00000000-0000-4000-8000-000000000000/answer'], ['PATCH','/api/chats/chat-1/model'], ['POST','/api/resources/quiz-1/archive'], ['POST','/api/resources/quiz-1/restore'], ['POST', '/api/chats/chat-123/branch'], ['POST', '/api/chats/chat-123/retry'], ['POST', '/api/chats/chat-123/messages'], ['POST', '/api/chats/chat-123/cancel'], ['POST','/api/attachments'], ['GET','/api/attachments/00000000-0000-4000-8000-000000000000'], ['PATCH', '/api/settings'], ['GET', '/api/resources/test_1/export'], ['GET', '/api/resources/diagram_1/preview']]) {
     assert.equal(validateRequest(method, path, undefined).path, path);
   }
   for (const [method, path] of [['DELETE', '/api/state'], ['POST', '/api/state'], ['GET', 'https://example.com/api/state'], ['GET', '/api/../state'], ['GET', '/api/resources/%2e%2e/export'], ['GET', '/api/state?token=x'], ['GET', '/api//state'], ['POST', '/api/settings/secret'], ['POST', '/api/resources/diagram_1/preview'], ['GET', '/artifacts/diagram_1/capability']]) {
@@ -22,6 +22,15 @@ test('system browser rejects file, script, credential, and arbitrary localhost U
   for (const url of ['file:///etc/passwd', 'javascript:alert(1)', 'http://example.com', 'https://user:pass@example.com', 'http://127.0.0.1:4321/api/state', 'http://localhost/oauth/callback']) {
     assert.throws(() => validateExternalUrl(url));
   }
+});
+
+test('desktop search accepts one bounded encoded query and keeps other routes query free', () => {
+  const path = `/api/search?q=${encodeURIComponent('café, cell-wall 日本語')}`;
+  assert.equal(validateRequest('GET', path, undefined).path, path);
+  for (const rejected of ['/api/search', '/api/search?q=one&q=two', '/api/search?token=secret', `/api/search?q=${'x'.repeat(161)}`, '/api/state?q=cell']) {
+    assert.throws(() => validateRequest('GET', rejected, undefined));
+  }
+  assert.throws(() => validateRequest('POST', '/api/search?q=cell', undefined));
 });
 
 test('native file operations validate names and require real LaTeX for paper printing', () => {

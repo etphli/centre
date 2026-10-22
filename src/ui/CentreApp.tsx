@@ -106,7 +106,7 @@ function Page({ route }: { route: Route }) {
     case 'home':
       return <HomeView />;
     case 'chat':
-      return <ChatPage key={route.chatId} chatId={route.chatId} />;
+      return <ChatPage key={route.chatId} chatId={route.chatId} messageId={route.messageId} />;
     case 'resources':
       return <SubjectsPage />;
     case 'subject':
@@ -114,7 +114,7 @@ function Page({ route }: { route: Route }) {
     case 'topic':
       return <TopicPage subjectId={route.subjectId} topicId={route.topicId} />;
     case 'resource':
-      return <ResourceView resourceId={route.resourceId} />;
+      return <ResourceView resourceId={route.resourceId} questionId={route.questionId} />;
     case 'calendar':
       return <CalendarPage />;
     case 'log':
@@ -159,11 +159,13 @@ export default function CentreApp() {
   const [generating, setGenerating] = useState<{ id: number; label: string }[]>([]);
   const [sideChat, setSideChat] = useState<SideChatState>({ open: false, chatId: null });
   const [homeVisit,setHomeVisit] = useState(0);
+  const [navigationId, setNavigationId] = useState(0);
   const seq = useRef(0);
   const stopped = useRef(new Set<number>());
   const main = useRef<HTMLDivElement>(null);
 
   const navigate = useCallback((next: Route) => {
+    setNavigationId(value => value + 1);
     if (next.kind === 'home') setHomeVisit(value => value + 1);
     setHistory((current) => {
       const here = current.stack[current.index];
@@ -175,6 +177,7 @@ export default function CentreApp() {
   const go = useCallback((step: number) => setHistory((current) => ({ ...current, index: Math.min(current.stack.length - 1, Math.max(0, current.index + step)) })), []);
 
   useEffect(() => {
+    if ((route.kind === 'chat' && route.messageId) || (route.kind === 'resource' && route.questionId)) return;
     main.current?.scrollTo({ top: 0 });
   }, [route]);
 
@@ -203,9 +206,10 @@ export default function CentreApp() {
     inFlight.current.add(chatId);
     seq.current += 1;
     const id = seq.current;
+    const messageId = crypto.randomUUID();
     const update = (patch: Partial<Turn>) => setTurns((list) => list.map((turn) => (turn.id === id ? { ...turn, ...patch } : turn)));
     const remove = () => setTurns((list) => list.filter((turn) => turn.id !== id));
-    setTurns((list) => [...list.filter((turn) => turn.chatId !== chatId), { id, chatId, content, context, attachmentIds, resourceRequest, status: 'working', startedAt: Date.now() }]);
+    setTurns((list) => [...list.filter((turn) => turn.chatId !== chatId), { id,messageId, chatId, content, context, attachmentIds, resourceRequest, status: 'working', startedAt: Date.now() }]);
     let target = chatId;
     try {
       if (!target) {
@@ -218,7 +222,7 @@ export default function CentreApp() {
         await quietRefresh();
         onCreated?.(target);
       }
-      await api.sendMessage(target, content, context,attachmentIds,resourceRequest);
+      await api.sendMessage(target, content, context,attachmentIds,resourceRequest,messageId);
       await quietRefresh();
       remove();
     } catch (failure) {
@@ -338,9 +342,9 @@ export default function CentreApp() {
   const actions = useMemo<CentreActions | null>(
     () =>
       state
-        ? { state,draftModelSelection,selectModel, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating }
+        ? { state,draftModelSelection,selectModel, route, navigationId, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating }
         : null,
-    [state,draftModelSelection,selectModel, route, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating],
+    [state,draftModelSelection,selectModel, route, navigationId, navigate, refresh, act, notify, openGenerate, openEventDialog, openFeedback, openSearch, send, cancel, askHere, sideChat, openSideChat, closeSideChat, turns, generating],
   );
 
   if (!actions) {
