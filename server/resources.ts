@@ -294,11 +294,19 @@ export class Resources {
 
   async relocate(id:string,input:Pick<CreateResource,'subjectId'|'topicId'>) {
     this.location(input);
-    const resource = requireFound(this.store.state.resources.find(x => x.id === id && !x.deletedAt),'Resource');
-    resource.subjectId = input.subjectId;resource.topicId = input.topicId;resource.updatedAt = new Date().toISOString();
-    for (const memory of this.store.state.memories.filter(value => value.resourceId === id)) { memory.subjectId = input.subjectId;memory.topicId = input.topicId; }
-    await this.store.save();return resource;
+    return this.persistPractice(current => {
+      const resource = requireFound(current.resources.find(x => x.id === id && !x.deletedAt),'Resource');
+      const updatedAt = new Date().toISOString();
+      return { value:{ ...resource, ...input, updatedAt }, apply:state => {
+        const saved = state.resources.find(item => item.id === id);
+        if (saved) { saved.subjectId = input.subjectId; saved.topicId = input.topicId; saved.updatedAt = updatedAt; }
+        for (const memory of state.memories.filter(value => value.resourceId === id)) {
+          memory.subjectId = input.subjectId; memory.topicId = input.topicId;
+        }
+      } };
+    }, 'Your resource could not be moved on this device. Try again.');
   }
+
   export(id: string) {
     const resource = requireFound(this.store.state.resources.find(x => x.id === id && !x.deletedAt), 'Resource');
     const {subject,topic} = this.location(resource);

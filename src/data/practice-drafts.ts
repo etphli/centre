@@ -9,6 +9,7 @@ type Progress = {
   started: boolean;
   saving: boolean;
   marking: boolean;
+  resetting: boolean;
   markingError: string | null;
   error: string | null;
 };
@@ -41,7 +42,7 @@ class PracticeDraft {
       id: recovery?.id ?? saved?.id ?? crypto.randomUUID(),
       answers: recovery?.answers ?? saved?.answers ?? {},
       currentQuestion: recovery?.currentQuestion ?? saved?.currentQuestion ?? 0,
-      started: Boolean(recovery || saved), saving: false, marking: false, markingError: null, error: null,
+      started: Boolean(recovery || saved), saving: false, marking: false, resetting: false, markingError: null, error: null,
     };
     this.dirty = Boolean(recovery && !matches);
   }
@@ -64,6 +65,7 @@ class PracticeDraft {
   }
 
   update(answers: Record<string, string>, currentQuestion: number) {
+    if (this.progress.resetting || this.progress.marking) return;
     this.dirty = true;
     this.publish({ answers, currentQuestion, started: true });
     this.cache();
@@ -107,30 +109,39 @@ class PracticeDraft {
   }
 
   async startOver() {
-    const saved = await this.flush();
-    await api.startOverQuizDraft(this.resourceId, { id: saved.id, expectedRevision: saved.revision });
-    this.begin();
-    await this.flush();
+    if (this.progress.resetting) return;
+    this.publish({ resetting:true });
+    try {
+      const saved = await this.flush();
+      await api.startOverQuizDraft(this.resourceId, { id: saved.id, expectedRevision: saved.revision });
+      this.begin();
+      this.publish({ resetting:true });
+      await this.flush();
+    } finally { this.publish({ resetting:false }); }
   }
 
   clear() {
     this.dirty = false;
     this.revision = null;
-    this.publish({ id: crypto.randomUUID(), answers: {}, currentQuestion: 0, started: false, saving: false, marking: false, markingError: null, error: null });
+    this.publish({ id: crypto.randomUUID(), answers: {}, currentQuestion: 0, started: false, saving: false, marking: false, resetting: false, markingError: null, error: null });
     this.cache();
   }
 
   async reload(): Promise<QuizDraft | undefined> {
-    await this.pending?.catch(() => undefined);
-    const state = await api.state();
-    const saved = state.practiceDrafts.find(item => item.resourceId === this.resourceId && !item.deletedAt);
-    this.dirty = false;
-    this.revision = saved?.revision ?? null;
-    this.publish({ id: saved?.id ?? crypto.randomUUID(), answers: saved?.answers ?? {},
-      currentQuestion: saved?.currentQuestion ?? 0, started: Boolean(saved), saving: false, error: null });
-    this.cache();
-    await this.onSaved();
-    return saved;
+    if (this.progress.resetting) return;
+    this.publish({ resetting:true });
+    try {
+      await this.pending?.catch(() => undefined);
+      const state = await api.state();
+      const saved = state.practiceDrafts.find(item => item.resourceId === this.resourceId && !item.deletedAt);
+      this.dirty = false;
+      this.revision = saved?.revision ?? null;
+      this.publish({ id: saved?.id ?? crypto.randomUUID(), answers: saved?.answers ?? {},
+        currentQuestion: saved?.currentQuestion ?? 0, started: Boolean(saved), saving: false, markingError: null, error: null });
+      this.cache();
+      await this.onSaved();
+      return saved;
+    } finally { this.publish({ resetting:false }); }
   }
 }
 

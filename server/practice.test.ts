@@ -190,6 +190,38 @@ test('unrelated queued saves cannot publish failed practice changes or lose succ
   } finally { releasePending(); await codex.close(); await rm(directory,{ recursive:true, force:true }); }
 });
 
+test('review resolution and relocation serialize without restoring an old topic', async () => {
+  const directory = await mkdtemp(join(tmpdir(),'centre-review-move-'));
+  await seed(directory);
+  let release:() => void = () => {};
+  let signal:() => void = () => {};
+  const started = new Promise<void>(resolve => { signal = resolve; });
+  const paused = new Promise<void>(resolve => { release = resolve; });
+  let hold = false;
+  const store = await Store.open(directory, async (path, content) => {
+    if (hold) { hold = false; signal(); await paused; }
+    await writeStateFile(path,content);
+  });
+  const codex = new Codex(directory,[],async () => undefined);
+  const resources = new Resources(store,codex);
+  store.state.memories.push({id:'review',subjectId:'math',topicId:'algebra',resourceId:'quiz-a',question:'Solve',note:'Review',createdAt:now,nextReviewAt:now,resolvedAt:null,learningNeedId:null});
+  await store.save();
+  try {
+    hold = true;
+    const resolving = resources.resolveMemory('review');
+    await started;
+    const moving = resources.relocate('quiz-a',{subjectId:'math',topicId:'geometry'});
+    release();
+    await Promise.all([resolving,moving]);
+    const reopened = await Store.open(directory);
+    for (const state of [store.state,reopened.state]) {
+      assert.equal(state.resources.find(item => item.id === 'quiz-a')?.topicId,'geometry');
+      assert.equal(state.memories[0].topicId,'geometry');
+      assert.ok(state.memories[0].resolvedAt);
+    }
+  } finally { release(); await codex.close(); await rm(directory,{recursive:true,force:true}); }
+});
+
 test('failed and invalid marking preserve the durable draft; successful retry is atomic and sourceDraftId is idempotent', async () => {
   const app = await fixture();
   try {

@@ -44,12 +44,14 @@ The independent Centre Worker owns authentication and generic `POST /v1/records`
 
 Hosted grading checks `getPracticeAttempt` before AI and after a uniqueness race. It uses trusted `entities.commit(mutations[])` to atomically create one attempt, tombstone its matching draft, and update learning-need records. The database enforces unique `(workspace, sourceDraftId)` attempts. Subject/topic/concept uniqueness must also be retained when reconciling learning needs across devices. iOS owns hosted model calls and reuses the portable validation and transitions.
 
+Generic Review records use `memorySchema` and `StudyMemory` from `shared/schema.ts`. There is no separate `ReviewMemory` export. `learningNeedId` is a nullable UUID defaulting to null; `resolvedAt` is nullable and defaults to null. The trusted generic `reviewMemory` adapter should derive `applyReviewEvidence` only when a prior unresolved record becomes resolved, using its trusted association and stable `resolvedAt` timestamp. Commit both records in the same CAS batch. Missing associations and already-resolved updates add no evidence. Automatic grade cleanup already updates the learning need and must not also invent explicit Review evidence.
+
 ## Reproduce the desktop evidence
 
 Run `npx tsx scripts/practice-fixture.ts`. It starts a real local Centre service and renderer on port 5387 with a fresh temporary store and a deterministic fake CLI provider. It first grades an earlier quiz and then generates targeted practice through the actual routes. It never opens the user's data directory or calls a live model. The current fixture directory and resource ID are written to `.runtime/practice-ui-info.json`.
 
 Open **Resources → Inverse operations practice**. Exercise choice and text answers, navigation, reload, resource switching, start over, and Try again. Create `fail-grade` in the printed fixture directory to simulate marking failure. A `slow-grade` file delays marking for navigation checks. A directory named `state.json.tmp` simulates a storage-write failure; remove that fixture directory entry before retrying.
 
-Evidence and the verified state list are in `docs/evidence/practice/`. Hosted synchronization and iOS are verified by their respective owners.
+Evidence and the verified state list are in `docs/evidence/practice/`. Hosted synchronization and iOS verification belong to their respective owners and were not exercised by this desktop fixture.
 
 For the automated browser flow, install the verification-only dependency with `npm install --prefix .runtime/ui-tools --no-save --ignore-scripts playwright`, then run `node scripts/verify-practice-ui.mjs` while the fixture is running. It uses installed Chrome, exercises the actual UI and local service, and writes screenshots plus `ui-proof.json`.

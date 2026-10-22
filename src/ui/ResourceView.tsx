@@ -90,7 +90,7 @@ function Quiz({ resource }: { resource: Resource }) {
   const answers = result ? resultAnswers : progress.answers;
   const index = result ? markedIndex : progress.currentQuestion;
   const [working, setBusy] = useState(false);
-  const busy = working || progress.marking;
+  const busy = working || progress.marking || progress.resetting;
   const [error, setError] = useState<string | null>(null);
   const visibleError = error ?? progress.markingError;
   const [confirmReset, setConfirmReset] = useState<'start-over' | 'reload' | null>(null);
@@ -146,6 +146,8 @@ function Quiz({ resource }: { resource: Resource }) {
     setBusy(true);
     draft.setMarking(true);
     setError(null);
+    setOptionsOpen(false);
+    setConfirmReset(null);
     try {
       const saved = await draft.flush();
       const graded = await api.gradeQuiz(resource.id, answers, { draftId: saved.id, expectedDraftRevision: saved.revision });
@@ -173,6 +175,8 @@ function Quiz({ resource }: { resource: Resource }) {
     setResultAnswers({});
     setError(null);
     setMarkedIndex(0);
+    setOptionsOpen(false);
+    setConfirmReset(null);
   }
 
   async function startOver() {
@@ -223,7 +227,7 @@ function Quiz({ resource }: { resource: Resource }) {
         <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setOptionsOpen(false); setConfirmReset('start-over'); }}>Start over</button>
         <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setOptionsOpen(false); setConfirmReset('reload'); }}>Reload saved draft</button>
       </div> : null}
-      {confirmReset ? <div className="quiz__reset" role="group" aria-label="Confirm draft action">
+      {confirmReset && !result ? <div className="quiz__reset" role="group" aria-label="Confirm draft action">
         <span>{confirmReset === 'reload' ? 'Discard local changes and reload the saved draft?' : 'Discard all answers in this draft?'}</span>
         <button type="button" ref={confirmTarget} className="button button--small quiz__discard" disabled={busy} onClick={() => void (confirmReset === 'reload' ? reloadSaved() : startOver())}>{confirmReset === 'reload' ? 'Discard and reload' : 'Discard and start over'}</button>
         <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setConfirmReset(null); requestAnimationFrame(() => optionsTarget.current?.focus()); }}>Keep working</button>
@@ -318,7 +322,7 @@ function Quiz({ resource }: { resource: Resource }) {
           </button>
         ) : !result ? (
           <button type="button" className="button button--primary" disabled={busy || answered === 0} onClick={() => void grade()}>
-            {busy ? <><span className="spinner spinner--small" aria-hidden /> Marking</> : 'Submit for marking'}
+            {busy ? <><span className="spinner spinner--small" aria-hidden /> {progress.resetting ? 'Updating draft' : 'Marking'}</> : 'Submit for marking'}
           </button>
         ) : null}
       </div>
