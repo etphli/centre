@@ -364,7 +364,7 @@ export default function CentreApp() {
 
   return (
     <CentreContext.Provider value={actions}>
-      <StudyLogProvider>
+      <StudyLogProvider snapshot={actions.state.studyLog}>
       <StudyLogActionNavigation />
       <PreferencesEffect />
       <div className={`app${collapsed ? ' app--collapsed' : ''}`}>

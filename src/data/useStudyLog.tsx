@@ -9,7 +9,7 @@ export function requestStudyLogAction(request: StudyLogActionRequest): void {
   window.dispatchEvent(new CustomEvent('centre:study-log-action', { detail: studyActionSchema.parse(request) }));
 }
 
-function useStudyStore() {
+function useStudyStore(snapshot: StudyLog) {
   const [log, setLog] = useState<StudyLog>(emptyStudyLog);
   const current = useRef(log);
   const locked = useRef(false);
@@ -48,6 +48,11 @@ function useStudyStore() {
     } finally { locked.current = false; setBusy(false); }
   }, [apply]);
   useEffect(() => {
+    if (locked.current || JSON.stringify(snapshot) === JSON.stringify(current.current)) return;
+    // Fetch confirmed state instead of applying an older app poll over a local save.
+    void run(api.studyLog);
+  }, [snapshot, run]);
+  useEffect(() => {
     alive.current = true;
     const load = async () => {
       if (locked.current) return;
@@ -78,8 +83,8 @@ function useStudyStore() {
   return { log, busy, ready, error, run, command, actionRequest, acknowledgeAction };
 }
 const StudyContext = createContext<ReturnType<typeof useStudyStore> | null>(null);
-export function StudyLogProvider({ children }: { children: ReactNode }) {
-  const store = useStudyStore();
+export function StudyLogProvider({ children, snapshot }: { children: ReactNode; snapshot: StudyLog }) {
+  const store = useStudyStore(snapshot);
   return <StudyContext.Provider value={store}>{children}</StudyContext.Provider>;
 }
 export function useStudyLog() {
