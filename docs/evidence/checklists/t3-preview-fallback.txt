@@ -1,0 +1,6 @@
+T3 collaborative preview fallback, 2026-10-22. Same real app tab and click step failed twice.
+1. preview_click tabId=tab_16_750c0e0e-feec-45ff-8456-08ba85e235c9 locator=aria-ref=t3-fb9d2c92-8n-e52
+   Exact tool error: Preview automation client server-browser disconnected during click.
+2. preview_click tabId=tab_16_750c0e0e-feec-45ff-8456-08ba85e235c9 locator=role=button[name="Tomorrow’s study plan"]
+   Exact tool error: Preview automation client server-browser disconnected during click.
+preview_status between attempts reported available=true and ownedByCaller=true. Local Playwright was used after the second disconnect, as permitted by T3 browser instructions. Screenshots and browser-result.json in this directory are from real native checkbox interactions through the running React parent, isolated service, and disk state.

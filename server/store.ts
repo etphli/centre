@@ -15,17 +15,30 @@ export class Store {
     catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('Centre data could not be read. The existing state file has been preserved.', { cause: error }); }
     return new Store(directory, state);
   }
-  save(): Promise<void> { return this.persist(); }
-  saveStudyLog(studyLog: StudyLog): Promise<void> { return this.persist(studyLog); }
-  private persist(studyLog?: StudyLog): Promise<void> {
-    const write = this.queue.then(async () => {
-      const content = JSON.stringify(snapshotSchema.parse({ ...this.state, studyLog: studyLog ?? this.state.studyLog }), null, 2);
-      const temporary = join(this.directory, 'state.json.tmp');
-      await writeFile(temporary, content, { mode: 0o600 });
-      await rename(temporary, join(this.directory, 'state.json'));
-      if (studyLog) this.state.studyLog = studyLog;
+  save(): Promise<void> { return this.enqueue(() => this.persist(this.state)); }
+  saveStudyLog(studyLog: StudyLog): Promise<void> {
+    return this.enqueue(async () => {
+      await this.persist({ ...this.state, studyLog });
+      this.state.studyLog = studyLog;
     });
-    this.queue = write.catch(() => undefined);
-    return write;
+  }
+  update<K extends keyof Snapshot>(key:K, change:(current:Snapshot[K]) => Snapshot[K]|undefined):Promise<void> {
+    return this.enqueue(async () => {
+      const next = change(structuredClone(this.state[key]));
+      if (next === undefined) return;
+      await this.persist({...this.state,[key]:next});
+      this.state[key] = next;
+    });
+  }
+  private enqueue(write: () => Promise<void>): Promise<void> {
+    const pending = this.queue.then(write);
+    this.queue = pending.catch(() => undefined);
+    return pending;
+  }
+  private async persist(state:Snapshot) {
+    const content = JSON.stringify(snapshotSchema.parse(state),null,2);
+    const temporary = join(this.directory,'state.json.tmp');
+    await writeFile(temporary,content,{mode:0o600});
+    await rename(temporary,join(this.directory,'state.json'));
   }
 }
