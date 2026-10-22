@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createService } from './index';
 import { remember,forgetMemory } from './assistant-memory';
+import { memorySchema } from '../shared/schema';
 import { Store,emptySnapshot } from './store';
 
 // The CLI boundary is a fixture; HTTP routing, tool execution and disk persistence are real.
@@ -112,7 +113,7 @@ test('legacy snapshots open without losing review memories or preferences',async
   try {
     const { assistantMemories:_old,...legacy } = emptySnapshot();
     legacy.settings.nickname = 'Learner';
-    legacy.memories.push({id:'review',subjectId:null,topicId:null,resourceId:'resource',question:'Fractions',note:'Practise',createdAt:new Date().toISOString(),nextReviewAt:new Date().toISOString(),resolvedAt:null,learningNeedId:null});
+    legacy.memories.push(memorySchema.parse({id:'review',subjectId:null,topicId:null,resourceId:'resource',question:'Fractions',note:'Practise',createdAt:new Date().toISOString(),nextReviewAt:new Date().toISOString(),resolvedAt:null}));
     await writeFile(join(directory,'state.json'),JSON.stringify(legacy));
     const store = await Store.open(directory);
     assert.deepEqual(store.state.assistantMemories,[]);

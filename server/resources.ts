@@ -237,6 +237,14 @@ export class Resources {
     let result: GradeResult;
     try { result = validateGradeResult(resource.questions, JSON.parse(text), topicName); }
     catch { throw new HttpError(422, 'The grader returned invalid marking. No result was saved.'); }
+    const attemptId = randomUUID();
+    const now = new Date().toISOString();
+    const evidenceIds = new Map<string,string>();
+    const stableEvidenceId = (key:string) => {
+      let id = evidenceIds.get(key);
+      if (!id) { id = randomUUID(); evidenceIds.set(key,id); }
+      return id;
+    };
     return this.persistPractice(current => {
       if (submission) {
         const prior = current.attempts.find(attempt => attempt.sourceDraftId === submission.draftId);
@@ -248,17 +256,18 @@ export class Resources {
       const activeResource = requireFound(current.resources.find(item => item.id === resourceId && !item.deletedAt), 'Resource');
       const draft = submission ? current.practiceDrafts.find(item => item.id === submission.draftId && item.resourceId === resourceId && item.deletedAt === null) : undefined;
       if (submission && (!draft || draft.revision !== submission.expectedDraftRevision || !sameAnswers(draft.answers, answers))) throw new HttpError(409, 'This quiz draft changed while it was being marked. Reload it before trying again.');
-      const now = new Date().toISOString();
       const activeTopic = current.topics.find(topic => topic.id === activeResource.topicId)?.name ?? activeResource.title;
       const validated = validateGradeResult(activeResource.questions, result, activeTopic);
-      const attempt = attemptSchema.parse({ schemaVersion:1, revision:1, id:randomUUID(), sourceDraftId:submission?.draftId ?? null, resourceId, answers, result:validated, createdAt:now });
+      const attempt = attemptSchema.parse({ schemaVersion:1, revision:1, id:attemptId, sourceDraftId:submission?.draftId ?? null, resourceId, answers, result:validated, createdAt:now });
       const learningState = { ...current, memories:structuredClone(current.memories) };
       const needIds = new Set<string>();
       const memoryIds = new Set<string>();
       for (const feedback of validated.feedback) {
         const question = activeResource.questions.find(item => item.id === feedback.questionId);
         if (!question) continue;
-        const need = updateLearningNeedFromGrade({ state:learningState, resource:activeResource, question, feedback, attemptId:attempt.id, topicName:activeTopic, now });
+        let evidenceIndex = 0;
+        const need = updateLearningNeedFromGrade({ state:learningState, resource:activeResource, question, feedback, attemptId:attempt.id, topicName:activeTopic, now,
+          createId:() => stableEvidenceId(`${question.id}:${evidenceIndex++}`) });
         if (!need) continue;
         needIds.add(need.id);
         if (feedback.needsReview || feedback.score < feedback.maxScore) {
@@ -283,13 +292,14 @@ export class Resources {
   }
 
   async resolveMemory(memoryId: string) {
+    const now = new Date().toISOString();
+    const evidenceId = randomUUID();
     return this.persistPractice(current => {
       const memory = requireFound(current.memories.find(item => item.id === memoryId), 'Study memory');
       if (memory.resolvedAt) return { value:{ok:true}, apply:null };
-      const now = new Date().toISOString();
       const updated = { ...memory, resolvedAt:now };
       const learningState = { ...current };
-      recordReviewResolution({ state:learningState, memoryId:memory.id, learningNeedId:memory.learningNeedId, resourceId:memory.resourceId, now });
+      recordReviewResolution({ state:learningState, memoryId:memory.id, learningNeedId:memory.learningNeedId, resourceId:memory.resourceId, now, createId:()=>evidenceId });
       const need = learningState.learningNeeds.find(item => item.id === memory.learningNeedId);
       return { value:{ok:true}, apply:state => {
         state.memories = upsertRecords(state.memories, [updated]);

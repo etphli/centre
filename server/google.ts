@@ -12,8 +12,8 @@ export class GoogleLogin {
   private listener: Server | null = null;
   private timer: NodeJS.Timeout | null = null;
   private generation = 0;
-  constructor(private readonly store: Store, private readonly credentials: Pick<Credentials, 'get' | 'set'>) {}
-  async start(connector?: GoogleConnectorId, editable = false) {
+  constructor(private readonly store: Store, private readonly credentials: Pick<Credentials, 'get' | 'set'>, private readonly cloudIdentity?: (idToken:string)=>Promise<unknown>) {}
+  async start(connector?: GoogleConnectorId, editable = false, cloud = false) {
     const definition = googleConnectors.find(item => item.id === connector);
     const requestedScopes = connector ? googleScopes(connector, editable) : [];
     const clientId = this.store.state.settings.googleClientId || process.env.GOOGLE_CLIENT_ID;
@@ -40,7 +40,8 @@ export class GoogleLogin {
           const parameters = new URLSearchParams({ code, client_id: clientId, redirect_uri: redirect, grant_type: 'authorization_code', code_verifier: verifier, ...(secret ? { client_secret: secret } : {}) });
           const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method:'POST', body: parameters, signal: AbortSignal.timeout(30000) });
           if (!tokenResponse.ok) throw new Error(`Google token exchange failed (${tokenResponse.status}). Check your Desktop OAuth credentials.`);
-          const token = googleTokenSchema.parse(await tokenResponse.json());
+          const tokenValue:unknown = await tokenResponse.json();
+          const token = googleTokenSchema.parse(tokenValue);
           if (definition && (!token.refresh_token || !requestedScopes.every(scope => token.scope?.split(' ').includes(scope)))) throw new Error('Google did not grant all requested permissions or offline access. Reconnect and approve the requested access.');
           if (generation !== this.generation) throw new Error('This Google sign-in was cancelled.');
           const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: `Bearer ${token.access_token}` }, signal: AbortSignal.timeout(30000) });
@@ -48,6 +49,12 @@ export class GoogleLogin {
           const profile = z.object({ name: z.string().optional(), email: z.email(), email_verified: z.boolean(), picture: z.url().optional() }).parse(await profileResponse.json());
           if (!profile.email_verified) throw new Error('Google has not verified this email address.');
           if (generation !== this.generation) throw new Error('This Google sign-in was cancelled. Return to Centre to start again.');
+          if (cloud) {
+            if (!this.cloudIdentity) throw new Error('Centre cloud is unavailable.');
+            const {id_token} = z.object({id_token:z.string().min(1)}).parse(tokenValue);
+            await this.cloudIdentity(id_token);
+            if (generation !== this.generation) throw new Error('This cloud sign-in was cancelled.');
+          }
           if (definition) {
             await this.credentials.set(`connector-${definition.id}`, JSON.stringify({ ...token, expires_at: Date.now() + token.expires_in * 1000, client_id: clientId }));
             if (generation !== this.generation) { await this.credentials.set(`connector-${definition.id}`, ''); throw new Error('This connection was cancelled.'); }

@@ -1,0 +1,39 @@
+{
+  "checks": {
+    "signedIn": {
+      "status": "Synced just now",
+      "sidebar": "Search\n\u2318K\nNew chat\nResources\nCalendar\nLog\nReview\nPinned\nDrop to pin\nRecents\nPractising quadratics\n\nA\nalice@centre.test\nCloud sync enabled"
+    },
+    "synced": {
+      "status": "Synced just now",
+      "sidebar": "Search\n\u2318K\nNew chat\nResources\nCalendar\nLog\nReview\nPinned\nDrop to pin\nRecents\nPractising quadratics\n\nA\nalice@centre.test\nCloud sync enabled",
+      "glyph": "lucide lucide-circle-check"
+    },
+    "disconnect": {
+      "color": "rgb(224, 138, 126)",
+      "danger": "#e08a7e"
+    },
+    "pairing": true,
+    "offline": {
+      "text": "Sync stopped: Local verification service is offline.",
+      "glyph": "lucide lucide-circle-alert"
+    },
+    "pending": "Sync paused. 1 change waiting to upload. Local verification service is offline.",
+    "overflow": false
+  },
+  "errors": [],
+  "screenshots": [
+    "signed-in-dark.png",
+    "synced-dark.png",
+    "pairing-dark.png",
+    "offline-dark.png",
+    "pending-light.png",
+    "disconnect-light.png"
+  ],
+  "fallback": [
+    "Preview snapshot failed: Preview automation snapshot timed out after 15000ms.",
+    "Preview snapshot failed: Preview automation snapshot timed out after 15000ms."
+  ],
+  "passed": true,
+  "sourceReport": "/Users/likht.ethan/.t3/projects/centre/.runtime/feature-program/reviews/root-cloud/report.json"
+}

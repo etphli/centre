@@ -13,7 +13,7 @@ import { resourceSchema, snapshotSchema, type Resource } from '../shared/schema'
 
 const originalBinary = process.env.CENTRE_CODEX_BIN;
 process.env.CENTRE_CODEX_BIN = '/centre-test/no-codex-binary';
-const seedResource: Resource = { id:'quiz-one',subjectId:'math',topicId:'algebra',title:'Algebra practice',kind:'quiz',createdAt:'2026-10-20T00:00:00.000Z',updatedAt:'2026-10-20T00:00:00.000Z',content:'',practiceFocus:[],questions:[{ id:'q-one',concept:'',responseType:'short_response',choices:[],prompt:'Solve 2x = 8',answer:'4',explanation:'Divide by 2.',marks:2 }],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null,completedAt:null };
+const seedResource: Resource = resourceSchema.parse({ id:'quiz-one',subjectId:'math',topicId:'algebra',title:'Algebra practice',kind:'quiz',createdAt:'2026-10-20T00:00:00.000Z',updatedAt:'2026-10-20T00:00:00.000Z',content:'',questions:[{ id:'q-one',responseType:'short_response',choices:[],prompt:'Solve 2x = 8',answer:'4',explanation:'Divide by 2.',marks:2 }],questionTypes:['multiple_choice','short_response','long_response'],testLength:null,durationMinutes:null,completedAt:null });
 async function fixture(extraResources: Resource[] = []) {
   const directory = await mkdtemp(join(tmpdir(),'centre-api-test-'));
   const store = await Store.open(directory); store.state.subjects.push({ id:'math',name:'Mathematics',shortName:'Maths',color:'#c44',icon:'book' }); store.state.topics.push({ id:'algebra',subjectId:'math',name:'Algebra',description:'' }); store.state.resources.push(structuredClone(seedResource),...extraResources); await store.save();

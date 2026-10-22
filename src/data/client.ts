@@ -3,6 +3,7 @@ import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } fr
 import { searchQuerySchema, searchResultsSchema } from '../../shared/search';
 import { z } from 'zod';
 import { checklistProgressUpdateSchema, diagramPreviewSchema } from '../../shared/checklist-progress';
+import { cloudStatusSchema } from '../../shared/cloud-status';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import type { DesktopAction, DesktopActionRequest } from '../../shared/desktop-actions';
 import type { LauncherOperation, LauncherList } from '../../shared/desktop-launchers';
@@ -49,7 +50,7 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
       throw new Error(error.success ? error.data.error : `Centre returned ${response.status}.`);
     }
   }
-  const failure = z.object({ error: z.string() }).safeParse(value);
+  const failure = z.object({ error: z.string() }).strict().safeParse(value);
   if (failure.success) throw new Error(failure.data.error);
   const result = schema.parse(value);
   if (stateRequest && !window.centre && (path === '/state/poll' || !stateEtag)) stateEtag = nextStateEtag;
@@ -57,7 +58,19 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
 }
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
+export const cloudApi = {
+  status: () => request('GET','/cloud/status',cloudStatusSchema),
+  configure: (baseUrl:string) => request('POST','/cloud/configure',cloudStatusSchema,{baseUrl}),
+  signIn: async () => { const result = await request('POST','/cloud/sign-in',z.object({url:z.string().url()}),{}); await openExternal(result.url); return result; },
+  importData: () => request('POST','/cloud/import',cloudStatusSchema,{confirm:true}),
+  sync: () => request('POST','/cloud/sync',cloudStatusSchema,{}),
+  pairing: () => request('POST','/cloud/pairing',z.object({baseUrl:z.string().url(),code:z.string(),expiresAt:z.string().datetime()}),{}),
+  disconnect: () => request('POST','/cloud/disconnect',cloudStatusSchema,{}),
+  resolve: (kind:string,id:string,choice:'local'|'cloud') => request('POST','/cloud/conflicts/resolve',cloudStatusSchema,{kind,id,choice}),
+};
 export const api = {
+  mobileCloudStatus: () => request('GET','/cloud/status',z.object({authenticated:z.boolean()})),
+  mobilePairing: () => request('POST','/cloud/pairing',z.object({code:z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/),expiresAt:z.string().datetime(),baseUrl:z.string().url()}),{}),
   studyLog: () => request('GET', '/study-log', studyLogSchema),
   createStudy: (input: StudyTags & {id:string;segments:StudySegment[]}) => request('POST', '/study-log/sessions', studyLogSchema, input),
   editStudy: (id:string,input:StudyTags & {expectedRevision:number;segments:StudySegment[]}) => request('PATCH', `/study-log/sessions/${encodeURIComponent(id)}`, studyLogSchema, input),

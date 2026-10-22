@@ -3,22 +3,16 @@ import { HttpError, requireFound } from './errors';
 import type { Store } from './store';
 
 export class StudyLogService {
-  private queue: Promise<unknown> = Promise.resolve();
   constructor(private readonly store: Store, private readonly clock = Date.now) {}
 
-  private async transaction(change: (log: StudyLog, now: number) => void): Promise<StudyLog> {
-    const work = this.queue.then(async () => {
-      const previous = this.store.state.studyLog;
+  private transaction(change: (log: StudyLog, now: number) => void): Promise<StudyLog> {
+    return this.store.atomic(current=>{
+      const previous = current.studyLog;
       const next = structuredClone(previous);
-      change(next, this.clock());
+      change(next,this.clock());
       studyLogSchema.parse(next);
-      if (JSON.stringify(next) !== JSON.stringify(previous)) {
-        await this.store.saveStudyLog(next);
-      }
-      return structuredClone(next);
+      return {value:structuredClone(next),apply:JSON.stringify(next)===JSON.stringify(previous) ? null : state=>{state.studyLog=next;}};
     });
-    this.queue = work.catch(() => undefined);
-    return work;
   }
   recover(restart = false) {
     return this.transaction((log, now) => { log.sessions = log.sessions.map(session => recoverStudySession(session, now, restart)); });

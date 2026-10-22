@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { assistantMemorySchema, chatSchema, quizDraftSchema, resourceSchema, snapshotSchema } from '../shared/schema';
+import { assistantMemorySchema, chatSchema, quizDraftSchema, resourceSchema, snapshotSchema, type Snapshot } from '../shared/schema';
 import { createService } from './index';
 import { Store, writeStateFile } from './store';
 import { Resources } from './resources';
@@ -220,6 +220,53 @@ test('review resolution and relocation serialize without restoring an old topic'
       assert.ok(state.memories[0].resolvedAt);
     }
   } finally { release(); await codex.close(); await rm(directory,{recursive:true,force:true}); }
+});
+
+test('grade and review evidence keep one identity when atomic persistence must reprepare', async () => {
+  const directory = await mkdtemp(join(tmpdir(),'centre-practice-reprepare-'));
+  await seed(directory);
+  const gradeWrites:Snapshot[] = [];
+  const reviewWrites:Snapshot[] = [];
+  let store:Store;
+  let injectGradeRace = true;
+  let injectReviewRace = true;
+  store = await Store.open(directory,async (path,content) => {
+    const proposed = snapshotSchema.parse(JSON.parse(content));
+    if (proposed.attempts.length) {
+      gradeWrites.push(proposed);
+      if (injectGradeRace) { injectGradeRace = false; store.state.settings.nickname = 'grade writer race'; }
+    }
+    if (proposed.learningNeeds.some(need => need.evidence.some(evidence => evidence.source === 'review'))) {
+      reviewWrites.push(proposed);
+      if (injectReviewRace) { injectReviewRace = false; store.state.settings.theme = 'midnight'; }
+    }
+    await writeStateFile(path,content);
+  });
+  const codex = new Codex(directory,[],async () => undefined);
+  codex.validateSelection = async () => {};
+  codex.thread = async () => 'practice-reprepare';
+  codex.run = async () => JSON.stringify(result());
+  const resources = new Resources(store,codex);
+  try {
+    await resources.grade('quiz-a',{q1:'0',q2:'5'});
+    assert.equal(gradeWrites.length,2);
+    assert.equal(gradeWrites[0]?.attempts[0]?.id,gradeWrites[1]?.attempts[0]?.id);
+    assert.deepEqual(gradeWrites[0]?.learningNeeds[0]?.evidence,gradeWrites[1]?.learningNeeds[0]?.evidence);
+    assert.equal(store.state.attempts.length,1);
+    assert.equal(store.state.learningNeeds[0]?.evidence.filter(evidence => evidence.source === 'grade').length,1);
+
+    const review = store.state.memories.find(memory => memory.learningNeedId === store.state.learningNeeds[0]?.id);
+    assert.ok(review);
+    await resources.resolveMemory(review.id);
+    assert.equal(reviewWrites.length,2);
+    const needId = store.state.learningNeeds[0]?.id;
+    assert.deepEqual(
+      reviewWrites[0]?.learningNeeds.find(need => need.id === needId)?.evidence,
+      reviewWrites[1]?.learningNeeds.find(need => need.id === needId)?.evidence,
+    );
+    assert.equal(store.state.learningNeeds[0]?.evidence.filter(evidence => evidence.source === 'review').length,1);
+    assert.equal((await Store.open(directory)).state.learningNeeds[0]?.evidence.filter(evidence => evidence.source === 'review').length,1);
+  } finally { await codex.close(); await rm(directory,{recursive:true,force:true}); }
 });
 
 test('failed and invalid marking preserve the durable draft; successful retry is atomic and sourceDraftId is idempotent', async () => {

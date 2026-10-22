@@ -176,7 +176,8 @@ export class AttachmentStore {
     }
   }
 
-  async upload(value: unknown): Promise<Attachment> {
+  async upload(value: unknown, stableId: string = randomUUID()): Promise<Attachment> {
+    this.validId(stableId);
     const input = attachmentUploadSchema.parse(value);
     const extension = extname(input.name).toLowerCase();
     const bytes = decodeBase64(input.data);
@@ -186,14 +187,18 @@ export class AttachmentStore {
     else if (extension === '.pdf') extractedText = await extractPdfText(bytes);
     else if (extension === '.docx') extractedText = await extractDocxText(bytes);
     await mkdir(this.directory, { recursive:true, mode:0o700 });
-    const attachment = publicMetadataSchema.parse({ id:randomUUID(),name:input.name,mimeType,size:bytes.length });
+    const attachment = publicMetadataSchema.parse({ id:stableId,name:input.name,mimeType,size:bytes.length });
     const storedMetadata = storedMetadataSchema.parse({ ...attachment,...(extractedText === undefined ? {} : { extractedText }) });
     const dataPath = this.dataPath(attachment.id,attachment.name);
+    let wroteData = false;
+    let wroteMetadata = false;
     try {
       await writeFile(dataPath,bytes,{ flag:'wx', mode:0o600 });
+      wroteData = true;
       await writeFile(this.metadataPath(attachment.id),JSON.stringify(storedMetadata),{ flag:'wx', mode:0o600 });
+      wroteMetadata = true;
     } catch (error) {
-      await Promise.all([unlink(dataPath).catch(() => undefined),unlink(this.metadataPath(attachment.id)).catch(() => undefined)]);
+      await Promise.all([wroteData ? unlink(dataPath).catch(() => undefined) : undefined,wroteMetadata ? unlink(this.metadataPath(attachment.id)).catch(() => undefined) : undefined]);
       throw error;
     }
     return attachment;
@@ -201,6 +206,8 @@ export class AttachmentStore {
 
   private async getStored(id: string) {
     this.validId(id);
+    try { await readFile(join(this.directory,`${id}.deleted`)); return fail(404,'Attachment was deleted.'); }
+    catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error; }
     try {
       const parsed = storedMetadataSchema.parse(JSON.parse(await readFile(this.metadataPath(id),'utf8')));
       if (parsed.id !== id) return fail(404, 'Attachment not found.');
@@ -221,6 +228,19 @@ export class AttachmentStore {
     const stored = await this.getStored(id);
     if (stored.extractedText === undefined) return undefined;
     return { attachment: publicMetadataSchema.parse(stored), text: stored.extractedText };
+  }
+
+  async exportContent(id: string) {
+    const attachment = await this.get(id);
+    const bytes = await readFile(this.dataPath(id,attachment.name));
+    if (bytes.length !== attachment.size || bytes.length > MAX_ATTACHMENT_BYTES) return fail(500,'Attachment failed its stored size check.');
+    return {attachment,bytes};
+  }
+
+  async markDeleted(id: string) {
+    this.validId(id);
+    await mkdir(this.directory,{recursive:true,mode:0o700});
+    await writeFile(join(this.directory,`${id}.deleted`),'deleted\n',{mode:0o600});
   }
 
   async resolveForMessage(id: string): Promise<ExtractedAttachment> {
