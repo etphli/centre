@@ -1,10 +1,11 @@
 import { ConnectedFileView } from './ConnectedFileView';
 import { connectorCatalog } from '../../shared/connectors';
 import { DeleteResource } from './DeleteResource';
-import { Check, ChevronLeft, ChevronRight, Download, FolderInput, Printer, RotateCcw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronLeft, ChevronRight, Download, FolderInput, MoreHorizontal, Printer, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { z } from 'zod';
 import { api, downloadFile, printPaper } from '../data/client';
+import { practiceDraft } from '../data/practice-drafts';
 import type { GradeResult, Resource } from '../../shared/schema';
 import { useApp } from './context';
 import { errorMessage, plural, timeAgo } from './format';
@@ -77,19 +78,47 @@ function markTone(mark: Mark | undefined) {
 }
 
 function Quiz({ resource }: { resource: Resource }) {
-  const { state, act, notify } = useApp();
+  const { state, refresh } = useApp();
   const latest = state.attempts
     .filter((attempt) => attempt.resourceId === resource.id)
     .reduce<(typeof state.attempts)[number] | undefined>((best, attempt) => (!best || attempt.createdAt > best.createdAt ? attempt : best), undefined);
-  const [answers, setAnswers] = useState<Record<string, string>>(() => latest?.answers ?? {});
-  const [result, setResult] = useState<GradeResult | null>(() => latest?.result ?? null);
-  const [index, setIndex] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [draft] = useState(() => practiceDraft(resource.id, state, refresh));
+  const progress = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
+  const [result, setResult] = useState<GradeResult | null>(() => progress.started ? null : latest?.result ?? null);
+  const [resultAnswers, setResultAnswers] = useState<Record<string, string>>(() => latest?.answers ?? {});
+  const [markedIndex, setMarkedIndex] = useState(0);
+  const answers = result ? resultAnswers : progress.answers;
+  const index = result ? markedIndex : progress.currentQuestion;
+  const [working, setBusy] = useState(false);
+  const busy = working || progress.marking || progress.resetting;
   const [error, setError] = useState<string | null>(null);
+  const visibleError = error ?? progress.markingError;
+  const [confirmReset, setConfirmReset] = useState<'start-over' | 'reload' | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const optionsId = useId();
+  const optionsTarget = useRef<HTMLButtonElement | null>(null);
+  const confirmTarget = useRef<HTMLButtonElement | null>(null);
   const focusTarget = useRef<HTMLElement | null>(null);
   const moved = useRef(false);
+  const mounted = useRef(true);
   const questions = resource.questions;
   const question = questions[Math.min(index, questions.length - 1)];
+
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+
+  useEffect(() => {
+    if (draft.getSnapshot().started) void draft.flush().catch(() => undefined);
+  }, [draft]);
+
+  useEffect(() => {
+    if (!progress.started && latest) {
+      setResult(latest.result);
+      setResultAnswers(latest.answers);
+      setMarkedIndex(0);
+    }
+  }, [progress.started, latest?.id]);
+
+  useEffect(() => { if (confirmReset) confirmTarget.current?.focus(); }, [confirmReset]);
 
   useEffect(() => {
     // Only move focus after the student navigates, never on first load.
@@ -108,34 +137,69 @@ function Quiz({ resource }: { resource: Resource }) {
 
   function go(next: number) {
     moved.current = true;
-    setIndex(Math.min(questions.length - 1, Math.max(0, next)));
+    const target = Math.min(questions.length - 1, Math.max(0, next));
+    if (result) setMarkedIndex(target);
+    else draft.update(answers, target);
   }
 
   async function grade() {
     setBusy(true);
+    draft.setMarking(true);
     setError(null);
+    setOptionsOpen(false);
+    setConfirmReset(null);
     try {
-      const graded = await act(() => api.gradeQuiz(resource.id, answers));
-      if (graded) {
+      const saved = await draft.flush();
+      const graded = await api.gradeQuiz(resource.id, answers, { draftId: saved.id, expectedDraftRevision: saved.revision });
+      await refresh();
+      draft.clear();
+      if (mounted.current) {
         moved.current = true;
+        setResultAnswers(answers);
         setResult(graded);
-        setIndex(0);
-        notify({ tone: 'success', message: `Marked: ${graded.score} out of ${graded.total}` });
+        setMarkedIndex(0);
         document.querySelector('.main__content')?.scrollTo({ top: 0 });
-      } else setError('Grading didn’t finish. Your answers are still here, so you can try again.');
-    } catch (failure) {
-      setError(errorMessage(failure));
+      }
+    } catch {
+      draft.setMarkingError(draft.getSnapshot().error ? null : 'Grading didn’t finish. Your answers are still here, so you can try again.');
     } finally {
+      draft.setMarking(false);
       setBusy(false);
     }
   }
 
   function tryAgain() {
     moved.current = true;
+    draft.begin();
     setResult(null);
-    setAnswers({});
+    setResultAnswers({});
     setError(null);
-    setIndex(0);
+    setMarkedIndex(0);
+    setOptionsOpen(false);
+    setConfirmReset(null);
+  }
+
+  async function startOver() {
+    setBusy(true);
+    setError(null);
+    try {
+      await draft.startOver();
+      setConfirmReset(null);
+      moved.current = true;
+      requestAnimationFrame(() => focusTarget.current?.focus());
+    } catch { setError(draft.getSnapshot().error ? null : 'Start over didn’t finish. Your answers are still here.'); }
+    finally { setBusy(false); }
+  }
+
+  async function reloadSaved() {
+    setBusy(true);
+    setError(null);
+    try {
+      await draft.reload();
+      setConfirmReset(null);
+      requestAnimationFrame(() => focusTarget.current?.focus());
+    } catch { setError('The saved draft could not be loaded. Your local answers are still here.'); }
+    finally { setBusy(false); }
   }
 
   const promptId = `prompt-${question.id}`;
@@ -143,15 +207,31 @@ function Quiz({ resource }: { resource: Resource }) {
 
   return (
     <div className={`quiz${result ? ' quiz--marked' : ''}`}>
+      {resource.practiceFocus.length ? <p className="quiz__focus">Practice focus from recent feedback: {resource.practiceFocus.join(', ')}.</p> : null}
       {result ? (
         <div className="score" role="status">
-          <span className="score__number">{result.score}<span className="score__total">/{result.total}</span></span>
-          <span className="score__text">{flagged ? `${plural(flagged, 'question')} added to Review.` : 'Nothing flagged for review.'}</span>
+          <span className="score__number">{result.score}<span className="score__total"> of {plural(result.total, 'mark')}</span></span>
+          <span className="score__text">{flagged ? `${plural(flagged, 'question')} flagged for review.` : 'Nothing flagged for review.'}</span>
           <button type="button" className="button button--quiet button--small" onClick={tryAgain}>
             <RotateCcw size={14} /> Try again
           </button>
         </div>
       ) : null}
+
+      {!result && progress.started ? <div className={`quiz__draft${progress.error ? ' quiz__draft--error' : ''}`}>
+        <span role={progress.error ? 'alert' : 'status'}>{progress.error ? 'Couldn’t save your draft. Your answers are still here.' : progress.saving ? 'Saving draft…' : 'Draft saved on this device.'}</span>
+        {progress.error ? <button type="button" className="button button--small quiz__retry" disabled={busy} onClick={() => void draft.flush().catch(() => undefined)}>Retry save</button> : null}
+        <button type="button" ref={optionsTarget} className="button button--quiet button--small quiz__options-toggle" aria-label="Draft options" title="Draft options" aria-expanded={optionsOpen} aria-controls={optionsId} disabled={busy} onClick={() => setOptionsOpen(open => !open)}><MoreHorizontal size={16} aria-hidden /></button>
+      </div> : null}
+      {optionsOpen && !result ? <div className="quiz__options" id={optionsId} role="group" aria-label="Draft options">
+        <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setOptionsOpen(false); setConfirmReset('start-over'); }}>Start over</button>
+        <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setOptionsOpen(false); setConfirmReset('reload'); }}>Reload saved draft</button>
+      </div> : null}
+      {confirmReset && !result ? <div className="quiz__reset" role="group" aria-label="Confirm draft action">
+        <span>{confirmReset === 'reload' ? 'Discard local changes and reload the saved draft?' : 'Discard all answers in this draft?'}</span>
+        <button type="button" ref={confirmTarget} className="button button--small quiz__discard" disabled={busy} onClick={() => void (confirmReset === 'reload' ? reloadSaved() : startOver())}>{confirmReset === 'reload' ? 'Discard and reload' : 'Discard and start over'}</button>
+        <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => { setConfirmReset(null); requestAnimationFrame(() => optionsTarget.current?.focus()); }}>Keep working</button>
+      </div> : null}
 
       <nav className="quiz__progress" aria-label="Questions">
         <p className="quiz__count" aria-live="polite">
@@ -172,6 +252,7 @@ function Quiz({ resource }: { resource: Resource }) {
                   className={`quiz__dot ${tone}`}
                   aria-label={`Question ${i + 1}, ${status}`}
                   aria-current={i === index ? 'step' : undefined}
+                  disabled={busy}
                   onClick={() => go(i)}
                 />
               </li>
@@ -193,17 +274,17 @@ function Quiz({ resource }: { resource: Resource }) {
             </div>
             {mark ? (
               <div className="question__feedback">
-                <p className="question__score">{mark.score}/{mark.maxScore}{mark.needsReview ? ', saved to Review' : ''}</p>
+                <p className="question__score">{mark.score} of {plural(mark.maxScore, 'mark')}{mark.needsReview ? ', review recommended' : ''}</p>
                 <Markdown>{mark.feedback}</Markdown>
               </div>
             ) : null}
             <details className="quiz__model">
-              <summary>Model answer</summary>
+              <summary><ChevronRight className="quiz__disclosure-chevron" size={14} aria-hidden /> Model answer</summary>
               <Markdown>{mathText(question.answer) + (question.explanation ? `\n\n${question.explanation}` : '')}</Markdown>
             </details>
           </>
         ) : question.responseType === 'multiple_choice' ? (
-          <div className="quiz-choices" role="radiogroup" aria-labelledby={promptId}>{question.choices.map((choice,choiceIndex) => <label className={`quiz-choice${answers[question.id] === choice ? ' is-selected' : ''}`} key={choice}><input type="radio" name={`question-${question.id}`} value={choice} checked={answers[question.id] === choice} disabled={busy} onChange={() => setAnswers(current => ({ ...current,[question.id]:choice }))} ref={choiceIndex === 0 ? node => { focusTarget.current = node; } : undefined} /><span className="quiz-choice__letter">{String.fromCharCode(65+choiceIndex)}</span><Markdown>{mathText(choice)}</Markdown></label>)}</div>
+          <div className="quiz-choices" role="radiogroup" aria-labelledby={promptId}>{question.choices.map((choice,choiceIndex) => <label className={`quiz-choice${answers[question.id] === choice ? ' is-selected' : ''}`} key={choice}><input type="radio" name={`question-${question.id}`} value={choice} checked={answers[question.id] === choice} disabled={busy} onChange={() => draft.update({ ...answers, [question.id]: choice }, index)} ref={choiceIndex === 0 ? node => { focusTarget.current = node; } : undefined} /><span className="quiz-choice__letter">{String.fromCharCode(65+choiceIndex)}</span><Markdown>{mathText(choice)}</Markdown></label>)}</div>
         ) : (
           <textarea
             key={question.id}
@@ -213,7 +294,8 @@ function Quiz({ resource }: { resource: Resource }) {
             className="question__answer"
             rows={question.responseType === 'long_response' ? 7 : 4}
             value={answers[question.id] ?? ''}
-            onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))}
+            onChange={(event) => draft.update({ ...answers, [question.id]: event.target.value }, index)}
+            maxLength={4000}
             placeholder="Your answer"
             readOnly={busy}
           />
@@ -224,13 +306,13 @@ function Quiz({ resource }: { resource: Resource }) {
         <div className="quiz__missing">
           <span>{missing.length === questions.length ? 'No questions answered yet.' : `${plural(missing.length, 'question')} still blank:`}</span>
           {missing.length < questions.length ? missing.map(({ q, i }) => (
-            <button key={q.id} type="button" className="link-button" onClick={() => go(i)}>Question {i + 1}</button>
+            <button key={q.id} type="button" className="link-button" disabled={busy} onClick={() => go(i)}>Question {i + 1}</button>
           )) : null}
         </div>
       ) : null}
 
       <div className="quiz__nav">
-        {error ? <p className="form__error" role="alert">{error}</p> : null}
+        {visibleError ? <p className="form__error" role="alert">{visibleError}</p> : null}
         <button type="button" className="button button--quiet" onClick={() => go(index - 1)} disabled={index === 0 || busy}>
           <ChevronLeft size={16} aria-hidden /> Back
         </button>
@@ -240,7 +322,7 @@ function Quiz({ resource }: { resource: Resource }) {
           </button>
         ) : !result ? (
           <button type="button" className="button button--primary" disabled={busy || answered === 0} onClick={() => void grade()}>
-            {busy ? <><span className="spinner spinner--small" aria-hidden /> Marking</> : 'Submit for marking'}
+            {busy ? <><span className="spinner spinner--small" aria-hidden /> {progress.resetting ? 'Updating draft' : 'Marking'}</> : 'Submit for marking'}
           </button>
         ) : null}
       </div>
@@ -400,7 +482,7 @@ export function ResourceView({ resourceId }: { resourceId: string }) {
         <div className="resource-header__row">
           <span className="resource-header__meta">
             <Icon size={14} aria-hidden /> {resource.connectedFile ? connectorCatalog.find(item => item.id === resource.connectedFile?.connector)?.name : kindLabels[resource.kind]}, made {timeAgo(resource.createdAt)}
-            {resource.completedAt ? <span className="done-pill"><Check size={12} aria-hidden /> Done {timeAgo(resource.completedAt)}</span> : null}
+            {resource.completedAt && resource.kind !== 'quiz' ? <span className="done-pill"><Check size={12} aria-hidden /> Done {timeAgo(resource.completedAt)}</span> : null}
           </span>
           <div className="resource-header__actions">
             <DeleteResource resource={resource} onDeleted={() => navigate({kind:'resources'})} />

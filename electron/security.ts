@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
 const routes = [
+  ['GET', /^\/api\/study-log$/],
+  ['POST', /^\/api\/study-log\/(sessions|goals|timer\/start)$/],
+  ['PATCH', /^\/api\/study-log\/sessions\/[0-9a-f-]{36}$/],
+  ['POST', /^\/api\/study-log\/sessions\/[0-9a-f-]{36}\/delete$/],
+  ['POST', /^\/api\/study-log\/timer\/[0-9a-f-]{36}\/(heartbeat|pause|resume|stop|confirm)$/],
   ['GET', /^\/api\/state$/],
   ['GET', /^\/api\/state\/poll$/],
   ['GET', /^\/api\/models$/],
@@ -21,6 +26,8 @@ const routes = [
   ['POST', /^\/api\/topics$/],
   ['POST', /^\/api\/resources\/generate$/],
   ['PATCH', /^\/api\/resources\/[^/]+\/location$/],
+  ['PATCH', /^\/api\/resources\/[^/]+\/practice-draft$/],
+  ['POST', /^\/api\/resources\/[^/]+\/practice-draft\/start-over$/],
   ['GET', /^\/api\/resources\/[^/]+\/(export|preview)$/],
   ['POST', /^\/api\/resources\/[^/]+\/(feedback|archive|restore|refresh)$/],
   ['POST', /^\/api\/quiz\/grade$/],

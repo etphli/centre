@@ -1,7 +1,8 @@
+import { studyLogSchema, type StudyTags, type StudySegment, type TimerAction } from '../../shared/study-log';
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { z } from 'zod';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
-import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
+import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, quizDraftSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent, type QuizDraft } from '../../shared/schema';
 
 export interface ExportedFile { filename: string; content: string; mimeType: string }
 export interface AttachmentUploadInput { name:string; mimeType:string; data:string }
@@ -44,6 +45,13 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
 export const api = {
+  studyLog: () => request('GET', '/study-log', studyLogSchema),
+  createStudy: (input: StudyTags & {id:string;segments:StudySegment[]}) => request('POST', '/study-log/sessions', studyLogSchema, input),
+  editStudy: (id:string,input:StudyTags & {expectedRevision:number;segments:StudySegment[]}) => request('PATCH', `/study-log/sessions/${encodeURIComponent(id)}`, studyLogSchema, input),
+  deleteStudy: (id:string,expectedRevision:number) => request('POST', `/study-log/sessions/${encodeURIComponent(id)}/delete`, studyLogSchema, {expectedRevision}),
+  startStudy: (input:StudyTags & {id:string}) => request('POST', '/study-log/timer/start', studyLogSchema, input),
+  timerStudy: (id:string,action:TimerAction,expectedRevision:number,activity = false) => request('POST', `/study-log/timer/${encodeURIComponent(id)}/${action}`, studyLogSchema, {expectedRevision,activity}),
+  saveStudyGoal: (input:{id:string;weekStart:string;timeZone:string;targetMinutes:number;expectedRevision?:number}) => request('POST', '/study-log/goals', studyLogSchema, input),
   state: () => request('GET', '/state', snapshotSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),
   forgetMemory: (id:string) => request('POST', `/assistant-memories/${encodeURIComponent(id)}/forget`, okSchema, {}),
@@ -67,11 +75,13 @@ export const api = {
   deleteResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/archive`,okSchema,{}),
   restoreResource: (id:string) => request('POST',`/resources/${encodeURIComponent(id)}/restore`,okSchema,{}),
   moveResource: (id:string,location:{subjectId:string|null;topicId:string|null}) => request('PATCH',`/resources/${encodeURIComponent(id)}/location`,resourceSchema,location),
+  saveQuizDraft: (resourceId:string,input:{id:string;expectedRevision:number|null;answers:Record<string,string>;currentQuestion:number}):Promise<QuizDraft> => request('PATCH',`/resources/${encodeURIComponent(resourceId)}/practice-draft`,quizDraftSchema,input),
+  startOverQuizDraft: (resourceId:string,input:{id:string;expectedRevision:number}) => request('POST',`/resources/${encodeURIComponent(resourceId)}/practice-draft/start-over`,okSchema,input),
   exportResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/export`, exportSchema),
   refreshConnectedFile: (id:string) => request('POST', `/resources/${encodeURIComponent(id)}/refresh`,resourceSchema,{}),
   previewResource: (id: string) => request('GET', `/resources/${encodeURIComponent(id)}/preview`, z.object({ url: z.string().url() })),
   saveFeedback: (id: string, notes: string, questionIds: string[] = [], confident = false) => request('POST', `/resources/${encodeURIComponent(id)}/feedback`, okSchema, { notes, questionIds, confident }),
-  gradeQuiz: (resourceId: string, answers: Record<string, string>) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers }),
+  gradeQuiz: (resourceId: string, answers: Record<string, string>, submission?:{draftId:string;expectedDraftRevision:number}) => request('POST', '/quiz/grade', gradeResultSchema, { resourceId, answers, ...(submission ?? {}) }),
   createEvent: (input: Pick<StudyEvent, 'title' | 'date'> & Partial<Pick<StudyEvent, 'time' | 'subjectId' | 'notes'>>) => request('POST', '/events', eventSchema, input),
   completeEvent: (id: string, completed: boolean) => request('PATCH', `/events/${encodeURIComponent(id)}`, eventSchema, { completedAt: completed ? new Date().toISOString() : null }),
   resolveMemory: (id: string) => request('POST', `/memories/${encodeURIComponent(id)}/resolve`, okSchema, {}),
