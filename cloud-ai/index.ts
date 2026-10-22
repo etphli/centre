@@ -19,7 +19,7 @@ type SqlValue = string | number | null | ArrayBuffer | Uint8Array;
 export interface D1PreparedStatement {
   bind(...values: SqlValue[]): D1PreparedStatement;
   first<T = unknown>(): Promise<T | null>;
-  run<T = unknown>(): Promise<D1Result<T>>;
+  run(): Promise<unknown>;
 }
 
 export interface D1Result<T = unknown> {
@@ -31,7 +31,7 @@ export interface D1Result<T = unknown> {
 
 export interface D1Database {
   prepare(query: string): D1PreparedStatement;
-  batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
+  batch(statements: D1PreparedStatement[]): Promise<unknown[]>;
 }
 
 export interface CloudRecord {
@@ -63,7 +63,7 @@ export interface AiRequestContext {
   auth: { workspaceId: string; deviceId: string };
   entities: {
     get(kind: string, id: string): Promise<CloudRecord | null>;
-    put(mutation: CloudMutation): Promise<{ record: CloudRecord }>;
+    put(mutation: CloudMutation): Promise<CloudRecord>;
     listMessages?(chatId: string, limit: number): Promise<CloudRecord[]>;
     commit?(mutations: GradeMutation[]): Promise<unknown>;
     getPracticeAttempt?(sourceDraftId: string): Promise<GradeRecord | null>;
@@ -369,7 +369,7 @@ async function finishWithResult(
   result: string,
 ): Promise<RunRow | null> {
   const mutation = assistantMutation(row, result);
-  const { record } = await context.entities.put(mutation);
+  const record = await context.entities.put(mutation);
   if (!record || !assistantRecordMatches(record, row, result)) {
     await updateRun(
       db,
@@ -481,6 +481,24 @@ async function recoverOrExpire(
   return interruptedIfExpired(db, row);
 }
 
+async function tutoringMessages(context: AiRequestContext, row: RunRow, userText: string) {
+  const system = { role: "system", content: SYSTEM_PROMPT };
+  if (!context.entities.listMessages) return [system, { role: "user", content: userText }];
+  const records = await context.entities.listMessages(row.chat_id, 20);
+  const boundary = records.findIndex(record => record.id === row.message_id);
+  if (boundary < 0) return [system, { role: "user", content: userText }];
+  const prior: { role: string; content: string }[] = [];
+  let remaining = 8_000;
+  for (const record of records.slice(0, boundary).reverse()) {
+    const data = record.data;
+    if (record.kind !== "message" || record.deleted || !data || data.chatId !== row.chat_id || !["user", "assistant"].includes(String(data.role)) || typeof data.content !== "string") continue;
+    if (data.content.length > remaining) break;
+    remaining -= data.content.length;
+    prior.unshift({ role: String(data.role), content: data.content });
+  }
+  return [system, ...prior, { role: "user", content: userText }];
+}
+
 async function startProvider(
   db: D1Database,
   context: AiRequestContext,
@@ -492,10 +510,7 @@ async function startProvider(
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     response = await Promise.race([ai.run(AI_MODEL, {
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userText },
-      ],
+      messages: await tutoringMessages(context, row, userText),
       max_tokens: 1_024,
       stream: false,
     }), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Provider deadline exceeded")), PROVIDER_TIMEOUT_MS); timer.unref?.(); })]);

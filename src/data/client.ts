@@ -44,6 +44,7 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
 export const api = {
+  mobilePairing: () => request('POST', '/cloud/pairing', z.object({code:z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/),expiresAt:z.string().datetime(),baseUrl:z.string().url()}), {}),
   state: () => request('GET', '/state', snapshotSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),
   forgetMemory: (id:string) => request('POST', `/assistant-memories/${encodeURIComponent(id)}/forget`, okSchema, {}),

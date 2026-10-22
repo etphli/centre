@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const routes = [
+  ['POST', /^\/api\/cloud\/pairing$/],
   ['GET', /^\/api\/state$/],
   ['GET', /^\/api\/state\/poll$/],
   ['GET', /^\/api\/models$/],

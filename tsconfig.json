@@ -6,5 +6,5 @@
     "resolveJsonModule": true, "noEmit": true, "types": ["node", "vite/client"],
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "shared", "server", "electron", "App.tsx", "vite.config.ts"]
+  "include": ["src", "shared", "server", "electron", "App.tsx", "vite.config.ts", "cloud-ai"]
 }

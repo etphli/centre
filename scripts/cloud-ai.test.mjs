@@ -40,12 +40,12 @@ function makeContext({ db = new LocalD1(), workspaceId = "workspace-a", ai, putB
       async put(mutation) {
         putCalls.push(structuredClone(mutation));
         const previous = mutations.get(mutation.mutationId);
-        if (previous) return { record: previous };
+        if (previous) return previous;
         const written = record(mutation.kind, mutation.id, structuredClone(mutation.data));
         records.set(`${workspaceId}:${mutation.kind}:${mutation.id}`, written);
         mutations.set(mutation.mutationId, written);
         if (putBehavior) await putBehavior({ mutation, record: written, call: putCalls.length });
-        return { record: written };
+        return written;
       },
     },
   };
@@ -345,7 +345,7 @@ test("a resolved wrong assistant ACK becomes terminal failed instead of complete
   const fixture = makeContext({ ai: { async run() { calls++; return { response: "Expected answer." }; } } });
   fixture.context.entities.put = async (mutation) => {
     fixture.putCalls.push(structuredClone(mutation));
-    return { record: record("message", mutation.id, { ...mutation.data, content: "Conflicting content." }) };
+    return record("message", mutation.id, { ...mutation.data, content: "Conflicting content." });
   };
   const id = randomUUID();
   const request = () => postRequest({ id, chatId: fixture.chatId, messageId: fixture.messageId });

@@ -9,3 +9,11 @@ release/
 .DS_Store
 *.log
 .centre-data/
+
+# iOS build and private signing configuration
+ios/.build/
+ios/DerivedData/
+ios/Config.local.xcconfig
+ios/*.xcresult/
+ios/Centre.xcodeproj/
+ios/.swiftpm/

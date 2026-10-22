@@ -1,11 +1,12 @@
 import { Connections } from './Connections';
-import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download, Brain } from 'lucide-react';
+import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download, Brain, Smartphone } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, openExternal, updates, type UpdateStatus } from '../data/client';
 import { useApp } from './context';
 import { GeneralPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
 import { errorMessage, initials, timeAgo } from './format';
 import { MemorySettings } from './MemorySettings';
+import { MobileSettings } from './MobileSettings';
 
 const POLL_MS = 2000;
 const POLL_LIMIT_MS = 180_000;
@@ -316,6 +317,7 @@ const categories = [
   { id:'connections',label:'Connections',icon:Plug },
   { id:'skills',label:'Skills',icon:Wand2 },
   { id:'updates',label:'Updates',icon:Download },
+  { id:'mobile',label:'iPhone',icon:Smartphone },
 ];
 
 export function SettingsPage() {
@@ -330,6 +332,7 @@ export function SettingsPage() {
       {category === 'connections' ? <><Connections /><GoogleSection /><OrganatoSection /><p className="settings-foot">Credentials are stored in your macOS Keychain. <button type="button" className="link-button" onClick={() => void openExternal('https://organato.vercel.app').catch(() => undefined)}>Open Organato <ExternalLink size={12} aria-hidden /></button></p></> : null}
       {category === 'skills' ? <SkillsPreferences /> : null}
       {category === 'updates' ? <UpdatesSection /> : null}
+      {category === 'mobile' ? <MobileSettings /> : null}
     </div>
   </div>;
 }

@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { handleAiRequest } from '../cloud-ai/index.ts';
+
+// Runs the real database-owner authentication/router/entity store with isolated SQLite.
+// Google keys and inference below are explicit fixtures. No deployed service is contacted.
+const index=process.argv.indexOf('--database-checkout');
+assert.ok(index>=0 && process.argv[index+1], 'Pass --database-checkout /path/to/database-feature-checkout');
+const checkout=resolve(process.argv[index+1]);
+const {createCloudTestHarness}=await import(pathToFileURL(join(checkout,'cloud/test-support.ts')).href);
+const fixture=await createCloudTestHarness({extension:handleAiRequest});
+for(const name of readdirSync('cloud-ai/migrations').filter(name=>name.endsWith('.sql')).sort()) fixture.db.sqlite.exec(readFileSync(join('cloud-ai/migrations',name),'utf8'));
+let calls=0;let observed=[];
+fixture.env.AI={async run(model,input){calls++;observed.push(input.messages);assert.equal(model,'@cf/meta/llama-3.1-8b-instruct-fp8');return {response:'Local inference fixture. No hosted AI was called.'};}};
+const alice=await fixture.login('alice'),bob=await fixture.login('bob');
+const now=new Date().toISOString(),chatId=randomUUID(),messageId=randomUUID();
+const write=async(kind,id,data,token=alice.token)=>{
+ const result=await fixture.call('/v1/records','POST',{mutationId:randomUUID(),kind,id,schemaVersion:1,expectedVersion:0,deleted:false,data},token);
+ assert.equal(result.status,200,JSON.stringify(result.value));return result.value.record;
+};
+await write('chat',chatId,{id:chatId,title:'Independent mobile chat',createdAt:now,updatedAt:now,deletedAt:null,pinnedAt:null,folderId:null,sortOrder:0,modelSelection:null,lineage:{schemaVersion:1,kind:'root'}});
+const message=(id,role,content,time=now)=>({id,chatId,role,content,createdAt:time,responseDurationMs:null,resourceIds:[],attachmentIds:[],requestContext:{page:'chat'}});
+await write('message',messageId,message(messageId,'user','Explain mitochondria.'));
+const request={id:randomUUID(),chatId,messageId};
+assert.equal((await fixture.call('/v1/ai/runs','POST',request)).status,401);
+assert.equal((await fixture.call('/v1/ai/runs','POST',request,bob.token)).status,404);
+const first=await fixture.call('/v1/ai/runs','POST',request,alice.token);
+assert.equal(first.status,200,JSON.stringify(first.value));assert.equal(first.value.run.status,'completed');
+assert.equal((await fixture.call('/v1/ai/runs','POST',request,alice.token)).value.run.status,'completed');assert.equal(calls,1);
+assert.equal((await fixture.call(`/v1/ai/runs/${request.id}`,'GET',undefined,bob.token)).status,404);
+const followupId=randomUUID();await write('message',followupId,message(followupId,'user','Explain that more simply.',new Date(Date.now()+1000).toISOString()));
+assert.equal((await fixture.call('/v1/ai/runs','POST',{id:randomUUID(),chatId,messageId:followupId},alice.token)).value.run.status,'completed');
+assert.ok(observed[1].some(item=>item.role==='assistant' && item.content.includes('Local inference fixture')),'Server must load bounded saved history');
+const pairing=await fixture.call('/v1/pairings','POST',{},alice.token);assert.equal(pairing.status,200);
+const paired=await fixture.call('/v1/auth/pair','POST',{code:pairing.value.code,deviceName:'Mobile integration fixture'});assert.equal(paired.status,200);assert.equal(paired.value.workspaceId,alice.workspaceId);
+assert.notEqual((await fixture.call('/v1/auth/pair','POST',{code:pairing.value.code,deviceName:'Replay'})).status,200);
+const resourceId=randomUUID(),draftId=randomUUID();
+await write('resource',resourceId,{id:resourceId,subjectId:null,topicId:null,title:'Objective quiz',kind:'quiz',createdAt:now,updatedAt:now,content:'',questions:[{id:'q1',responseType:'multiple_choice',choices:['A','B'],prompt:'Choose A',answer:'A',explanation:'A is correct.',marks:1}]});
+await write('practice.draft',draftId,{schemaVersion:1,id:draftId,revision:1,resourceId,answers:{q1:'B'},currentQuestion:0,createdAt:now,updatedAt:now,deletedAt:null});
+const grade={id:randomUUID(),resourceId,draftId,expectedDraftRevision:1};
+const marked=await fixture.call('/v1/ai/grades','POST',grade,paired.value.token);assert.equal(marked.status,200,JSON.stringify(marked.value));assert.equal(marked.value.status,'completed');assert.equal(marked.value.attempt.result.score,0);
+const replay=await fixture.call('/v1/ai/grades','POST',{...grade,id:randomUUID()},alice.token);assert.equal(replay.value.attempt.id,marked.value.attempt.id);assert.equal(calls,2,'Objective grading must not call inference');
+const changes=await fixture.call('/v1/changes?cursor=0&limit=100','GET',undefined,alice.token);assert.equal(changes.status,200);
+assert.equal(changes.value.records.filter(record=>record.kind==='practice.attempt').length,1);
+assert.equal(changes.value.records.find(record=>record.kind==='practice.draft').data.deletedAt!==null,true);
+assert.equal(changes.value.records.filter(record=>record.kind==='practice.learningNeed').length,1);
+assert.equal((await fixture.call('/v1/changes?cursor=0&limit=100','GET',undefined,bob.token)).value.records.length,0);
+fixture.db.sqlite.close();
+process.stdout.write('PASS actual Centre Worker auth/router + two-workspace data isolation + one-use pairing + durable chat/history retry + atomic quiz/draft/evidence commit.\nInference was simulated; no production or hosted-provider verification. Desktop service was not used.\n');
