@@ -27,7 +27,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   fs.appendFileSync('turns.jsonl',JSON.stringify(p)+'\\n');
   const grading = Boolean(p.outputSchema?.properties?.feedback);
   if (grading && fs.existsSync('fail-grade')) {
-    send({method:'turn/completed',params:{threadId:p.threadId,turn:{status:'failed',error:{message:'Fixture marking is temporarily unavailable.'}}}});return;
+    setTimeout(() => send({method:'turn/completed',params:{threadId:p.threadId,turn:{status:'failed',error:{message:'Fixture marking is temporarily unavailable.'}}}}),fs.existsSync('slow-grade') ? 10000 : 150);return;
   }
   let output;
   if (grading) {

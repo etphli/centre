@@ -1,0 +1,21 @@
+{
+  "url": "http://127.0.0.1:5387/",
+  "fixture": "Real local Store, routes, grade and generation; deterministic fake CLI provider; no live user data.",
+  "viewport": "1440x1000; light/large/comfortable 1024x1000",
+  "browser": "Playwright + installed Chrome after T3 preview and CUA unavailable",
+  "steps": [
+    "adaptive focus is backed by actual fixture grade and generation",
+    "different resources retain separate answers and question positions",
+    "reload resumes the durable draft at question two",
+    "failed saves preserve local inputs across navigation and reload",
+    "failed marking survives navigation with one safe inline error and retained inputs",
+    "successful grading survives navigation and clears only the submitted draft",
+    "Try again starts empty and never prefills the graded submission",
+    "blank-question jump actions cannot invalidate a marking run",
+    "explicit start-over confirms and creates a separate empty draft",
+    "light theme selected control and layout",
+    "midnight theme selected control and layout",
+    "dark theme selected control and layout"
+  ],
+  "errors": []
+}

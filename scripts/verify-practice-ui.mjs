@@ -30,11 +30,54 @@ try {
  await step('different resources retain separate answers and question positions',async()=>{await open('Geometry practice');await page.locator('textarea.question__answer').fill('Still working on the missing angle.');await saved();await open();assert.equal(await page.locator('textarea.question__answer').inputValue(),'y = 5. I divided both sides by 5.');await page.getByText('Question 2 of 2',{exact:false}).waitFor();});
  await step('reload resumes the durable draft at question two',async()=>{await page.reload({waitUntil:'domcontentloaded'});await open();assert.equal(await page.locator('textarea.question__answer').inputValue(),'y = 5. I divided both sides by 5.');const s=await state();assert.equal(s.practiceDrafts.find(d=>d.id===firstDraft.id).currentQuestion,1);});
  await shot('resumed');
- await step('failed saves preserve local inputs across navigation and reload',async()=>{await mkdir(info.directory+'/state.json.tmp');failureDirectory=true;await page.locator('textarea.question__answer').fill('Retained after a failed save.');await page.getByText('Draft not saved. Your answers are still here.',{exact:true}).waitFor();await shot('failed-save');await open('Geometry practice');await open();assert.equal(await page.locator('textarea.question__answer').inputValue(),'Retained after a failed save.');await page.reload({waitUntil:'domcontentloaded'});await open();assert.equal(await page.locator('textarea.question__answer').inputValue(),'Retained after a failed save.');await rm(info.directory+'/state.json.tmp',{recursive:true});failureDirectory=false;await page.getByRole('button',{name:'Retry save',exact:true}).click();await saved();const s=await state();assert.ok(Object.values(s.practiceDrafts.find(d=>d.id===firstDraft.id).answers).includes('Retained after a failed save.'));});
- await step('failed marking retains all saved inputs and the active draft',async()=>{await writeFile(info.directory+'/fail-grade','');await page.getByRole('button',{name:'Submit for marking',exact:true}).click();await page.getByText('Grading didn’t finish. Your answers are still here, so you can try again.',{exact:true}).waitFor();assert.equal(await page.locator('textarea.question__answer').inputValue(),'Retained after a failed save.');assert.equal((await state()).practiceDrafts.find(d=>d.id===firstDraft.id).deletedAt,null);await shot('failed-marking');await rm(info.directory+'/fail-grade');});
- await step('successful grading survives navigation and clears only the submitted draft',async()=>{await writeFile(info.directory+'/slow-grade','');await page.getByRole('button',{name:'Submit for marking',exact:true}).click();await open('Geometry practice');await open();await page.getByRole('button',{name:'Try again',exact:true}).waitFor();await rm(info.directory+'/slow-grade');const s=await state();assert.ok(s.practiceDrafts.find(d=>d.id===firstDraft.id).deletedAt);assert.ok(s.practiceDrafts.some(d=>d.resourceId==='geometry-quiz'&&!d.deletedAt));assert.equal(s.attempts.filter(a=>a.sourceDraftId===firstDraft.id).length,1);await shot('marked');});
+ await step('failed saves preserve local inputs across navigation and reload',async()=>{
+  await mkdir(info.directory+'/state.json.tmp'); failureDirectory=true;
+  await page.locator('textarea.question__answer').fill('Retained after a failed save.');
+  await page.getByText('Couldn’t save your draft. Your answers are still here.',{exact:true}).waitFor();
+  assert.equal(await page.locator('.quiz [role=alert]').count(),1);
+  assert.equal(await page.getByRole('button',{name:'Start over',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Reload saved draft',exact:true}).count(),0);
+  await shot('failed-save');
+  await page.getByRole('button',{name:'Draft options',exact:true}).click();
+  await page.getByRole('button',{name:'Reload saved draft',exact:true}).click();
+  await page.getByText('Discard local changes and reload the saved draft?',{exact:true}).waitFor();
+  await shot('discard-local-confirmation');
+  await page.getByRole('button',{name:'Keep working',exact:true}).click();
+  assert.equal(await page.locator('textarea.question__answer').inputValue(),'Retained after a failed save.');
+  await open('Geometry practice'); await open();
+  assert.equal(await page.locator('textarea.question__answer').inputValue(),'Retained after a failed save.');
+  await page.reload({waitUntil:'domcontentloaded'}); await open();
+  assert.equal(await page.locator('textarea.question__answer').inputValue(),'Retained after a failed save.');
+  await rm(info.directory+'/state.json.tmp',{recursive:true}); failureDirectory=false;
+  await page.getByRole('button',{name:'Retry save',exact:true}).click(); await saved();
+  const s=await state(); assert.ok(Object.values(s.practiceDrafts.find(d=>d.id===firstDraft.id).answers).includes('Retained after a failed save.'));
+ });
+ await step('failed marking survives navigation with one safe inline error and retained inputs',async()=>{
+  await writeFile(info.directory+'/fail-grade',''); await writeFile(info.directory+'/slow-grade','');
+  await page.getByRole('button',{name:'Submit for marking',exact:true}).click();
+  await open('Geometry practice'); await open();
+  await page.getByText('Grading didn’t finish. Your answers are still here, so you can try again.',{exact:true}).waitFor();
+  assert.equal(await page.locator('textarea.question__answer').inputValue(),'Retained after a failed save.');
+  assert.equal((await state()).practiceDrafts.find(d=>d.id===firstDraft.id).deletedAt,null);
+  assert.equal(await page.locator('.toast').count(),0);
+  assert.equal(await page.locator('.quiz [role=alert]').count(),1);
+  await shot('failed-marking');
+  await rm(info.directory+'/fail-grade'); await rm(info.directory+'/slow-grade');
+ });
+ await step('successful grading survives navigation and clears only the submitted draft',async()=>{await writeFile(info.directory+'/slow-grade','');await page.getByRole('button',{name:'Submit for marking',exact:true}).click();await open('Geometry practice');await open();await page.getByRole('button',{name:'Try again',exact:true}).waitFor();await rm(info.directory+'/slow-grade');const s=await state();assert.ok(s.practiceDrafts.find(d=>d.id===firstDraft.id).deletedAt);assert.ok(s.practiceDrafts.some(d=>d.resourceId==='geometry-quiz'&&!d.deletedAt));assert.equal(s.attempts.filter(a=>a.sourceDraftId===firstDraft.id).length,1);assert.match(await page.locator('.score__number').innerText(),/0\s+of\s+3\s+marks/);assert.equal(await page.locator('.toast').count(),0);await shot('marked');await page.locator('.quiz__model > summary').click();assert.notEqual(await page.locator('.quiz__model').getAttribute('open'),null);await shot('model-answer-open');await page.locator('.quiz__model > summary').press('Enter');assert.equal(await page.locator('.quiz__model').getAttribute('open'),null);});
  await step('Try again starts empty and never prefills the graded submission',async()=>{await page.getByRole('button',{name:'Try again',exact:true}).click();await saved();assert.equal(await page.locator('.resource-header .done-pill').count(),0,'An unfinished quiz must not be labelled Done.');assert.equal(await page.locator('input[type=radio]:checked').count(),0);await page.getByRole('button',{name:'Next',exact:true}).click();assert.equal(await page.locator('textarea.question__answer').inputValue(),'');await page.locator('textarea.question__answer').fill('Discard this unfinished answer.');await saved();});
- await step('explicit start-over confirms and creates a separate empty draft',async()=>{const before=(await state()).practiceDrafts.find(d=>d.resourceId===info.quizId&&!d.deletedAt);await page.getByRole('button',{name:'Start over',exact:true}).click();await page.getByText('Discard all answers in this draft?',{exact:true}).waitFor();await shot('start-over-confirmation');await page.getByRole('button',{name:'Discard and start over',exact:true}).click();await saved();await page.getByRole('radio').first().waitFor();assert.equal(await page.locator('input[type=radio]:checked').count(),0);const s=await state();assert.ok(s.practiceDrafts.find(d=>d.id===before.id).deletedAt);const after=s.practiceDrafts.find(d=>d.resourceId===info.quizId&&!d.deletedAt);assert.notEqual(after.id,before.id);assert.deepEqual(after.answers,{});await shot('new-attempt');});
+ await step('blank-question jump actions cannot invalidate a marking run',async()=>{
+  await writeFile(info.directory+'/slow-grade','');
+  await page.getByRole('button',{name:'Submit for marking',exact:true}).click();
+  await page.locator('.quiz__missing button:disabled').waitFor();
+  assert.equal(await page.getByRole('button',{name:'Question 1',exact:true}).isDisabled(),true);
+  await shot('marking-partial');
+  await page.getByRole('button',{name:'Try again',exact:true}).waitFor(); await rm(info.directory+'/slow-grade');
+  await page.getByRole('button',{name:'Try again',exact:true}).click(); await saved();
+  await page.getByRole('button',{name:'Next',exact:true}).click();
+  await page.locator('textarea.question__answer').fill('Discard this unfinished answer.'); await saved();
+ });
+ await step('explicit start-over confirms and creates a separate empty draft',async()=>{const before=(await state()).practiceDrafts.find(d=>d.resourceId===info.quizId&&!d.deletedAt);await page.getByRole('button',{name:'Draft options',exact:true}).click();await page.getByRole('button',{name:'Start over',exact:true}).click();await page.getByText('Discard all answers in this draft?',{exact:true}).waitFor();await shot('start-over-confirmation');await page.route('**/practice-draft/start-over',async route=>{await new Promise(resolve=>setTimeout(resolve,1500));await route.continue();});await page.getByRole('button',{name:'Discard and start over',exact:true}).click();await open('Geometry practice');await open();assert.equal(await page.locator('textarea.question__answer').getAttribute('readonly'),'');await page.getByRole('radio').first().waitFor();await page.waitForFunction(()=>document.querySelector('.quiz input[type=radio]')?.disabled===false);await saved();await page.unroute('**/practice-draft/start-over');assert.equal(await page.locator('input[type=radio]:checked').count(),0);const s=await state();assert.ok(s.practiceDrafts.find(d=>d.id===before.id).deletedAt);const after=s.practiceDrafts.find(d=>d.resourceId===info.quizId&&!d.deletedAt);assert.notEqual(after.id,before.id);assert.deepEqual(after.answers,{});await shot('new-attempt');});
  for(const theme of ['light','midnight','dark']) {
    await page.evaluate(async theme=>{const r=await fetch('/api/settings',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({theme,textSize:theme==='light'?'large':'standard',density:theme==='light'?'comfortable':'compact'})});if(!r.ok)throw new Error(await r.text());},theme);
    await page.setViewportSize({width:theme==='light'?1024:1440,height:1000});
