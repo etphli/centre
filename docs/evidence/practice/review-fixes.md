@@ -16,3 +16,5 @@ The owner personally inspected corrected failed-save, discard confirmation, mark
 T3 preview fallback reason: preview_open returned "Preview automation client server-browser disconnected during open." The corrected ready-URL attempt also failed to return. CUA reported "Sky Computer Use native pipe startup failed". The proof therefore uses Playwright and installed Chrome against the same real service.
 
 No new Claude reviewer was spawned under the resource restriction. These are owner rechecks of the existing independent review findings; coordinator acceptance remains pending.
+
+The complete UI flow was repeated after integrating main at 9064c7f, including the Log shell and shared neutral theme tokens. All captures were refreshed. Combined serial suite: 108/108 pass; integrated production build passes. Store.saveStudyLog delegates directly to Store.atomic, retaining rejection ordering and preventing Log/practice writes from leaking or overwriting each other.
