@@ -187,3 +187,29 @@ test('JSON content type and valid UTF-8 are required before admission',async()=>
   const invalid=await handleGradeRequest(new Request('https://centre.test/v1/ai/grades',{method:'POST',headers:{'content-type':'application/json'},body:new Uint8Array([0xff])}),f.context);assert.equal(invalid?.status,400);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM centre_ai_grade_admissions').get()?.n,0);
 });
+
+
+test('saved objective question concepts create separate scoped needs without AI or duplicate retry evidence',async()=>{
+  const f=fixture();delete f.context.env.AI;
+  const questions=[{...f.resource.questions[0],concept:' Fractions '},{...f.resource.questions[0],id:'q2',concept:'Decimals'}];
+  f.put('resource','quiz',{...f.resource,subjectId:'math',topicId:'numbers',questions,practiceFocus:[' Fractions ','Decimals']});
+  f.put('practice.draft',f.input.draftId,{...f.draft,answers:{q1:'B',q2:'B'}});
+  const response=await f.post();assert.equal(response.status,200);
+  const body=await response.json();assert.deepEqual(body.attempt.result.feedback.map((item:{concept:string})=>item.concept),['Fractions','Decimals']);
+  const before=await f.context.entities.listLearningNeeds();assert.equal(before.length,2);
+  const needs=before.map(record=>record.data as {conceptLabel:string;subjectId:string;topicId:string;evidence:unknown[]});
+  assert.deepEqual(needs.map(need=>need.conceptLabel).sort(),['Decimals','Fractions']);
+  for(const need of needs){assert.equal(need.subjectId,'math');assert.equal(need.topicId,'numbers');assert.equal(need.evidence.length,1);}
+  assert.equal((await f.post()).status,200);assert.deepEqual(await f.context.entities.listLearningNeeds(),before);
+  assert.equal(f.stats().providerCalls,0);assert.equal(f.stats().commitCalls,1);
+});
+
+test('written feedback without a concept uses the saved canonical question concept',async()=>{
+  const f=fixture(true);f.put('resource','quiz',{...f.resource,questions:[{...f.resource.questions[0],concept:'Cell respiration'}]});
+  f.context.env.AI={async run(){return {response:JSON.stringify({score:0,total:1,feedback:[{questionId:'q1',score:0,maxScore:1,feedback:'Explain ATP production.',needsReview:true}]})};}};
+  const response=await f.post();assert.equal(response.status,200);const body=await response.json();
+  assert.equal(body.attempt.result.feedback[0].concept,'Cell respiration');
+  const needs=await f.context.entities.listLearningNeeds();assert.equal(needs.length,1);
+  assert.equal((needs[0].data as {conceptLabel:string}).conceptLabel,'Cell respiration');
+  assert.equal((await f.post()).status,200);assert.deepEqual(await f.context.entities.listLearningNeeds(),needs);
+});
