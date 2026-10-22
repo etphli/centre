@@ -93,8 +93,8 @@ export function makeSearchSnippet(text: string, positions: ReadonlyMap<string, T
   const raw = text.slice(start, end);
   const leftTrim = raw.length - raw.trimStart().length;
   const visibleText = raw.trim();
-  const prefix = start > beginning ? '… ' : '';
-  const suffix = end < limit ? ' …' : '';
+  const prefix = start > beginning ? '…\u00a0' : '';
+  const suffix = end < limit ? '\u00a0…' : '';
   const snippet = `${prefix}${visibleText}${suffix}`.slice(0, MAX_SEARCH_SNIPPET_LENGTH);
   const visibleStart = start + leftTrim;
   const snippetStart = prefix.length;
@@ -118,7 +118,13 @@ export function makeSearchSnippet(text: string, positions: ReadonlyMap<string, T
   }
   highlights.sort((left, right) => left[0] - right[0]);
   highlights.length = Math.min(highlights.length, 24);
-  return { snippet, highlights };
+  const merged: [number, number][] = [];
+  for (const range of highlights) {
+    const previous = merged[merged.length - 1];
+    if (previous && /^\s*$/u.test(snippet.slice(previous[1], range[0]))) previous[1] = Math.max(previous[1], range[1]);
+    else merged.push(range);
+  }
+  return { snippet, highlights: merged };
 }
 
 function phraseMatches(document: IndexedDocument, queryTerms: readonly string[]): boolean {

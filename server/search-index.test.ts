@@ -180,7 +180,7 @@ test('Unicode, punctuation, empty queries, and bounded snippets retain valid hig
     assert.ok(result.highlights.length > 0 && result.highlights.length <= 24);
     for (const [start, end] of result.highlights) {
       assert.ok(start >= 0 && start < end && end <= result.snippet.length);
-      assert.equal(result.snippet.slice(start, end), 'evidence');
+      assert.match(result.snippet.slice(start, end), /^evidence(?:\s+evidence)*$/u);
     }
   }
 });
@@ -374,7 +374,7 @@ test('the final query token matches a longer indexed word and highlights that or
     assert.deepEqual(results.map(result => result.id), ['resource:mitochondrial']);
     const result = results[0];
     assert.ok(result);
-    assert.ok(result.highlights.some(([start, end]) => result.snippet.slice(start, end) === 'mitochondrial'));
+    assert.ok(result.highlights.some(([start, end]) => result.snippet.slice(start, end).includes('mitochondrial')));
   }
 });
 
@@ -423,4 +423,15 @@ test('deleted content disappears even while an attachment rebuild is waiting on 
   assert.deepEqual(index.search('chatprivatephrase'), []);
   release();
   await rebuilding;
+});
+
+test('phrase highlights merge across whitespace and clipped snippets keep ellipsis attached', async () => {
+  const snapshot = emptySnapshot();
+  snapshot.resources.push(resource('phrase', { content: `Opening electron transport ${'supporting context '.repeat(40)}` }));
+  const index = new SearchIndex(noAttachments);
+  await index.rebuild(snapshot);
+  const [hit] = index.search('electron transport');
+  assert.ok(hit);
+  assert.deepEqual(hit.highlights.map(([start, end]) => hit.snippet.slice(start, end)), ['electron transport']);
+  assert.ok(hit.snippet.endsWith('\u00a0…'));
 });
