@@ -37,7 +37,12 @@ function makeContext({ db = new LocalD1(), workspaceId = "workspace-a", ai, putB
       async get(kind, id) {
         return records.get(`${workspaceId}:${kind}:${id}`) ?? null;
       },
-      async put(mutation) {
+      async put() { assert.fail("AI assistant writes must use the guarded putMessage adapter"); },
+      async putMessage(mutation, targetChatId) {
+        assert.equal(mutation.kind, "message");
+        assert.equal(mutation.data.chatId, targetChatId);
+        const chat = records.get(`${workspaceId}:chat:${targetChatId}`);
+        if (!chat || chat.deleted || chat.data.deletedAt != null) throw new Error("archived or missing parent chat");
         putCalls.push(structuredClone(mutation));
         const previous = mutations.get(mutation.mutationId);
         if (previous) return previous;
@@ -343,7 +348,7 @@ test("completed run GET and POST replays work with no AI binding", async () => {
 test("a resolved wrong assistant ACK becomes terminal failed instead of completed", async () => {
   let calls = 0;
   const fixture = makeContext({ ai: { async run() { calls++; return { response: "Expected answer." }; } } });
-  fixture.context.entities.put = async (mutation) => {
+  fixture.context.entities.putMessage = async (mutation) => {
     fixture.putCalls.push(structuredClone(mutation));
     return record("message", mutation.id, { ...mutation.data, content: "Conflicting content." });
   };
@@ -468,4 +473,158 @@ test("unmatched route returns null and wrong methods receive 405", async () => {
   const wrongMethod = await handleAiRequest(new Request("https://centre.test/v1/ai/runs"), fixture.context);
   assert.equal(wrongMethod.status, 405);
   fixture.db.close();
+});
+
+function archiveChat(fixture) {
+  const chat = fixture.records.get(`${fixture.context.auth.workspaceId}:chat:${fixture.chatId}`);
+  assert.equal(chat.deleted, false, "soft archive keeps the record live");
+  chat.data.deletedAt = "2026-10-22T00:00:00.000Z";
+}
+
+async function assertArchivedResponse(response) {
+  assert.equal(response.status, 404);
+  const body = await responseJson(response);
+  assert.equal(body.error.code, "not_found");
+  assert.equal(body.run, undefined, "archived run responses must not reveal saved output");
+}
+
+test("soft-archived target rejects new inference before history or admission", async () => {
+  let calls = 0;
+  let historyCalls = 0;
+  const fixture = makeContext({ ai: { async run() { calls++; return { response: "Private answer." }; } } });
+  fixture.context.entities.listMessages = async () => { historyCalls++; return []; };
+  archiveChat(fixture);
+  try {
+    await assertArchivedResponse(await handleAiRequest(postRequest({ chatId: fixture.chatId, messageId: fixture.messageId }), fixture.context));
+    assert.equal(calls, 0);
+    assert.equal(historyCalls, 0);
+    assert.equal(fixture.putCalls.length, 0);
+    assert.equal(fixture.db.sqlite.prepare("SELECT COUNT(*) count FROM centre_ai_runs").get().count, 0);
+  } finally { fixture.db.close(); }
+});
+
+for (const initialState of ["completed", "result_pending"]) {
+  test(`soft archive hides ${initialState} GET and POST replay without inference or assistant writes`, async () => {
+    let calls = 0;
+    const fixture = makeContext({ ai: { async run() { calls++; return { response: "Private answer." }; } } });
+    if (initialState === "result_pending") {
+      fixture.context.entities.putMessage = async (mutation) => {
+        fixture.putCalls.push(structuredClone(mutation));
+        throw new Error("simulated unavailable assistant persistence");
+      };
+    }
+    const id = randomUUID();
+    const request = () => postRequest({ id, chatId: fixture.chatId, messageId: fixture.messageId });
+    try {
+      const initial = await responseJson(await handleAiRequest(request(), fixture.context));
+      assert.equal(initial.run.status, initialState === "completed" ? "completed" : "running");
+      assert.equal(fixture.db.sqlite.prepare("SELECT result_text FROM centre_ai_runs WHERE run_id=?").get(id).result_text, "Private answer.");
+      const previousWrites = fixture.putCalls.length;
+      archiveChat(fixture);
+      for (const replay of [getRequest(id), request()]) await assertArchivedResponse(await handleAiRequest(replay, fixture.context));
+      assert.equal(calls, 1);
+      assert.equal(fixture.putCalls.length, previousWrites);
+    } finally { fixture.db.close(); }
+  });
+}
+
+test("archiving a running target denies retries and discards the late provider result", async () => {
+  let calls = 0;
+  const provider = pausedProvider();
+  const fixture = makeContext({ ai: { run() { calls++; return provider.ai.run(); } } });
+  const id = randomUUID();
+  const request = () => postRequest({ id, chatId: fixture.chatId, messageId: fixture.messageId });
+  const inFlight = handleAiRequest(request(), fixture.context);
+  try {
+    await waitFor(() => provider.waiting.length === 1);
+    archiveChat(fixture);
+    for (const replay of [getRequest(id), request()]) await assertArchivedResponse(await handleAiRequest(replay, fixture.context));
+    provider.finish();
+    await assertArchivedResponse(await inFlight);
+    assert.equal(calls, 1);
+    assert.equal(fixture.putCalls.length, 0);
+    assert.equal(fixture.db.sqlite.prepare("SELECT result_text FROM centre_ai_runs WHERE run_id=?").get(id).result_text, null);
+  } finally {
+    provider.finish();
+    await inFlight;
+    fixture.db.close();
+  }
+});
+
+test("archiving while history loads prevents the provider call", async () => {
+  let calls = 0;
+  const fixture = makeContext({ ai: { async run() { calls++; return { response: "Private answer." }; } } });
+  fixture.context.entities.listMessages = async () => { archiveChat(fixture); return []; };
+  try {
+    await assertArchivedResponse(await handleAiRequest(postRequest({ chatId: fixture.chatId, messageId: fixture.messageId }), fixture.context));
+    assert.equal(calls, 0);
+    assert.equal(fixture.putCalls.length, 0);
+  } finally { fixture.db.close(); }
+});
+
+test("missing guarded message adapter fails closed before inference without using general put", async () => {
+  let calls = 0;
+  const fixture = makeContext({ ai: { async run() { calls++; return { response: "Do not generate." }; } } });
+  delete fixture.context.entities.putMessage;
+  try {
+    const response = await handleAiRequest(postRequest({ chatId: fixture.chatId, messageId: fixture.messageId }), fixture.context);
+    assert.equal(response.status, 503);
+    assert.equal(calls, 0);
+    assert.equal(fixture.putCalls.length, 0);
+    assert.equal(fixture.db.sqlite.prepare("SELECT COUNT(*) count FROM centre_ai_runs").get().count, 0);
+  } finally { fixture.db.close(); }
+});
+
+test("guarded adapter rejects archive racing the precheck and safely replays the durable result", async () => {
+  let calls = 0;
+  let guardedCalls = 0;
+  const fixture = makeContext({ ai: { async run() { calls++; return { response: "Durable answer." }; } } });
+  const guardedPut = fixture.context.entities.putMessage;
+  fixture.context.entities.putMessage = async (mutation, chatId) => {
+    guardedCalls++;
+    if (guardedCalls === 1) archiveChat(fixture);
+    return guardedPut(mutation, chatId);
+  };
+  const id = randomUUID();
+  const request = () => postRequest({ id, chatId: fixture.chatId, messageId: fixture.messageId });
+  try {
+    await assertArchivedResponse(await handleAiRequest(request(), fixture.context));
+    const durable = fixture.db.sqlite.prepare("SELECT status, result_text FROM centre_ai_runs WHERE run_id=?").get(id);
+    assert.equal(durable.status, "running");
+    assert.equal(durable.result_text, "Durable answer.");
+    assert.equal(guardedCalls, 1);
+    assert.equal(fixture.putCalls.length, 0, "atomic adapter must reject before any receipt or entity write");
+    assert.equal(fixture.mutations.size, 0);
+    for (const replay of [getRequest(id), request()]) await assertArchivedResponse(await handleAiRequest(replay, fixture.context));
+    assert.equal(guardedCalls, 1, "archived retries must not enter the write adapter");
+
+    fixture.records.get(`workspace-a:chat:${fixture.chatId}`).data.deletedAt = null;
+    const restored = await handleAiRequest(request(), fixture.context);
+    assert.equal((await responseJson(restored)).run.status, "completed");
+    assert.equal(calls, 1, "restoring the chat recovers the known result without inference");
+    assert.equal(fixture.putCalls.length, 1);
+    assert.equal(fixture.mutations.size, 1);
+  } finally { fixture.db.close(); }
+});
+
+test("durable result retries fail closed when the guarded adapter becomes unavailable", async () => {
+  let calls = 0;
+  const fixture = makeContext({
+    ai: { async run() { calls++; return { response: "Durable answer." }; } },
+    putBehavior: async () => { throw new Error("simulated lost write reply"); },
+  });
+  const id = randomUUID();
+  const request = () => postRequest({ id, chatId: fixture.chatId, messageId: fixture.messageId });
+  try {
+    assert.equal((await responseJson(await handleAiRequest(request(), fixture.context))).run.status, "running");
+    delete fixture.context.entities.putMessage;
+    for (const replay of [getRequest(id), request()]) {
+      const response = await handleAiRequest(replay, fixture.context);
+      assert.equal(response.status, 503);
+      assert.equal((await responseJson(response)).run, undefined);
+    }
+    assert.equal(calls, 1);
+    assert.equal(fixture.putCalls.length, 1, "recovery must not fall back to general put");
+    assert.equal(fixture.mutations.size, 1);
+  } finally { fixture.db.close(); }
 });

@@ -64,6 +64,7 @@ export interface AiRequestContext {
   entities: {
     get(kind: string, id: string): Promise<CloudRecord | null>;
     put(mutation: CloudMutation): Promise<CloudRecord>;
+    putMessage?(mutation: CloudMutation, chatId: string): Promise<CloudRecord>;
     listMessages?(chatId: string, limit: number): Promise<CloudRecord[]>;
     commit?(mutations: GradeMutation[]): Promise<unknown>;
     getPracticeAttempt?(sourceDraftId: string): Promise<GradeRecord | null>;
@@ -191,14 +192,35 @@ function parseProviderOutput(value: unknown): { text: string } | { error: string
   return { text: boundedOutput(value.response) };
 }
 
+class ChatUnavailable extends Error {}
+class AssistantPersistenceUnavailable extends Error {}
+
+function isActiveChat(chat: CloudRecord | null, chatId: string): boolean {
+  return chat !== null && !chat.deleted && chat.kind === "chat" && chat.id === chatId &&
+    chat.schemaVersion === 1 && isObject(chat.data) && chat.data.id === chatId &&
+    chat.data.deletedAt == null;
+}
+
+async function requireActiveChat(context: AiRequestContext, chatId: string): Promise<void> {
+  if (!isActiveChat(await context.entities.get("chat", chatId), chatId)) throw new ChatUnavailable();
+}
+
+function chatUnavailableResponse(): Response {
+  return error("not_found", "The requested chat or message was not found.", 404);
+}
+
+async function responseForActiveChat(context: AiRequestContext, row: RunRow, status?: number): Promise<Response> {
+  await requireActiveChat(context, row.chat_id);
+  return responseFor(row, status);
+}
+
 function validatePersistedMessage(
   chat: CloudRecord | null,
   message: CloudRecord | null,
   chatId: string,
   messageId: string,
 ): { content: string; requestContext: Record<string, unknown> } | { response: Response } {
-  if (!chat || chat.deleted || chat.kind !== "chat" || chat.id !== chatId || chat.schemaVersion !== 1 ||
-      !isObject(chat.data) || chat.data.id !== chatId) {
+  if (!isActiveChat(chat, chatId)) {
     return { response: error("not_found", "The requested chat or message was not found.", 404) };
   }
   if (!message || message.deleted || message.kind !== "message" || message.id !== messageId || message.schemaVersion !== 1 || !isObject(message.data)) {
@@ -368,8 +390,10 @@ async function finishWithResult(
   row: RunRow,
   result: string,
 ): Promise<RunRow | null> {
+  await requireActiveChat(context, row.chat_id);
   const mutation = assistantMutation(row, result);
-  const record = await context.entities.put(mutation);
+  if (!context.entities.putMessage) throw new AssistantPersistenceUnavailable();
+  const record = await context.entities.putMessage(mutation, row.chat_id);
   if (!record || !assistantRecordMatches(record, row, result)) {
     await updateRun(
       db,
@@ -397,6 +421,7 @@ async function persistKnownResult(
   row: RunRow,
   result: string,
 ): Promise<RunRow | null> {
+  await requireActiveChat(context, row.chat_id);
   if (!row.result_text) {
     const now = updateTimestamp();
     const persist = () => updateRun(
@@ -422,7 +447,8 @@ async function persistKnownResult(
   if (row.result_text !== result) return row;
   try {
     return await finishWithResult(db, context, row, result);
-  } catch {
+  } catch (cause) {
+    if (cause instanceof ChatUnavailable || cause instanceof AssistantPersistenceUnavailable) throw cause;
     // The entity write may have committed even if its reply was lost. The
     // stored result plus deterministic mutation id make the next GET safe.
     return getRun(db, row.workspace_id, row.run_id);
@@ -465,6 +491,7 @@ async function recoverOrExpire(
   context: AiRequestContext,
   row: RunRow,
 ): Promise<RunRow | null> {
+  await requireActiveChat(context, row.chat_id);
   if (row.status === "queued") {
     const now = updateTimestamp();
     await updateRun(
@@ -482,6 +509,7 @@ async function recoverOrExpire(
 }
 
 async function tutoringMessages(context: AiRequestContext, row: RunRow, userText: string) {
+  await requireActiveChat(context, row.chat_id);
   const system = { role: "system", content: SYSTEM_PROMPT };
   if (!context.entities.listMessages) return [system, { role: "user", content: userText }];
   const records = await context.entities.listMessages(row.chat_id, 20);
@@ -509,12 +537,15 @@ async function startProvider(
   let response: unknown;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    const messages = await tutoringMessages(context, row, userText);
+    await requireActiveChat(context, row.chat_id);
     response = await Promise.race([ai.run(AI_MODEL, {
-      messages: await tutoringMessages(context, row, userText),
+      messages,
       max_tokens: 1_024,
       stream: false,
     }), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Provider deadline exceeded")), PROVIDER_TIMEOUT_MS); timer.unref?.(); })]);
-  } catch {
+  } catch (cause) {
+    if (cause instanceof ChatUnavailable || cause instanceof AssistantPersistenceUnavailable) throw cause;
     // A rejected provider call can mean the provider completed but the reply
     // was lost. Do not retry it from this run id.
     return markTerminal(db, row, "interrupted", "provider_outcome_unknown");
@@ -523,7 +554,8 @@ async function startProvider(
   if ("error" in parsed) return markTerminal(db, row, "failed", parsed.error);
   try {
     return await persistKnownResult(db, context, row, parsed.text);
-  } catch {
+  } catch (cause) {
+    if (cause instanceof ChatUnavailable || cause instanceof AssistantPersistenceUnavailable) throw cause;
     // If the D1 reply was ambiguous, recover only from its durable result.
     // Never call the provider again for a result that may have been lost.
     const latest = await getRun(db, row.workspace_id, row.run_id);
@@ -568,10 +600,11 @@ export async function handleAiRequest(request: Request, context: AiRequestContex
         }
         row = await recoverOrExpire(db, context, row);
         if (!row) return error("service_unavailable", "The run state could not be read.", 503);
-        if (row.status !== "running") return responseFor(row);
-        return responseFor(row);
+        if (row.status !== "running") return await responseForActiveChat(context, row);
+        return await responseForActiveChat(context, row);
       }
 
+      if (!context.entities.putMessage) return error("service_unavailable", "Guarded assistant persistence is not configured.", 503);
       const ai = context.env.AI;
       if (!ai || typeof ai.run !== "function") return error("service_unavailable", "The AI service is not configured.", 503);
       const [chat, message] = await Promise.all([
@@ -589,16 +622,18 @@ export async function handleAiRequest(request: Request, context: AiRequestContex
             return error("idempotency_mismatch", "This run id is already bound to another request.", 409);
           }
           const recovered = await recoverOrExpire(db, context, raced);
-          return recovered ? responseFor(recovered) : error("service_unavailable", "The run state could not be read.", 503);
+          return recovered ? await responseForActiveChat(context, recovered) : error("service_unavailable", "The run state could not be read.", 503);
         }
         return created.limited
           ? error("rate_limited", "The hosted AI request limit has been reached. Try again later.", 429)
           : error("service_unavailable", "The run state could not be created.", 503);
       }
-      if (!created.owned) return responseFor(created.row);
+      if (!created.owned) return await responseForActiveChat(context, created.row);
       const finished = await startProvider(db, context, created.row, input.content, ai);
-      return finished ? responseFor(finished) : error("service_unavailable", "The run state could not be saved.", 503);
-    } catch {
+      return finished ? await responseForActiveChat(context, finished) : error("service_unavailable", "The run state could not be saved.", 503);
+    } catch (cause) {
+      if (cause instanceof ChatUnavailable) return chatUnavailableResponse();
+      if (cause instanceof AssistantPersistenceUnavailable) return error("service_unavailable", "Guarded assistant persistence is not configured.", 503);
       return error("service_unavailable", "The run could not be processed safely.", 503);
     }
   }
@@ -611,8 +646,10 @@ export async function handleAiRequest(request: Request, context: AiRequestContex
     if (!row) return error("not_found", "The requested run was not found.", 404);
     row = await recoverOrExpire(db, context, row);
     if (!row) return error("service_unavailable", "The run state could not be read.", 503);
-    return responseFor(row, 200);
-  } catch {
+    return await responseForActiveChat(context, row, 200);
+  } catch (cause) {
+    if (cause instanceof ChatUnavailable) return chatUnavailableResponse();
+    if (cause instanceof AssistantPersistenceUnavailable) return error("service_unavailable", "Guarded assistant persistence is not configured.", 503);
     return error("service_unavailable", "The run could not be read safely.", 503);
   }
 }
