@@ -59,7 +59,7 @@
 /* Week grid. One scroller owns both axes so the day header, due row and hour gutter stay aligned. */
 
 .week {
-  --gutter: 56px;
+  --gutter: 44px;
   --hour: 56px;
   position: relative;
   max-height: clamp(380px, calc(100vh - 340px), 820px);
@@ -76,12 +76,12 @@
 }
 
 .week__inner {
-  min-width: calc(var(--gutter) + var(--week-min, 868px));
+  min-width: 0;
 }
 
 .week__row {
   display: grid;
-  grid-template-columns: var(--gutter) var(--week-columns, repeat(7, minmax(124px, 1fr)));
+  grid-template-columns: var(--gutter) repeat(7, minmax(0, 1fr));
 }
 
 .week__sticky {
@@ -179,6 +179,7 @@
   gap: 5px;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 0.71875rem;
@@ -209,6 +210,15 @@ button.due-chip:hover,
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  flex: 1;
+}
+
+.week__due > li { min-width: 0; }
+
+@media (min-width: 1101px) and (max-width: 1400px) {
+  .split--calendar { grid-template-columns: minmax(0, 1fr) 250px; }
+  .split--calendar > .page { padding-inline: 24px; }
+  .split--calendar > .inspector { padding-inline: 16px; }
 }
 
 .due-chip.is-done {

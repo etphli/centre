@@ -1,6 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { api } from '../data/client';
 import type { Snapshot, StudyEvent } from '../../shared/schema';
 import {
@@ -247,6 +247,7 @@ function SessionBlock({ session, color, selected, timeZone, onOpen }: {
   return (
     <li
       className={`week__slot${selected ? ' is-selected' : ''}`}
+      data-session-id={session.event.id}
       style={{ top: `${top}px`, height: `${height}px`, left: `calc(${session.lane * lanePercent}% + 2px)`, width: `calc(${lanePercent}% - 4px)` }}
     >
       <button
@@ -297,6 +298,19 @@ function WeekGrid({ weekStart, selected, today, timeZone, openId, onSelectDay, o
     // Scroll only when the week changes, not on every snapshot refresh.
   }, [weekStart]);
 
+  const selectedEvent = state.events.find(event => event.id === openId);
+  useLayoutEffect(() => {
+    const root = scroller.current;
+    const slot = openId ? root?.querySelector<HTMLElement>(`[data-session-id="${CSS.escape(openId)}"]`) : null;
+    if (!root || !slot) return;
+    const viewport = root.getBoundingClientRect();
+    const block = slot.getBoundingClientRect();
+    const visibleTop = viewport.top + (root.querySelector('.week__sticky')?.getBoundingClientRect().height ?? 0) + 8;
+    const visibleBottom = viewport.bottom - 8;
+    if (block.top < visibleTop || block.height > visibleBottom - visibleTop) root.scrollTop += block.top - visibleTop;
+    else if (block.bottom > visibleBottom) root.scrollTop += block.bottom - visibleBottom;
+  }, [openId,weekStart,selectedEvent?.startAt,selectedEvent?.plannedDurationMinutes]);
+
   function onHeadKey(event: KeyboardEvent<HTMLDivElement>) {
     const moves: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
     const step = moves[event.key];
@@ -312,15 +326,14 @@ function WeekGrid({ weekStart, selected, today, timeZone, openId, onSelectDay, o
   const nowMinute = now.hour * 60 + now.minute;
   // Days with overlapping plans get wider columns, so side-by-side lanes keep readable titles.
   const lanes = days.map((day) => Math.min(3, Math.max(1, ...day.sessions.map((session) => session.laneCount))));
-  const columns = lanes.map((count) => `minmax(${124 + (count - 1) * 84}px, ${count}fr)`).join(' ');
-  const minWidth = lanes.reduce((total, count) => total + 124 + (count - 1) * 84, 0);
+  const rowStyle = {gridTemplateColumns:`var(--gutter) ${lanes.map(count => `minmax(0, ${count}fr)`).join(' ')}`};
   const nowDate = now.toPlainDate().toString();
 
   return (
     <div className="week" ref={scroller} role="region" aria-label={`Week of ${calendarDateLabel(weekStart, { day: 'numeric', month: 'long' })}, times in ${timeZone}`} tabIndex={-1}>
-      <div className="week__inner" style={{ '--week-columns': columns, '--week-min': `${minWidth}px` } as CSSProperties}>
+      <div className="week__inner">
         <div className="week__sticky">
-          <div className="week__row week__row--head" role="toolbar" aria-label="Days" onKeyDown={onHeadKey}>
+          <div className="week__row week__row--head" style={rowStyle} role="toolbar" aria-label="Days" onKeyDown={onHeadKey}>
             <span className="week__corner" aria-hidden />
             {days.map((day) => {
               const isSelected = day.date === selected;
@@ -345,7 +358,7 @@ function WeekGrid({ weekStart, selected, today, timeZone, openId, onSelectDay, o
               );
             })}
           </div>
-          <div className="week__row week__row--due">
+          <div className="week__row week__row--due" style={rowStyle}>
             <span className="week__gutter-label">Due</span>
             {days.map((day) => (
               <ul key={day.date} className="week__due" aria-label={`Due ${calendarDateLabel(day.date, { weekday: 'long' })}`}>
@@ -356,7 +369,7 @@ function WeekGrid({ weekStart, selected, today, timeZone, openId, onSelectDay, o
             ))}
           </div>
         </div>
-        <div className="week__row week__row--body" style={{ height: `${24 * HOUR_PX}px` }}>
+        <div className="week__row week__row--body" style={{ ...rowStyle,height: `${24 * HOUR_PX}px` }}>
           <ol className="week__hours" aria-hidden>
             {Array.from({ length: 24 }, (_, hour) => (
               <li key={hour} style={{ top: `${hour * HOUR_PX}px` }}>{hour ? hourLabel(hour) : ''}</li>
@@ -475,6 +488,12 @@ export function CalendarPage() {
     else select(addCalendarDays(selected, step * 7));
   }
 
+  function openItem(id:string) {
+    const event = state.events.find(event => event.id === id);
+    if (view === 'week' && event && !aggregateCalendarWeek({weekStart,timeZone,events:[event],assignments:[]}).some(day => day.sessions.length || day.deadlines.length)) select(event.startAt ? Temporal.Instant.from(event.startAt).toZonedDateTimeISO(timeZone).toPlainDate().toString() : event.date);
+    setOpenId(id);
+  }
+
   function onGridKey(event: KeyboardEvent<HTMLDivElement>) {
     const moves: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
     const step = moves[event.key];
@@ -590,7 +609,7 @@ export function CalendarPage() {
                 timeZone={timeZone}
                 openId={openId}
                 onSelectDay={select}
-                onOpen={setOpenId}
+                onOpen={openItem}
               />
             </div>
             <p className="cards__hint">Arrow keys on the day headers move between days. Double-click a day, or press Shift+Enter, to plan a session. Select a session to edit, move or remove it.</p>
@@ -614,14 +633,14 @@ export function CalendarPage() {
             <h2 className="inspector__heading" id="day-heading">{selected === today ? 'Today' : longDay(selected)}</h2>
             <button type="button" className="icon-button icon-button--small" aria-label={`Add event on ${longDay(selected)}`} onClick={() => openEventDialog(selected)}><Plus size={15} /></button>
           </div>
-          {selectedItems.length === 0 ? <p className="inspector__empty">Nothing on this day.</p> : <ul className="todos">{selectedItems.map((item) => <ItemRow key={item.id} item={item} onOpen={setOpenId} />)}</ul>}
+          {selectedItems.length === 0 ? <p className="inspector__empty">Nothing on this day.</p> : <ul className="todos">{selectedItems.map((item) => <ItemRow key={item.id} item={item} onOpen={openItem} />)}</ul>}
         </section>
         {overdue.length > 0 && selected === today ? (
           <section className="inspector__section" aria-labelledby="overdue-heading">
             <h2 className="inspector__heading" id="overdue-heading">Still open</h2>
             <ul className="todos">
               {overdue.slice(0, 6).map((event) => (
-                <ItemRow key={event.id} onOpen={setOpenId} item={{ kind: 'event', id: event.id, title: `${event.title} (${relativeDay(event.date).toLowerCase()})`, done: false, time: event.time, event, color: color(event.subjectId) }} />
+                <ItemRow key={event.id} onOpen={openItem} item={{ kind: 'event', id: event.id, title: `${event.title} (${relativeDay(event.date).toLowerCase()})`, done: false, time: event.time, event, color: color(event.subjectId) }} />
               ))}
             </ul>
           </section>
@@ -634,7 +653,7 @@ export function CalendarPage() {
             upcoming.map((day) => (
               <div key={day.key} className="todo-day">
                 <button type="button" className="todo-day__label" onClick={() => select(day.key)}>{relativeDay(day.key)}</button>
-                <ul className="todos">{day.items.map((item) => <ItemRow key={item.id} item={item} onOpen={setOpenId} />)}</ul>
+                <ul className="todos">{day.items.map((item) => <ItemRow key={item.id} item={item} onOpen={openItem} />)}</ul>
               </div>
             ))
           )}
