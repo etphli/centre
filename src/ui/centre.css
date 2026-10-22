@@ -14,8 +14,15 @@
   --text: #ecebe7;
   --text-2: #a8a7a1;
   --text-3: #74736e;
-  --accent: #8ea6e8;
-  --accent-ink: #121417;
+  --action-ink: var(--text-2);
+  --data-ink: var(--text-2);
+  --selected-bg: var(--surface-2);
+  --selected-ink: var(--text);
+  --focus-ring: var(--text-2);
+  --selection-bg: color-mix(in oklab, var(--text) 25%, var(--bg));
+  --selection-ink: var(--text);
+  --accent: var(--action-ink);
+  --accent-ink: var(--bg);
   --ok: #aaa9a4;
   --warn: #d6b46a;
   --danger: #e08a7e;
@@ -33,6 +40,9 @@
   --topbar-h: 48px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
+
+/* Override the earlier light palette's legacy action accent. */
+:root[data-theme=light] { --accent: var(--action-ink); --accent-ink: var(--bg); }
 
 *,
 *::before,
@@ -75,12 +85,13 @@ button:disabled {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--accent) 40%, transparent);
+  background: var(--selection-bg);
+  color: var(--selection-ink);
 }
 
 .visually-hidden {
@@ -1040,7 +1051,7 @@ kbd {
 }
 
 .resource-card:has(.resource-card__open:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -2462,8 +2473,8 @@ input:where(:not([type='checkbox']):not([type='radio']):not([type='range'])):foc
 select:focus-visible,
 textarea:focus-visible {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus-ring) 22%, transparent);
 }
 
 input::placeholder,
@@ -2521,7 +2532,7 @@ input[type='checkbox'] {
 }
 
 .segmented__option:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 
