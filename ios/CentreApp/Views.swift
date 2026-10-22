@@ -1459,6 +1459,8 @@ private struct ReviewTab: View {
                 Button(resolving.contains(memory.id) ? "Saving…" : "Mark reviewed") { Task { await resolve(memory) } }
                     .buttonStyle(.borderless)
                     .font(.footnote.weight(.medium))
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                     .disabled(resolving.contains(memory.id))
                     .accessibilityIdentifier("review.markReviewed.\(memory.id)")
             }

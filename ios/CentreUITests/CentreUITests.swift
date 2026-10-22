@@ -175,6 +175,9 @@ final class CentreUITests: XCTestCase {
 
     func testReviewResolutionAndLightThemeSurviveRestart() {
         tab("Review")
+        let mark = app.buttons["review.markReviewed.28a04f7b-70e9-44f2-925a-5c7559791aa4"]
+        XCTAssertTrue(mark.waitForExistence(timeout:5))
+        XCTAssertGreaterThanOrEqual(mark.frame.height,44)
         tap("review.markReviewed.28a04f7b-70e9-44f2-925a-5c7559791aa4")
         waitText("Nothing to review")
         restart(); tab("Review")
