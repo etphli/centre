@@ -27,7 +27,10 @@ function AccountPairing() {
       const module = await import('qrcode');
       const qr = await module.toDataURL(url.href,{width:260,margin:4,errorCorrectionLevel:'M'});
       setNow(Date.now()); setPairing({qr,expiresAt:value.expiresAt});
-    } catch (failure) { setError(errorMessage(failure)); }
+    } catch (failure) {
+      const message = errorMessage(failure);
+      setError(message === 'Endpoint not found.' ? 'Account pairing is unavailable in this build. Connect Centre Cloud in Connections after the cloud update is installed.' : message);
+    }
     finally { setBusy(false); }
   }
   const expires = pairing ? Math.ceil((Date.parse(pairing.expiresAt)-now)/1000) : 0;

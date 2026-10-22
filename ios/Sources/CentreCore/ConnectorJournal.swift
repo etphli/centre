@@ -88,10 +88,20 @@ public actor ConnectorJournal {
             } else {
                 try Self.validate(command)
                 var next=state; next.commands[index].sent=true; try persist(next)
-                receipt=try await transport.send(state.commands[index])
+                do { receipt=try await transport.send(state.commands[index]) }
+                catch let rejection as CloudFailure where rejection.status == 503 && rejection.body["error"]["code"].string == "organato_unconfigured" {
+                    // This explicit pre-operation rejection proves no upstream write began.
+                    var rejected=state;rejected.commands[index].sent=false;try persist(rejected);throw rejection
+                }
             }
             try updateReceipt(receipt)
         }
+    }
+    public func acknowledge(_ id:UUID) throws {
+        guard let command=state.commands.first(where:{$0.id == id}),["failed","conflict"].contains(command.receipt?["status"].string ?? "") else {
+            throw CentreError.unavailable("An uncertain calendar change must be reconciled before it can be closed.")
+        }
+        var next=state;next.commands.removeAll{$0.id == id};try persist(next)
     }
     public func erase() throws {
         guard !processing else { throw CentreError.unavailable("Wait for calendar synchronization to finish before signing out.") }

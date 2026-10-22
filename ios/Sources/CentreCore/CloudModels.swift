@@ -102,12 +102,13 @@ public struct CloudRecord: Codable, Equatable, Identifiable, Sendable {
     public let schemaVersion: Int
     public var version: Int
     public var cursor: String
+    public var createdCursor:String?
     public var updatedAt: String
     public var deleted: Bool
     public var data: JSONValue?
     public var key: String { "\(kind)/\(id)" }
-    public init(kind: String, id: String, schemaVersion: Int = 1, version: Int = 0, cursor: String = "0", updatedAt: String = Clock.iso(Date()), deleted: Bool = false, data: JSONValue?) {
-        self.kind=kind; self.id=id; self.schemaVersion=schemaVersion; self.version=version; self.cursor=cursor; self.updatedAt=updatedAt; self.deleted=deleted; self.data=data
+    public init(kind: String, id: String, schemaVersion: Int = 1, version: Int = 0, cursor: String = "0", createdCursor:String?=nil,updatedAt: String = Clock.iso(Date()), deleted: Bool = false, data: JSONValue?) {
+        self.kind=kind; self.id=id; self.schemaVersion=schemaVersion; self.version=version; self.cursor=cursor;self.createdCursor=createdCursor; self.updatedAt=updatedAt; self.deleted=deleted; self.data=data
     }
 }
 

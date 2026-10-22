@@ -40,7 +40,8 @@ public struct ReplicaState: Codable, Sendable {
         for queued in outbox {
             let item = queued.mutation
             let stamp=queued.changedAt ?? item.data?["updatedAt"].string ?? item.data?["createdAt"].string ?? shadow[item.key]?.updatedAt ?? "1970-01-01T00:00:00.000Z"
-            result[item.key] = CloudRecord(kind:item.kind,id:item.id,version:item.expectedVersion,updatedAt:stamp,deleted:item.deleted,data:item.data)
+            let prior=result[item.key]
+            result[item.key] = CloudRecord(kind:item.kind,id:item.id,version:item.expectedVersion,cursor:prior?.cursor ?? "0",createdCursor:prior?.createdCursor,updatedAt:stamp,deleted:item.deleted,data:item.data)
         }
         return result.values.sorted { $0.key < $1.key }
     }
@@ -143,7 +144,7 @@ public actor Replica {
             try persist(next)
         }
         for job in state.ai {
-            if let status=job.run?.status, ["failed","interrupted"].contains(status) { continue }
+            if let status=job.run?.status, ["failed","interrupted","conflict"].contains(status) { continue }
             // No AI begins until every referenced local record has reached the server.
             let blocked: Bool
             switch job {

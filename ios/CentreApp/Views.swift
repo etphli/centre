@@ -274,9 +274,7 @@ private struct ChatThreadView: View {
 
     private func thread() -> [CloudRecord] {
         guard let chatId else { return [] }
-        return model.items("message")
-            .filter { model.data($0)["chatId"].string == chatId }
-            .sorted { (model.data($0)["createdAt"].string ?? "") < (model.data($1)["createdAt"].string ?? "") }
+        return CloudMessageOrder.sorted(model.items("message").filter { model.data($0)["chatId"].string == chatId })
     }
 
     /// Match the durable submission to this exact user message; a failed quiz never changes a chat's state.
@@ -722,6 +720,7 @@ private struct DiagramView: View {
     @Environment(\.colorScheme) private var scheme
     let resource: CloudRecord
     @State private var failure: String?
+    @State private var blockedNavigations=0
 
     var body: some View {
         let data = model.data(resource)
@@ -741,13 +740,19 @@ private struct DiagramView: View {
                         .font(.footnote).foregroundStyle(palette.warn)
                         .accessibilityIdentifier("diagram.failure")
                 }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-ui-testing"),blockedNavigations > 0 {
+                    Text("\(blockedNavigations) navigation blocked").font(.footnote)
+                        .accessibilityIdentifier("diagram.blockedNavigationCount")
+                }
+                #endif
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20).padding(.vertical, 12)
             if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 ContentUnavailableView("The diagram is empty", systemImage: ResourceKind.symbol("diagram"))
             } else {
-                StaticHTMLView(html: DiagramDocument.html(content, theme: theme), failure: $failure)
+                StaticHTMLView(html: DiagramDocument.html(content, theme: theme), failure: $failure,blockedNavigations:$blockedNavigations)
                     .accessibilityIdentifier("diagram.view")
             }
         }
@@ -806,8 +811,9 @@ private enum DiagramDocument {
 private struct StaticHTMLView: UIViewRepresentable {
     let html: String
     @Binding var failure: String?
+    @Binding var blockedNavigations:Int
 
-    func makeCoordinator() -> Coordinator { Coordinator(failure: $failure) }
+    func makeCoordinator() -> Coordinator { Coordinator(failure: $failure,blockedNavigations:$blockedNavigations) }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -832,6 +838,7 @@ private struct StaticHTMLView: UIViewRepresentable {
 
     func updateUIView(_ view: WKWebView, context: Context) {
         context.coordinator.failure = $failure
+        context.coordinator.blockedNavigations = $blockedNavigations
         context.coordinator.show(html)
     }
 
@@ -844,6 +851,7 @@ private struct StaticHTMLView: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var failure: Binding<String?>
+        var blockedNavigations:Binding<Int>
         private weak var view: WKWebView?
         private var rulesReady = false
         private var pending: String?
@@ -857,7 +865,7 @@ private struct StaticHTMLView: UIViewRepresentable {
          {"trigger":{"url-filter":"^data:"},"action":{"type":"ignore-previous-rules"}}]
         """
 
-        init(failure: Binding<String?>) { self.failure = failure }
+        init(failure: Binding<String?>,blockedNavigations:Binding<Int>) { self.failure = failure;self.blockedNavigations=blockedNavigations }
 
         func attach(_ view: WKWebView) {
             self.view = view
@@ -892,7 +900,12 @@ private struct StaticHTMLView: UIViewRepresentable {
             let isDocument = navigationAction.request.url?.absoluteString == "about:blank"
                 && navigationAction.targetFrame?.isMainFrame == true
                 && navigationAction.navigationType == .other
-            guard allowDocumentLoad, isDocument, !navigationAction.shouldPerformDownload else { return .cancel }
+            guard allowDocumentLoad, isDocument, !navigationAction.shouldPerformDownload else {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-ui-testing") { blockedNavigations.wrappedValue += 1 }
+                #endif
+                return .cancel
+            }
             allowDocumentLoad = false
             return .allow
         }
@@ -1448,6 +1461,7 @@ private struct CalendarTab: View {
     @Binding var showSettings: Bool
     @State private var weekOffset = 0
     @State private var creating = false
+    @State private var editing:PlanItem?
     @State private var receipt: String?
     @State private var working: Set<String> = []
 
@@ -1505,6 +1519,13 @@ private struct CalendarTab: View {
                     }
                     .centreRow(palette)
                 }
+                if model.calendarCommands.contains(where:\.pending) {
+                    Section("Calendar changes") {
+                        ForEach(model.calendarCommands.filter(\.pending)) { command in
+                            CalendarOperationRow(command:command)
+                        }
+                    }.centreRow(palette)
+                }
                 if hasSnapshot || !items.isEmpty {
                     ForEach(days, id: \.self) { day in
                         let ymd = When.ymd(day, tz)
@@ -1542,6 +1563,9 @@ private struct CalendarTab: View {
                     .environmentObject(model)
                     .environment(\.centre, palette)
             }
+            .sheet(item:$editing) { item in
+                EditEventView(event:item.event).environmentObject(model).environment(\.centre,palette)
+            }
             .tabChrome(showSettings: $showSettings)
         }
     }
@@ -1556,14 +1580,19 @@ private struct CalendarTab: View {
             if let link = event["organatoId"].string, ownLinks.contains(link) { return nil }
             return PlanItem(id: id, event: event, centreOwned: false)
         }
-        return own + imported
+        let pending=model.calendarCommands.filter { $0.pending && $0.path == "/v1/organato/sessions" }.compactMap { command -> PlanItem? in
+            let event=command.body["data"]
+            guard let id=event["id"].string,!ownIds.contains(id) else { return nil }
+            return PlanItem(id:id,event:event,centreOwned:true)
+        }
+        return own + pending + imported
     }
 
     private func connectionNotice(state: String?, message: String?) -> String? {
         switch state {
-        case "unconfigured": return "Organato isn't connected to Centre Cloud. Connect it from Centre on your Mac to plan sessions here."
-        case "reauth": return "Organato needs you to sign in again from Centre on your Mac. Showing the last saved calendar."
-        case "permission": return "Organato refused access. Check the connection in Centre on your Mac. Showing the last saved calendar."
+        case "unconfigured": return "Organato isn't connected to Centre Cloud. Add the connection in Settings to plan sessions here."
+        case "reauth": return "Organato needs a new connection key in Settings. Showing the last saved calendar."
+        case "permission": return "Organato refused access. Check the connection in Settings. Showing the last saved calendar."
         case "error": return message.nonEmpty ?? "Organato couldn't be reached. Showing the last saved calendar."
         default: return nil
         }
@@ -1601,6 +1630,11 @@ private struct CalendarTab: View {
                 }
             }
             .accessibilityElement(children: .combine)
+            if item.centreOwned,model.record(kind:"calendarEvent",id:item.id) != nil {
+                Button { editing=item } label:{ Image(systemName:"ellipsis").frame(minWidth:44,minHeight:44) }
+                    .buttonStyle(.borderless).accessibilityLabel("Edit \(item.title)")
+                    .accessibilityIdentifier("calendar.edit.\(item.id)")
+            }
         }
         .accessibilityIdentifier("calendar.item.\(item.id)")
     }
@@ -1637,6 +1671,7 @@ private struct NewEventView: View {
     @State private var title = ""
     @State private var date = Calendar.current.date(byAdding: .hour, value: 1, to: Date()) ?? Date()
     @State private var subjectId: String?
+    @State private var minutes=60
     @State private var saving = false
     @State private var failure: String?
 
@@ -1650,6 +1685,8 @@ private struct NewEventView: View {
                         .environment(\.timeZone, When.zone(model.preferences))
                         .accessibilityIdentifier("event.start")
                     SubjectPicker(subjects: Subjects.all(model), selection: $subjectId)
+                    Stepper("Duration: \(minutes) minutes",value:$minutes,in:5...720,step:5)
+                        .accessibilityIdentifier("event.duration")
                 } footer: {
                     Text("Adds a planned session to your Organato calendar. Planned time doesn't count toward your study Log.")
                 }
@@ -1677,12 +1714,88 @@ private struct NewEventView: View {
         defer { saving = false }
         failure = nil
         model.error = nil
-        guard await model.calendarCreate(title: title.trimmingCharacters(in: .whitespaces), date: date, subjectId: subjectId) else {
+        guard await model.calendarCreate(title: title.trimmingCharacters(in: .whitespaces), date: date, subjectId: subjectId,durationMinutes:minutes) else {
             failure = model.error ?? "The session wasn't added."
             return
         }
         onDone(model.status.nonEmpty)
         dismiss()
+    }
+}
+
+@MainActor private struct CalendarOperationRow:View {
+    @EnvironmentObject private var model:AppModel
+    @Environment(\.centre) private var palette
+    let command:ConnectorCommand
+    @State private var organatoId=""
+    @State private var confirmNotApplied=false
+    private var state:String { command.receipt?["status"].string ?? (command.sent ? "unknown":"queued") }
+    var body:some View {
+        VStack(alignment:.leading,spacing:10) {
+            Label(label,systemImage:state == "queued" ? "clock":"exclamationmark.triangle")
+                .font(.subheadline).foregroundStyle(state == "queued" ? palette.text2:palette.warn)
+            if let error=command.receipt?["error"]["message"].string { Text(error).font(.footnote).foregroundStyle(palette.text2) }
+            if state == "unknown" || state == "pending" {
+                Text("Check Organato before deciding. Centre will not send this change again automatically.").font(.footnote)
+                TextField("Organato item ID, if it was created",text:$organatoId).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button("Verify it was applied") { Task { await model.reconcileCalendar(command,applied:true,organatoId:organatoId) } }
+                Button("I checked; it was not applied",role:.destructive) { confirmNotApplied=true }
+            }
+            if state == "failed" || state == "conflict" {
+                Button("Close this change") { Task { await model.acknowledgeCalendar(command) } }
+            }
+        }.padding(.vertical,6)
+            .confirmationDialog("Close this calendar change?",isPresented:$confirmNotApplied,titleVisibility:.visible) {
+                Button("Confirm it was not applied",role:.destructive) { Task { await model.reconcileCalendar(command,applied:false,organatoId:"") } }
+            } message:{ Text("Confirm only after checking Organato. Closing this change does not send it again or undo anything in Organato.") }
+    }
+    private var label:String {
+        switch state {
+        case "queued":return "Planned change saved on iPhone, waiting to sync"
+        case "unknown","pending":return "Calendar outcome needs confirmation"
+        case "conflict":return "Session changed elsewhere. Refresh before editing again."
+        default:return "Calendar change could not finish"
+        }
+    }
+}
+
+@MainActor private struct EditEventView:View {
+    @EnvironmentObject private var model:AppModel
+    @Environment(\.centre) private var palette
+    @Environment(\.dismiss) private var dismiss
+    let event:JSONValue
+    @State private var title=""
+    @State private var start=Date()
+    @State private var minutes=60
+    @State private var archive=false
+    @State private var saving=false
+    var body:some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Session title",text:$title)
+                    DatePicker("Starts",selection:$start,displayedComponents:[.date,.hourAndMinute])
+                        .environment(\.timeZone,TimeZone(identifier:event["timeZone"].string ?? model.timeZone) ?? .current)
+                    Stepper("Duration: \(minutes) minutes",value:$minutes,in:5...720,step:5)
+                }.centreRow(palette)
+                Section {
+                    Button("Verify existing Organato link") { Task { await model.calendarLink(event:event) } }
+                    Text("For sessions created on your Mac or after reconnecting Organato. This only checks the existing item; it does not create another one.").font(.footnote).foregroundStyle(palette.text2)
+                    Button("Archive session",role:.destructive) { archive=true }
+                }.centreRow(palette)
+                if let error=model.error { Text(error).foregroundStyle(palette.danger) }
+            }.scrollContentBackground(.hidden).background(palette.bg)
+                .navigationTitle("Edit session").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement:.cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement:.confirmationAction) {
+                        Button("Save") { saving=true;Task { if await model.calendarEdit(event:event,title:title,start:start,durationMinutes:minutes) { dismiss() };saving=false } }.disabled(saving || title.trimmingCharacters(in:.whitespaces).isEmpty)
+                    }
+                }.onAppear { title=event["title"].string ?? "";start=(try? Clock.date(event["startAt"].string ?? "")) ?? Date();minutes=event["plannedDurationMinutes"].int ?? 60 }
+                .confirmationDialog("Archive this planned session?",isPresented:$archive,titleVisibility:.visible) {
+                    Button("Archive session",role:.destructive) { Task { if await model.calendarArchive(event:event) { dismiss() } } }
+                } message:{ Text("This archives the planned session in Organato. Actual study in Log stays saved.") }
+        }
     }
 }
 
@@ -2063,6 +2176,11 @@ private struct SettingsView: View {
                 } else {
                     ConnectForm()
                 }
+                if model.session != nil {
+                    Section("Connections") {
+                        NavigationLink("Organato") { OrganatoConnectionView() }
+                    }.centreRow(palette)
+                }
 
                 if !model.conflicts.isEmpty {
                     Section {
@@ -2091,10 +2209,23 @@ private struct SettingsView: View {
                         Text("Light").tag("light")
                         Text("Match iPhone").tag("system")
                     }
-                    LabeledContent("Text size", value: "Follows iPhone settings")
-                    LabeledContent("Time zone", value: When.zone(model.preferences).identifier)
+                    Picker("Reading size",selection:preferenceBinding("textSize",fallback:"standard")) {
+                        Text("Small").tag("small");Text("Standard").tag("standard");Text("Large").tag("large")
+                    }.accessibilityIdentifier("settings.textSize")
+                    Text("Your iPhone's accessibility text size is always respected.").font(.footnote).foregroundStyle(palette.text3)
+                    NavigationLink("Time zone: \(When.zone(model.preferences).identifier)") {
+                        TimeZoneSettings()
+                    }
                 }
                 .centreRow(palette)
+                Section("Study") {
+                    Picker("Response style",selection:preferenceBinding("responseStyle",fallback:"balanced")) {
+                        Text("Concise").tag("concise");Text("Balanced").tag("balanced");Text("Detailed").tag("detailed")
+                    }
+                    Picker("Year level",selection:Binding(get:{model.preferences["studentYearLevel"].int ?? 9},set:{savePreference("studentYearLevel",.number(Double($0)))})) {
+                        ForEach(7...12,id:\.self) { Text("Year \($0)").tag($0) }
+                    }
+                }.centreRow(palette)
 
                 if model.session != nil {
                     Section {
@@ -2132,6 +2263,61 @@ private struct SettingsView: View {
             let next = model.preferences.merging(.object(["theme": .string(value)]))
             Task { _ = await model.save(kind: "preferences", id: "preferences", data: next) }
         })
+    }
+    private func savePreference(_ key:String,_ value:JSONValue) {
+        Task { _ = await model.save(kind:"preferences",id:"preferences",data:model.preferences.merging(.object([key:value]))) }
+    }
+    private func preferenceBinding(_ key:String,fallback:String) -> Binding<String> {
+        Binding(get:{model.preferences[key].string ?? fallback},set:{savePreference(key,.string($0))})
+    }
+}
+
+@MainActor private struct TimeZoneSettings:View {
+    @EnvironmentObject private var model:AppModel
+    @Environment(\.centre) private var palette
+    @State private var query=""
+    var body:some View {
+        List {
+            ForEach(TimeZone.knownTimeZoneIdentifiers.filter{query.isEmpty || $0.localizedCaseInsensitiveContains(query)},id:\.self) { zone in
+                Button { Task { _ = await model.save(kind:"preferences",id:"preferences",data:model.preferences.merging(.object(["timeZone":.string(zone)]))) } } label: {
+                    HStack { Text(zone).foregroundStyle(palette.text);Spacer();if model.timeZone == zone { Image(systemName:"checkmark").foregroundStyle(palette.text) } }
+                }.centreRow(palette)
+            }
+        }.centreList(palette).searchable(text:$query).navigationTitle("Time zone")
+    }
+}
+
+@MainActor private struct OrganatoConnectionView:View {
+    @EnvironmentObject private var model:AppModel
+    @Environment(\.centre) private var palette
+    @State private var address=""
+    @State private var key=""
+    @State private var removing=false
+    @State private var saving=false
+    var body:some View {
+        Form {
+            Section {
+                LabeledContent("Connection",value:model.connector["connection"]["state"].string ?? "Not configured")
+                Text("Centre Cloud reads your subjects, work and calendar directly from Organato. Your Mac can stay closed.").font(.footnote).foregroundStyle(palette.text2)
+                TextField("Organato HTTPS address",text:$address).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .accessibilityIdentifier("organato.address")
+                SecureField("Organato API key",text:$key).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .accessibilityIdentifier("organato.key")
+                Button(saving ? "Connecting…":"Connect Organato") {
+                    saving=true;Task { let accepted=await model.configureOrganato(baseURL:address.trimmingCharacters(in:.whitespacesAndNewlines),apiKey:key);key="";saving=false;if accepted { model.error=nil } }
+                }.disabled(saving || address.isEmpty || key.isEmpty).accessibilityIdentifier("organato.connect")
+            } footer: { Text("The key is sent only to your Centre Cloud service, which stores it encrypted. It is never saved in the iPhone cache. The service must allow your Organato address.") }
+            .centreRow(palette)
+            if let error=model.error { Section { Text(error).foregroundStyle(palette.danger) }.centreRow(palette) }
+            Section {
+                Button("Remove cloud connection",role:.destructive) { removing=true }
+            }.centreRow(palette)
+        }.scrollContentBackground(.hidden).background(palette.bg).navigationTitle("Organato")
+            .onAppear { address=model.connector["connection"]["baseUrl"].string ?? "" }
+            .onDisappear { key="" }
+            .confirmationDialog("Remove Organato from Centre Cloud?",isPresented:$removing,titleVisibility:.visible) {
+                Button("Remove connection",role:.destructive) { Task { await model.removeOrganato() } }
+            } message:{ Text("Removes the saved cloud credential and calendar cache from this iPhone. Existing study records stay saved.") }
     }
 }
 

@@ -16,7 +16,7 @@ public struct CloudFailure: Error, LocalizedError, Sendable {
     }
 }
 
-public final class CloudHTTP: CloudTransport, @unchecked Sendable {
+public final class CloudHTTP: CloudTransport, ConnectorTransport, @unchecked Sendable {
     public let baseURL: URL
     private let token: String?
     private let session: URLSession
@@ -76,6 +76,19 @@ public final class CloudHTTP: CloudTransport, @unchecked Sendable {
     }
     public func grade(_ request:GradeRequest) async throws -> AIRun {
         try await aiCall("/v1/ai/grades",body:JSONValue.encode(request))
+    }
+    public func send(_ command:ConnectorCommand) async throws -> JSONValue {
+        do { return try await call(command.path,method:command.method,body:command.body) }
+        catch let failure as CloudFailure {
+            // A 409/502 can contain an authoritative blocked receipt. Preserve it instead of replaying.
+            if failure.body["operationId"].string == command.id.uuidString.lowercased(),
+               ["unknown","conflict","failed","pending"].contains(failure.body["status"].string ?? "") { return failure.body }
+            throw failure
+        }
+    }
+    public func receipt(id:String) async throws -> JSONValue {
+        guard UUID(uuidString:id) != nil else { throw CentreError.invalid("Invalid calendar operation identity.") }
+        return try await call("/v1/organato/operations/\(id)")
     }
     private func aiCall(_ path:String,body:JSONValue) async throws -> AIRun {
         do {
