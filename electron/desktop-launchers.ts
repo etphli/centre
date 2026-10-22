@@ -6,14 +6,14 @@ import { desktopActionSchema, desktopActionUrl, type DesktopAction } from '../sh
 import { launcherOperationSchema, type LauncherOperation, type LauncherStatus } from '../shared/desktop-launchers';
 
 const filenames = {
-  'study-log.manual': 'Centre – Log study.webloc',
-  'study-log.timer': 'Centre – Study timer.webloc',
-  'study-log.week': 'Centre – Study summary.webloc',
-  'chat.new': 'Centre – New chat.webloc',
-  'app.search': 'Centre – Search Centre.webloc',
-  'app.resources': 'Centre – Resources.webloc',
-  'app.calendar': 'Centre – Calendar.webloc',
-  'app.settings': 'Centre – Settings.webloc',
+  'study-log.manual': 'Centre – Log study.inetloc',
+  'study-log.timer': 'Centre – Study timer.inetloc',
+  'study-log.week': 'Centre – Study summary.inetloc',
+  'chat.new': 'Centre – New chat.inetloc',
+  'app.search': 'Centre – Search Centre.inetloc',
+  'app.resources': 'Centre – Resources.inetloc',
+  'app.calendar': 'Centre – Calendar.inetloc',
+  'app.settings': 'Centre – Settings.inetloc',
 } satisfies Record<DesktopAction, string>;
 
 export type DesktopLauncherStatus = LauncherStatus;
@@ -111,7 +111,7 @@ export class DesktopLauncherManager {
     syncDirectory(this.manifestDirectory);
   }
 
-  private source(entry: Entry): string { return join(this.manifestDirectory, `${entry.token}.webloc`); }
+  private source(entry: Entry): string { return join(this.manifestDirectory, `${entry.token}.inetloc`); }
   private target(action: DesktopAction): string { return join(this.desktopDirectory, filenames[action]); }
 
   private verified(path: string, entry: Entry): boolean {
@@ -126,8 +126,8 @@ export class DesktopLauncherManager {
     const target = this.target(action);
     const info = stat(target);
     const state = !entry ? (info ? 'conflict' : 'absent')
-      : !this.verified(this.source(entry), entry) ? 'conflict'
       : !info ? 'missing'
+      : !this.verified(this.source(entry), entry) ? 'conflict'
       : this.verified(target, entry) ? 'installed' : 'conflict';
     return { action, state, filename: filenames[action] };
   }
@@ -158,15 +158,15 @@ export class DesktopLauncherManager {
         }
         this.save({ version: 1, entries: manifest.entries.filter(value => value.action !== action) });
         if (this.verified(this.source(entry), entry)) unlinkSync(this.source(entry));
-      } else if (entry) {
+      } else if (entry && this.verified(this.source(entry), entry)) {
         if (status.state === 'missing') {
           linkSync(this.source(entry), this.target(action));
           syncDirectory(this.desktopDirectory);
         }
       } else {
-        if (verb === 'repair') throw new Error('Cannot repair an unowned launcher');
+        if (!entry && verb === 'repair') throw new Error('Cannot repair an unowned launcher');
         const token = randomUUID();
-        const source = join(this.manifestDirectory, `${token}.webloc`);
+        const source = join(this.manifestDirectory, `${token}.inetloc`);
         const descriptor = openSync(source, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
         let ownership: Entry;
         try {
@@ -177,7 +177,7 @@ export class DesktopLauncherManager {
         } finally { closeSync(descriptor); }
         // Commit ownership BEFORE exclusive publication. A crash leaves a repairable
         // missing launcher, never an untracked Desktop file that we later adopt.
-        this.save({ version: 1, entries: [...manifest.entries, ownership] });
+        this.save({ version: 1, entries: [...manifest.entries.filter(value => value.action !== action), ownership] });
         linkSync(source, this.target(action));
         syncDirectory(this.desktopDirectory);
       }

@@ -2,7 +2,7 @@
 
 In the installed macOS app, open **Settings → Desktop**. Choose **Add icon** beside each action you want on your Desktop.
 
-Centre creates named macOS Internet Location (`.webloc`) files. Each contains one allowlisted `centre://action/…` URL; no scripts are installed. The packaged app declares the `centre` URL scheme.
+Centre creates named macOS Internet Location (`.inetloc`) files. Each contains one allowlisted `centre://action/…` URL; no scripts are installed. The packaged app declares the `centre` URL scheme.
 
 **Refresh icons** checks files changed in Finder. **Repair** restores a missing icon that Centre owns. **Remove** removes only the selected, unchanged icon. If a file has been changed or replaced, Centre leaves it untouched; move or rename that file in Finder before repairing the original icon.
 
@@ -30,4 +30,4 @@ Run `node scripts/verify-shortcuts.mjs` after building. The verifier uses tempor
 
 `CENTRE_USER_DATA_DIR` isolates the Electron profile before the single-instance lock. `CENTRE_DESKTOP_DIR` redirects explicitly requested icon operations for verification; development setup is enabled only when both overrides are present. Neither override changes the renderer’s filesystem permissions.
 
-Ownership records and immutable source links live under the Electron profile’s `desktop-launchers` directory. Exclusive hard-link publication requires the profile and Desktop to share a filesystem. Conflicts and corrupt ownership records fail closed. Signing, notarization, and release installation are separate from local unsigned verification.
+Ownership records and ownership source links live under the Electron profile’s `desktop-launchers` directory. Exclusive hard-link publication requires the profile and Desktop to share a filesystem. Conflicts and corrupt ownership records fail closed. Signing, notarization, and release installation are separate from local unsigned verification.

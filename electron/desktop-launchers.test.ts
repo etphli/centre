@@ -39,7 +39,7 @@ test('creates only requested named XML launcher with the exact allowlisted URL',
     assert.equal((await status(f.manager, action)).state, 'installed');
   }
   assert.equal(readdirSync(f.desktopDirectory).length, desktopActionSchema.options.length);
-  assert.equal((await status(f.manager, 'study-log.week')).filename, 'Centre – Study summary.webloc');
+  assert.equal((await status(f.manager, 'study-log.week')).filename, 'Centre – Study summary.inetloc');
   const manifest: unknown = JSON.parse(readFileSync(join(f.manifestDirectory, 'manifest.json'), 'utf8'));
   assert.ok(typeof manifest === 'object' && manifest !== null && 'version' in manifest && manifest.version === 1);
 });
@@ -103,6 +103,24 @@ test('modified owned files and byte-identical replacement files are protected', 
   }
 });
 
+test('moving a modified owned icon aside permits repair or removal without touching user edits', async () => {
+  for (const operation of ['repair', 'remove'] satisfies ('repair' | 'remove')[]) {
+    const f = fixture();
+    await f.manager.change('chat.new', 'create');
+    const path = await target(f, 'chat.new');
+    const original = readFileSync(path, 'utf8');
+    writeFileSync(path, 'my edited launcher');
+    assert.equal((await status(f.manager, 'chat.new')).state, 'conflict');
+    const saved = join(f.desktopDirectory, 'My saved icon.inetloc');
+    renameSync(path, saved);
+    assert.equal((await status(f.manager, 'chat.new')).state, 'missing');
+    await f.restart().change('chat.new', operation);
+    assert.equal(readFileSync(saved, 'utf8'), 'my edited launcher');
+    assert.equal((await status(f.manager, 'chat.new')).state, operation === 'repair' ? 'installed' : 'absent');
+    if (operation === 'repair') assert.equal(readFileSync(path, 'utf8'), original);
+  }
+});
+
 test('symlink and directory launchers are conflicts and their destinations survive', async () => {
   for (const tracked of [false, true]) {
     for (const kind of ['symlink', 'directory']) {
@@ -163,7 +181,7 @@ test('manifest symlinks, nonregular manifests and redirected directories fail cl
 test('lost or altered ownership anchors cannot authorize repair or removal', async () => {
   const f = fixture();
   await f.manager.change('study-log.manual', 'create');
-  const anchor = readdirSync(f.manifestDirectory).find(name => name.endsWith('.webloc'));
+  const anchor = readdirSync(f.manifestDirectory).find(name => name.endsWith('.inetloc'));
   assert.ok(anchor);
   unlinkSync(join(f.manifestDirectory, anchor));
   assert.equal((await status(f.manager)).state, 'conflict');
