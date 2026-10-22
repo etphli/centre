@@ -26,8 +26,17 @@ The canonical consumer is `StudyLogProvider` in `src/data/useStudyLog.tsx`. Its 
 
 Run `npm test`, `npm run typecheck`, `npm run build`, and `npm run build:electron`. Electron builds require the existing Google Desktop OAuth configuration.
 
-Run `node scripts/verify-shortcuts.mjs` after building. The verifier uses temporary profile, data, and Desktop directories. It writes native screenshots and a report under `.runtime`; it does not install files on your Desktop. See the verifier’s options for packaged and Study Log integration runs.
+Run `node scripts/verify-shortcuts.mjs` after building. For a combined Log checkout, run `node scripts/verify-shortcuts.mjs --root /absolute/integration-checkout --integration`. The verifier uses temporary profile, data, and Desktop directories. It writes native screenshots and a report under `.runtime`; it does not install files on your Desktop. Its synthetic lifecycle events are labelled separately from the real secondary-process launch.
+
+For actual macOS cold/warm URL delivery and opening an icon through Finder’s launch path, build an isolated unsigned bundle and run the packaged verifier:
+
+```sh
+CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --dir --publish never --config.appId=au.com.centre.desktop.shortcutsverification --config.directories.output=.runtime/shortcuts-final-package
+node scripts/verify-shortcuts-packaged.mjs .runtime/shortcuts-final-package/mac-arm64/Centre.app
+```
+
+This verifier requires the separate test bundle ID. It checks that the system URL handler points to that bundle before opening an icon, and unregisters the test bundle after exit. It never changes the system’s default handler explicitly. The separate ID avoids other local Centre builds intercepting verification URLs. [Electron’s launch guidance](https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app) describes the packaged macOS URL event.
 
 `CENTRE_USER_DATA_DIR` isolates the Electron profile before the single-instance lock. `CENTRE_DESKTOP_DIR` redirects explicitly requested icon operations for verification; development setup is enabled only when both overrides are present. Neither override changes the renderer’s filesystem permissions.
 
-Ownership records and ownership source links live under the Electron profile’s `desktop-launchers` directory. Exclusive hard-link publication requires the profile and Desktop to share a filesystem. Conflicts and corrupt ownership records fail closed. Signing, notarization, and release installation are separate from local unsigned verification.
+Ownership records and source links live under the Electron profile’s `desktop-launchers` directory. Exclusive hard-link publication requires the profile and Desktop to share a filesystem. Conflicts and corrupt ownership records fail closed. Signing, notarization, and release installation are separate from local unsigned verification.

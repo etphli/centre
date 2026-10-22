@@ -1,0 +1,594 @@
+{
+  "schemaVersion": 1,
+  "featureLogicCommit": "9305b86",
+  "short1FixCommit": "be9e267",
+  "integrationLogHead": "54d417c69ef6c147ea5fd01764187c3ef9458e35",
+  "integrationStatus": "73 native checks passed on the current combined production renderer",
+  "checks": {
+    "unitTests": 102,
+    "focusedDesktopTests": 21,
+    "typecheck": "passed",
+    "productionRenderer": "passed",
+    "electronBuild": "passed",
+    "unsignedPackaging": "passed"
+  },
+  "suites": {
+    "standalone": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "app.resources changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Cold startup argv reaches production renderer",
+          "passed": true
+        },
+        {
+          "name": "Renderer uses isolated preload",
+          "passed": true
+        },
+        {
+          "name": "Fresh isolated profile has no chats",
+          "passed": true
+        },
+        {
+          "name": "Launcher IPC supports isolated native Desktop",
+          "passed": true
+        },
+        {
+          "name": "Launcher filenames use generic Internet locations",
+          "passed": true
+        },
+        {
+          "name": "No launcher created on startup",
+          "passed": true
+        },
+        {
+          "name": "Study setup is gated by real snapshot",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after chat.new",
+          "passed": true
+        },
+        {
+          "name": "chat.new launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.search IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.search",
+          "passed": true
+        },
+        {
+          "name": "app.search launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.resources IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.resources",
+          "passed": true
+        },
+        {
+          "name": "app.resources launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.calendar IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.calendar",
+          "passed": true
+        },
+        {
+          "name": "app.calendar launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.settings IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.settings",
+          "passed": true
+        },
+        {
+          "name": "app.settings launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports missing",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports conflict",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports missing",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Repair replaces a modified private source and preserves the moved icon",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports conflict",
+          "passed": true
+        },
+        {
+          "name": "Conflicting file exposes no destructive controls",
+          "passed": true
+        },
+        {
+          "name": "IPC create rejects conflict and preserves bytes",
+          "passed": true
+        },
+        {
+          "name": "IPC repair rejects conflict and preserves bytes",
+          "passed": true
+        },
+        {
+          "name": "IPC remove rejects conflict and preserves bytes",
+          "passed": true
+        },
+        {
+          "name": "app.search IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "app.resources IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "app.calendar IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "app.settings IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "Remove leaves isolated Desktop empty",
+          "passed": true
+        },
+        {
+          "name": "app.calendar changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Actual warm second process delivers argv",
+          "passed": true
+        },
+        {
+          "name": "chat.new changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.search changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.resources changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.settings changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.search changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Queued links preserve open dialog and current route",
+          "passed": true
+        },
+        {
+          "name": "app.calendar changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Multiple queued links arrive in order",
+          "passed": true,
+          "details": [
+            "app.search",
+            "app.resources",
+            "app.calendar"
+          ]
+        },
+        {
+          "name": "Malformed URL events ignored by main without renderer delivery",
+          "passed": true
+        },
+        {
+          "name": "app.resources changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "URL restores minimized native window",
+          "passed": true
+        },
+        {
+          "name": "Synthetic app activate recreates closed native window",
+          "passed": true
+        },
+        {
+          "name": "app.calendar changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "URL recreates closed window and replays after bridge ready",
+          "passed": true
+        },
+        {
+          "name": "Navigation launches create no chats",
+          "passed": true
+        }
+      ],
+      "limitations": [
+        "Study Log UI integration requires --integration against a build whose real snapshot contains studyLog."
+      ]
+    },
+    "packaged": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "Renderer comes from the packaged ASAR",
+          "passed": true
+        },
+        {
+          "name": "Cold macOS URL delivery reaches Resources",
+          "passed": true
+        },
+        {
+          "name": "Setup creates an individually named native Internet Location",
+          "passed": true
+        },
+        {
+          "name": "System URL handler is this isolated verification bundle",
+          "passed": true
+        },
+        {
+          "name": "Opening the actual icon routes to and focuses New chat",
+          "passed": true
+        },
+        {
+          "name": "Warm macOS URL delivery reuses the running app",
+          "passed": true
+        }
+      ],
+      "limitations": [
+        "Unsigned local bundle with verification-only bundle ID; signing, notarization and release installation are not verified."
+      ]
+    },
+    "integration": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "app.resources changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Cold startup argv reaches production renderer",
+          "passed": true
+        },
+        {
+          "name": "Renderer uses isolated preload",
+          "passed": true
+        },
+        {
+          "name": "Fresh isolated profile has no chats",
+          "passed": true
+        },
+        {
+          "name": "--integration requires actual Study Log in service snapshot",
+          "passed": true
+        },
+        {
+          "name": "Launcher IPC supports isolated native Desktop",
+          "passed": true
+        },
+        {
+          "name": "Launcher filenames use generic Internet locations",
+          "passed": true
+        },
+        {
+          "name": "No launcher created on startup",
+          "passed": true
+        },
+        {
+          "name": "study-log.manual IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after study-log.manual",
+          "passed": true
+        },
+        {
+          "name": "study-log.manual launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "study-log.timer IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after study-log.timer",
+          "passed": true
+        },
+        {
+          "name": "study-log.timer launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "study-log.week IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after study-log.week",
+          "passed": true
+        },
+        {
+          "name": "study-log.week launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after chat.new",
+          "passed": true
+        },
+        {
+          "name": "chat.new launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.search IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.search",
+          "passed": true
+        },
+        {
+          "name": "app.search launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.resources IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.resources",
+          "passed": true
+        },
+        {
+          "name": "app.resources launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.calendar IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.calendar",
+          "passed": true
+        },
+        {
+          "name": "app.calendar launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "app.settings IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Only requested Desktop files after app.settings",
+          "passed": true
+        },
+        {
+          "name": "app.settings launcher contains exact URL",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports missing",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports conflict",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports missing",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports installed",
+          "passed": true
+        },
+        {
+          "name": "Repair replaces a modified private source and preserves the moved icon",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "chat.new IPC reports conflict",
+          "passed": true
+        },
+        {
+          "name": "Conflicting file exposes no destructive controls",
+          "passed": true
+        },
+        {
+          "name": "IPC create rejects conflict and preserves bytes",
+          "passed": true
+        },
+        {
+          "name": "IPC repair rejects conflict and preserves bytes",
+          "passed": true
+        },
+        {
+          "name": "IPC remove rejects conflict and preserves bytes",
+          "passed": true
+        },
+        {
+          "name": "study-log.manual IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "study-log.timer IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "study-log.week IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "app.search IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "app.resources IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "app.calendar IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "app.settings IPC reports absent",
+          "passed": true
+        },
+        {
+          "name": "Remove leaves isolated Desktop empty",
+          "passed": true
+        },
+        {
+          "name": "app.calendar changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Actual warm second process delivers argv",
+          "passed": true
+        },
+        {
+          "name": "chat.new changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.search changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.resources changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.settings changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "app.search changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Queued links preserve open dialog and current route",
+          "passed": true
+        },
+        {
+          "name": "app.calendar changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "Multiple queued links arrive in order",
+          "passed": true,
+          "details": [
+            "app.search",
+            "app.resources",
+            "app.calendar"
+          ]
+        },
+        {
+          "name": "Malformed URL events ignored by main without renderer delivery",
+          "passed": true
+        },
+        {
+          "name": "app.resources changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "URL restores minimized native window",
+          "passed": true
+        },
+        {
+          "name": "Synthetic app activate recreates closed native window",
+          "passed": true
+        },
+        {
+          "name": "app.calendar changes real renderer and acknowledges delivery",
+          "passed": true
+        },
+        {
+          "name": "URL recreates closed window and replays after bridge ready",
+          "passed": true
+        },
+        {
+          "name": "Log manual action opens real entry form",
+          "passed": true
+        },
+        {
+          "name": "Log week action focuses #study-week-title",
+          "passed": true
+        },
+        {
+          "name": "Log timer focuses controls and waits for Start",
+          "passed": true
+        },
+        {
+          "name": "Log launches preserve persisted study sessions and timer state",
+          "passed": true
+        },
+        {
+          "name": "Navigation launches create no chats",
+          "passed": true
+        }
+      ],
+      "limitations": []
+    }
+  },
+  "integrationSourceHead": "65de28f62b60ea89ee4b82416d53978edc251f3c"
+}
