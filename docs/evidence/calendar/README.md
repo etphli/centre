@@ -42,3 +42,11 @@ The footer's unavailable Codex notice belongs to the intentionally isolated fixt
 Explicit assignment deadline instants are also covered in Sydney and Los Angeles. Date-only deadlines remain all-day on their original calendar date. The final optional `Assignment.dueAt` projection preserves existing date-only consumers.
 
 The coordinator independently cleared CAL-1/2/3/4 and local X-1/X-2 using the fresh fixture at 1280×800. The live recheck confirmed seven visible days, selected scroll, month/composer separation, human status labels, opaque archive confirmation, shared controls and zero page exceptions. This is Calendar visual clearance only; hosted D1/iOS integration and merge approval remain separate. A subsequent test-only addition confirms authenticated operation-not-found and concurrent explicit retry deduplicate to one upstream create; the focused module suite passes 60 tests. No duplicate full build was run.
+
+## Final integration and narrow layout
+
+The coordinator integrated approved main plus chat/Search dependencies, preserving calendar fields and safe archive behavior. A real HTTP regression first reproduced archived sessions remaining in Search, including their stale Organato assignment projection. Confirmed archive now refreshes the index and excludes both tombstoned sessions and those stale projections immediately.
+
+`npm test` passed all 267 tests and TypeScript passed on the stacked calendar candidate. FINAL-NARROW-1 was fixed by stacking weekday and date below 760px. The actual T3 browser at 760x900, dark/large text, showed seven contained headers, no weekday/date overlap and no body overflow. `week-narrow-large.png` and `narrow-recheck.json` record the actual result. This is CSS for the desktop browser calendar grid; native iOS has its own SwiftUI calendar and does not consume this stylesheet. Final whole-program native/build verification follows integration.
+
+These integration and CSS changes were authored by GPT-6.1 Sol.

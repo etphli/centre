@@ -604,6 +604,12 @@ button.due-chip:hover,
     --gutter: 44px;
     max-height: calc(100vh - 220px);
   }
+  .week__day {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 2px;
+  }
 }
 
 .week__day:has(.week__dst) {
