@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "fixture": "Production callback renderer, synthetic success/error outcomes. No live Google consent.",
+  "fallback": "T3 snapshot failed twice: Preview automation snapshot timed out after 15000ms.",
+  "checks": [
+    "success dark 1280px: correct copy, scrubbed OAuth URL, no overflow, 44px return action, keyboard focus",
+    "success light 1280px: correct copy, scrubbed OAuth URL, no overflow, 44px return action, keyboard focus",
+    "success light 375px: correct copy, scrubbed OAuth URL, no overflow, 44px return action, keyboard focus",
+    "error dark 375px: correct copy, scrubbed OAuth URL, no overflow, 44px return action, keyboard focus",
+    "No uncaught errors or external resource requests"
+  ],
+  "screenshots": [
+    "docs/evidence/google-login/success-dark-1280.png",
+    "docs/evidence/google-login/success-light-1280.png",
+    "docs/evidence/google-login/success-light-375.png",
+    "docs/evidence/google-login/error-dark-375.png"
+  ],
+  "errors": []
+}
