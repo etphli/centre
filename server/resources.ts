@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
-import { allResponseTypes, generatedQuestionSchema, resourceSchema, gradeResultSchema, type CreateResource, type ModelSelection, type Resource, type TestLength } from '../shared/schema';
+import { allResponseTypes, generatedQuestionSchema, resourceSchema, gradeResultSchema, attemptSchema, type CreateResource, type ModelSelection, type Resource, type TestLength } from '../shared/schema';
 import type { Store } from './store';
 import type { Codex } from './codex';
 import { HttpError, requireFound } from './errors';
@@ -139,7 +139,7 @@ export class Resources {
     }
     if (ids.size !== resource.questions.length) throw new HttpError(422, 'The grader did not mark every question. No result was saved.');
     result.score = result.feedback.reduce((sum, f) => sum + f.score, 0); result.total = result.feedback.reduce((sum, f) => sum + f.maxScore, 0);
-    this.store.state.attempts.push({ id: randomUUID(), resourceId: resource.id, answers, result, createdAt: new Date().toISOString() });
+    this.store.state.attempts.push(attemptSchema.parse({ id: randomUUID(), resourceId: resource.id, answers, result, createdAt: new Date().toISOString() }));
     for (const feedback of result.feedback) if (feedback.needsReview) { const question = resource.questions.find(q => q.id === feedback.questionId); if (question) this.remember(resource, question.prompt, feedback.feedback); }
     resource.completedAt = new Date().toISOString(); resource.updatedAt = resource.completedAt; await this.store.save(); return result;
   }

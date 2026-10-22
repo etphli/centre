@@ -93,7 +93,7 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   const { state, route, navigate, openSearch, turns, act, notify } = useApp();
   const openMemories = state.memories.filter((memory) => !memory.resolvedAt);
   const dueMemories = openMemories.filter((memory) => memory.nextReviewAt.slice(0, 10) <= todayKey()).length;
-  const account = state.settings.account;
+  const account = state.settings.cloudAccount ?? state.settings.account;
   const workingChats = new Set(turns.filter((turn) => turn.status !== 'error').map((turn) => turn.chatId));
 
   const folders = [...state.chatFolders].sort((left, right) => left.sortOrder - right.sortOrder);
@@ -593,7 +593,7 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
           )}
           <span className="account__text">
             <span className="account__name">{account?.name ?? 'Not signed in'}</span>
-            <span className="account__status">{state.settings.organatoConnected ? 'Organato connected' : 'Local only'}</span>
+            <span className="account__status">{state.settings.cloudAccount ? state.settings.cloudSyncEnabled ? 'Cloud sync enabled' : 'Sync off' : state.settings.organatoConnected ? 'Organato connected' : 'Local only'}</span>
           </span>
         </button>
         <button type="button" className={`icon-button icon-button--small${route.kind === 'settings' ? ' is-active' : ''}`} aria-label="Settings" title="Settings" onClick={() => navigate({ kind: 'settings' })}>

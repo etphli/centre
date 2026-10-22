@@ -1,5 +1,6 @@
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { z } from 'zod';
+import { cloudStatusSchema } from '../../shared/cloud-status';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
 import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema, modelSchema, preferencesSchema, reasoningEffortSchema, topicSchema, resourceSchema, eventSchema, settingsSchema, snapshotSchema, gradeResultSchema, assignmentSchema, attachmentSchema, type Attachment, type Resource, type CreateResource, type PageContext, type StudyEvent } from '../../shared/schema';
 
@@ -35,7 +36,7 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
       throw new Error(error.success ? error.data.error : `Centre returned ${response.status}.`);
     }
   }
-  const failure = z.object({ error: z.string() }).safeParse(value);
+  const failure = z.object({ error: z.string() }).strict().safeParse(value);
   if (failure.success) throw new Error(failure.data.error);
   const result = schema.parse(value);
   if (stateRequest && !window.centre && (path === '/state/poll' || !stateEtag)) stateEtag = nextStateEtag;
@@ -43,6 +44,16 @@ async function request<T>(method: Method, path: string, schema: z.ZodType<T>, bo
 }
 const okSchema = z.object({ ok: z.literal(true) });
 const exportSchema = z.object({ filename: z.string(), content: z.string(), mimeType: z.string() });
+export const cloudApi = {
+  status: () => request('GET','/cloud/status',cloudStatusSchema),
+  configure: (baseUrl:string) => request('POST','/cloud/configure',cloudStatusSchema,{baseUrl}),
+  signIn: async () => { const result = await request('POST','/cloud/sign-in',z.object({url:z.string().url()}),{}); await openExternal(result.url); return result; },
+  importData: () => request('POST','/cloud/import',cloudStatusSchema,{confirm:true}),
+  sync: () => request('POST','/cloud/sync',cloudStatusSchema,{}),
+  pairing: () => request('POST','/cloud/pairing',z.object({baseUrl:z.string().url(),code:z.string(),expiresAt:z.string().datetime()}),{}),
+  disconnect: () => request('POST','/cloud/disconnect',cloudStatusSchema,{}),
+  resolve: (kind:string,id:string,choice:'local'|'cloud') => request('POST','/cloud/conflicts/resolve',cloudStatusSchema,{kind,id,choice}),
+};
 export const api = {
   state: () => request('GET', '/state', snapshotSchema),
   updateMemory: (id:string, content:string) => request('PATCH', `/assistant-memories/${encodeURIComponent(id)}`, assistantMemorySchema, rememberInputSchema.omit({ key:true }).parse({ content })),

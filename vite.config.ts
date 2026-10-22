@@ -16,7 +16,7 @@ export default defineConfig({
     watch: { ignored: ['**/release/**', '**/dist-electron/**'] },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:4319',
+        target: `http://127.0.0.1:${process.env.CENTRE_SERVICE_PORT ?? '4319'}`,
         configure(proxy) {
           proxy.on('proxyReq', (req) => {
             try {

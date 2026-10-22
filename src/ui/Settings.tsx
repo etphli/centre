@@ -6,6 +6,7 @@ import { useApp } from './context';
 import { GeneralPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
 import { errorMessage, initials, timeAgo } from './format';
 import { MemorySettings } from './MemorySettings';
+import { CloudSettings } from './CloudSettings';
 
 const POLL_MS = 2000;
 const POLL_LIMIT_MS = 180_000;
@@ -76,7 +77,7 @@ function GoogleSection() {
   }
 
   return (
-    <Section id="settings-account" title="Account" description="Sign in with Google so Centre knows who you are on this computer. Your study data stays on this computer.">
+    <Section id="settings-account" title="Account" description="Sign in with Google so Centre knows who you are on this computer. Centre cloud sync is configured separately above.">
       {account ? (
         <div className="account-card">
           {account.picture ? <img className="avatar avatar--large" src={account.picture} alt="" referrerPolicy="no-referrer" /> : <span className="avatar avatar--large" aria-hidden>{initials(account.name)}</span>}
@@ -327,7 +328,7 @@ export function SettingsPage() {
       {category === 'study' ? <StudyPreferences /> : null}
       {category === 'memory' ? <MemorySettings /> : null}
       {category === 'models' ? <><ModelPreferences /><CodexSection /></> : null}
-      {category === 'connections' ? <><Connections /><GoogleSection /><OrganatoSection /><p className="settings-foot">Credentials are stored in your macOS Keychain. <button type="button" className="link-button" onClick={() => void openExternal('https://organato.vercel.app').catch(() => undefined)}>Open Organato <ExternalLink size={12} aria-hidden /></button></p></> : null}
+      {category === 'connections' ? <><CloudSettings /><Connections /><GoogleSection /><OrganatoSection /><p className="settings-foot">Credentials are stored in your macOS Keychain. <button type="button" className="link-button" onClick={() => void openExternal('https://organato.vercel.app').catch(() => undefined)}>Open Organato <ExternalLink size={12} aria-hidden /></button></p></> : null}
       {category === 'skills' ? <SkillsPreferences /> : null}
       {category === 'updates' ? <UpdatesSection /> : null}
     </div>

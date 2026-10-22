@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { z, ZodError } from 'zod';
 import { rememberInputSchema,modelSelectionSchema, askQuestionSchema, resourceKindSchema, resourceLocationSchema, messageSchema, chatSchema, contextSchema, createResourceSchema, createResourceToolVariants, feedbackSchema, gradeSchema, topicSchema, eventSchema, reasoningEffortSchema,preferencesSchema, type Activity, type Chat, type PageContext } from '../shared/schema';
 import { Store } from './store';
+import { CloudSync } from './cloud-sync';
 import { Questions } from './questions';
 import { chatResponseSchema,chatResponseInstructions,questionRoutingInstructions } from './chat-response';
 import { route as chatOrganizationRoute } from './chat-organization';
@@ -175,10 +176,12 @@ export async function createService(options: { port?:number; token?:string; data
     }
     return result;
   }
-  const resources: Resources = new Resources(store,codex); const google = new GoogleLogin(store,credentials);
+  const cloud = await CloudSync.open(store,credentials,attachmentStore);
+  const resources: Resources = new Resources(store,codex); const google = new GoogleLogin(store,credentials,idToken=>cloud.authenticate(idToken));
+  const cloudTimer = setInterval(()=>{void cloud.sync().catch(()=>undefined);},30000); cloudTimer.unref();
   void codex.ready().catch(() => undefined);
   const reconnect = setInterval(() => { void codex.ready().catch(() => undefined); }, 15000); reconnect.unref();
-  stopBackground = async () => { clearInterval(reconnect); google.close(); questions.close(); await codex.close(); };
+  stopBackground = async () => { clearInterval(reconnect); clearInterval(cloudTimer); google.close(); questions.close(); await cloud.close(); await codex.close(); };
   function visibleState() {
     const resources = store.state.resources.filter(resource => !resource.deletedAt);
     const resourceIds = new Set(resources.map(resource => resource.id));
@@ -319,6 +322,18 @@ export async function createService(options: { port?:number; token?:string; data
       return { ok:true };
     }
     if (method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) return visibleState();
+    if (method === 'GET' && path === '/api/cloud/status') return cloud.status();
+    if (method === 'POST' && path === '/api/cloud/configure') return cloud.configure(z.object({baseUrl:z.string().max(2048)}).strict().parse(value).baseUrl);
+    if (method === 'POST' && path === '/api/cloud/sign-in') {
+      z.object({}).strict().parse(value);
+      if (!(await cloud.status()).baseUrl) throw new HttpError(400,'Add your Centre cloud address first.');
+      return google.start(undefined,false,true);
+    }
+    if (method === 'POST' && path === '/api/cloud/import') { z.object({confirm:z.literal(true)}).strict().parse(value); return cloud.enableImport(); }
+    if (method === 'POST' && path === '/api/cloud/sync') { z.object({}).strict().parse(value); return cloud.sync(); }
+    if (method === 'POST' && path === '/api/cloud/pairing') { z.object({}).strict().parse(value); return cloud.pairing(); }
+    if (method === 'POST' && path === '/api/cloud/disconnect') { z.object({}).strict().parse(value); return cloud.disconnect(); }
+    if (method === 'POST' && path === '/api/cloud/conflicts/resolve') { const input = z.object({kind:z.string().min(1).max(100),id:z.string().min(1).max(200),choice:z.enum(['local','cloud'])}).strict().parse(value); return cloud.resolve(input.kind,input.id,input.choice); }
     if (method === 'GET' && path === '/api/models') return { models:await codex.models() };
     const fileRefresh = /^\/api\/resources\/([^/]+)\/refresh$/.exec(path);
     if (fileRefresh && method === 'POST') return connectedFiles.refresh(decodeURIComponent(fileRefresh[1] ?? ''));
