@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { MAX_SEARCH_QUERY_LENGTH } from '../shared/search';
 
 const routes = [
   ['GET', /^\/api\/state$/],
   ['GET', /^\/api\/state\/poll$/],
   ['GET', /^\/api\/models$/],
+  ['GET', /^\/api\/search$/],
   ['GET', /^\/api\/skills$/],
   ['PATCH', /^\/api\/assistant-memories\/[0-9a-f-]{36}$/],
   ['POST', /^\/api\/assistant-memories\/[0-9a-f-]{36}\/forget$/],
@@ -35,10 +37,15 @@ const routes = [
 export function validateRequest(method: unknown, path: unknown, body: unknown) {
   const request = z.object({
     method: z.enum(['GET', 'POST', 'PATCH']),
-    path: z.string().max(512).regex(/^\/api\/[A-Za-z0-9_/-]+$/),
+    path: z.string().max(MAX_SEARCH_QUERY_LENGTH * 12 + 32).regex(/^\/api\/[A-Za-z0-9_/-]+(?:\?[^#\s]*)?$/),
     body: z.unknown().optional(),
   }).parse({ method, path, body });
-  if (request.path.includes('//') || !routes.some(([verb, route]) => verb === request.method && route.test(request.path))) {
+  const url = new URL(request.path, 'http://127.0.0.1');
+  const search = request.method === 'GET' && url.pathname === '/api/search';
+  const validQuery = search
+    ? url.searchParams.size === 1 && url.searchParams.has('q') && (url.searchParams.get('q')?.length ?? 0) <= MAX_SEARCH_QUERY_LENGTH
+    : !url.search;
+  if (!validQuery || request.path.includes('//') || !routes.some(([verb, route]) => verb === request.method && route.test(url.pathname))) {
     throw new Error('This request is not allowed by the desktop app.');
   }
   if (request.method === 'GET' && body !== undefined) throw new Error('GET requests cannot include a body.');

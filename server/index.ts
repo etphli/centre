@@ -28,6 +28,8 @@ import { AttachmentStore, MAX_ATTACHMENTS_PER_MESSAGE } from './attachments';
 import { remember,updateMemory,forgetMemory,forgetMemoryInputSchema } from './assistant-memory';
 import { structuredOutputSchema } from './structured-output';
 import { branchInputSchema,createChatBranch } from './chat-branches';
+import { SearchIndex } from './search-index';
+import { MAX_SEARCH_QUERY_LENGTH, searchQuerySchema } from '../shared/search';
 
 const topicInput = z.object({ subjectId:z.string(), name:z.string().trim().min(1).max(200), description:z.string().max(10000).default('') }).strict();
 const eventInput = calendarInputSchema;
@@ -88,10 +90,13 @@ export async function createService(options: { port?:number; token?:string; data
     recovered = true;
   }
   if (recovered) await store.save();
+  const searchIndex = new SearchIndex(attachmentStore);
+  await searchIndex.rebuild(store.state);
   const connectors = new Connectors(store,credentials);
-  const connectedFiles = new ConnectedFiles(store,connectors);
+  const connectedFiles = new ConnectedFiles(store,connectors,searchIndex);
   const questions = new Questions();
   const busy = new Map<string,number>(); const cancelled = new Set<string>();
+  const reservedAttachmentIds = new Set<string>();
   const guidedCreation = new Set<string>();
   const pending = new Set<Promise<unknown>>();
   function track<T>(work: () => Promise<T>): Promise<T> {
@@ -103,10 +108,23 @@ export async function createService(options: { port?:number; token?:string; data
     const input = topicInput.parse(value); requireFound(store.state.subjects.find(x => x.id === input.subjectId),'Subject');
     const existing = store.state.topics.find(x => x.subjectId === input.subjectId && x.name.toLocaleLowerCase() === input.name.toLocaleLowerCase());
     if (existing) return existing;
-    const topic = topicSchema.parse({ id:randomUUID(), ...input }); store.state.topics.push(topic); await store.save(); return topic;
+    const topic = topicSchema.parse({ id:randomUUID(), ...input }); store.state.topics.push(topic); await store.save(); await searchIndex.rebuild(store.state); return topic;
   }
   async function createEvent(value: unknown) {
-    return organato.createEvent(value);
+    const event = await organato.createEvent(value); await searchIndex.rebuild(store.state); return event;
+  }
+  async function updateEvent(id: string, value: unknown) {
+    const event = await organato.updateEvent(id,value); await searchIndex.rebuild(store.state); return event;
+  }
+  async function syncOrganato() {
+    await organato.sync(); await searchIndex.rebuild(store.state);
+    return visibleState();
+  }
+  async function createOrganatoItem(value: unknown) {
+    const assignment = await organato.create(value); await searchIndex.rebuild(store.state); return assignment;
+  }
+  async function updateOrganatoItem(id: string, value: unknown) {
+    const assignment = await organato.update(id,value); await searchIndex.rebuild(store.state); return assignment;
   }
   function resourceDefaults(value: unknown) {
     const requested = z.record(z.string(),z.unknown()).parse(value);
@@ -175,10 +193,10 @@ export async function createService(options: { port?:number; token?:string; data
       }
       case 'centre_move_resource': { const value = resourceLocationSchema.extend({id:z.string().min(1)}).strict().parse(input);return resources.relocate(value.id,value); }
       case 'centre_create_event': return createEvent(input);
-      case 'centre_update_event': { const value = z.object({id:z.string(),patch:calendarPatchSchema}).strict().parse(input); return organato.updateEvent(value.id,value.patch); }
-      case 'centre_sync_organato': await organato.sync(); return visibleState();
-      case 'centre_create_work': return organato.create(createWorkInput.parse(input).item);
-      case 'centre_update_work': { const value = editWorkInput.parse(input); return organato.update(value.id,value.patch); }
+      case 'centre_update_event': { const value = z.object({id:z.string(),patch:calendarPatchSchema}).strict().parse(input); return updateEvent(value.id,value.patch); }
+      case 'centre_sync_organato': return syncOrganato();
+      case 'centre_create_work': return createOrganatoItem(createWorkInput.parse(input).item);
+      case 'centre_update_work': { const value = editWorkInput.parse(input); return updateOrganatoItem(value.id,value.patch); }
       default: throw new HttpError(400,`Unknown Centre tool: ${name}`);
     }
   }));
@@ -192,7 +210,7 @@ export async function createService(options: { port?:number; token?:string; data
     }
     return result;
   }
-  const resources: Resources = new Resources(store,codex); const google = new GoogleLogin(store,credentials);
+  const resources: Resources = new Resources(store,codex,searchIndex); const google = new GoogleLogin(store,credentials);
   void codex.ready().catch(() => undefined);
   const reconnect = setInterval(() => { void codex.ready().catch(() => undefined); }, 15000); reconnect.unref();
   stopBackground = async () => { clearInterval(reconnect); google.close(); questions.close(); await codex.close(); };
@@ -201,7 +219,7 @@ export async function createService(options: { port?:number; token?:string; data
     const resourceIds = new Set(resources.map(resource => resource.id));
     return { ...store.state,resources,memories:store.state.memories.filter(memory => resourceIds.has(memory.resourceId)),attempts:store.state.attempts.filter(attempt => resourceIds.has(attempt.resourceId)),chats:store.state.chats.filter(chat => !chat.deletedAt),codex:{ ...codex.status },pendingQuestions:questions.list(),activeResponses:[...busy].map(([chatId,startedAt]) => ({chatId,startedAt,status:cancelled.has(chatId) ? 'stopping' : 'working'})) }; }
   async function sendMessage(id: string, value: unknown, options:{existingMessageId?:string;allowTools?:boolean;forceHistory?:boolean;reserved?:boolean} = {}) {
-    const input = z.object({ messageId:z.string().uuid().optional(),content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]), resourceRequest:createResourceSchema.optional() }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
+    const input = z.object({ messageId:z.string().uuid().optional(),content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).max(MAX_ATTACHMENTS_PER_MESSAGE).refine(ids => new Set(ids).size === ids.length,'An attachment can only be included once.').default([]), resourceRequest:createResourceSchema.optional() }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
     const content = input.content.trim();
     const commandKind = resourceKindSchema.safeParse(options.allowTools === false ? undefined : /^\/(\w+)\b/.exec(content)?.[1]);
     const chat = requireFound(store.state.chats.find(x => x.id === id && !x.deletedAt),'Chat');
@@ -210,7 +228,15 @@ export async function createService(options: { port?:number; token?:string; data
     busy.set(id,Date.now()); cancelled.delete(id);
     let unsubscribeActivity: (() => void) | undefined;
     let unsubscribeTurns: (() => void) | undefined;
+    const reserved: string[] = [];
     try {
+      attachmentStore.assertMessageOwnership(store.state.chats,input.attachmentIds,id);
+      const ownedAttachmentIds = new Set(store.state.chats.flatMap(chat => chat.messages.flatMap(message => message.attachmentIds)));
+      for (const attachmentId of input.attachmentIds) {
+        if (ownedAttachmentIds.has(attachmentId)) continue;
+        if (reservedAttachmentIds.has(attachmentId)) throw new HttpError(409,'This attachment is being added to another chat. Upload it again to attach a separate copy.');
+        reservedAttachmentIds.add(attachmentId); reserved.push(attachmentId);
+      }
       const attachedFiles = await Promise.all(input.attachmentIds.map(attachmentId => attachmentStore.resolveForMessage(attachmentId)));
       const totalBytes = attachedFiles.reduce((total, file) => total + file.attachment.size,0);
       if (totalBytes > 30 * 1024 * 1024) throw new HttpError(413,'Attachments in one message must total 30 MB or less.');
@@ -221,6 +247,7 @@ export async function createService(options: { port?:number; token?:string; data
       chat.responseError = null; chat.updatedAt = now;
       if (chat.messages.length === 1 && chat.title === 'New chat') chat.title = (content || `Review ${attachedFiles[0]?.attachment.name ?? 'attached file'}`).slice(0,60);
       await store.save();
+      await searchIndex.rebuild(store.state);
       const { model,effort } = chat.modelSelection ?? {model:store.state.settings.chatModel,effort:store.state.settings.reasoningEffort};
       await codex.validateSelection(model,effort);
       const needsHistory = !chat.codexThreadId || options.forceHistory;
@@ -331,8 +358,8 @@ export async function createService(options: { port?:number; token?:string; data
       chat.codexThreadId = null;
       chat.responseError = errorMessage(error); throw error;
     } finally {
-      try { questions.cancel(id); unsubscribeActivity?.(); unsubscribeTurns?.(); finishActivity(chat); await store.save(); }
-      finally { busy.delete(id); cancelled.delete(id); guidedCreation.delete(id); }
+      try { questions.cancel(id); unsubscribeActivity?.(); unsubscribeTurns?.(); finishActivity(chat); await store.save(); await searchIndex.rebuild(store.state); }
+      finally { busy.delete(id); cancelled.delete(id); guidedCreation.delete(id); for (const attachmentId of reserved) reservedAttachmentIds.delete(attachmentId); }
     }
   }
   async function studyContext(context: PageContext) {
@@ -343,7 +370,7 @@ export async function createService(options: { port?:number; token?:string; data
     const savedResources = store.state.resources.filter(resource => !resource.deletedAt).map(({id,title,kind,subjectId,topicId,createdAt,completedAt}) => ({id,title,kind,subjectId,topicId,createdAt,completedAt}));
     return { page:context, subject, topic, resource,savedResources,learnerPreferences:{nickname,responseStyle,studentYearLevel,timeZone,defaultQuizQuestions,defaultTestLengthMode,defaultTestMinutes,defaultTestQuestions,defaultQuizQuestionTypes,defaultTestQuestionTypes,defaultDifficulty},curriculum:await getCurriculumContext(subject?.name ?? '',studentYearLevel), subjects:store.state.subjects, topics:store.state.topics, memories:store.state.memories.filter(x => !x.resolvedAt), assistantMemories:store.state.assistantMemories, upcomingWork:store.state.assignments.filter(x => !['completed','submitted'].includes(x.status)), studyEvents:store.state.events.filter(x => !x.completedAt), attempts:store.state.attempts.filter(x => x.resourceId === context.resourceId),availableConnectors:connectors.status().connectors,availableSkills:await listSkills(), date:new Date().toISOString() };
   }
-  async function route(method: string, path: string, value: unknown) {
+  async function route(method: string, path: string, value: unknown, searchParams = new URLSearchParams()) {
     const organization = await chatOrganizationRoute(store,method,path,value);
     if (organization) return organization.value;
     const questionAnswer = /^\/api\/questions\/([^/]+)\/answer$/.exec(path);
@@ -357,10 +384,15 @@ export async function createService(options: { port?:number; token?:string; data
         chat.messages.push(message); chat.updatedAt = message.createdAt;
         try { await store.save(); }
         catch (error) { chat.messages = chat.messages.filter(saved => saved.id !== message.id); chat.updatedAt = previousUpdatedAt; throw error; }
+        await searchIndex.rebuild(store.state);
       });
       return { ok:true };
     }
     if (method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) return visibleState();
+    if (method === 'GET' && path === '/api/search') {
+      if (searchParams.size !== 1 || !searchParams.has('q')) throw new HttpError(400,'Search requests need one q parameter.');
+      return searchIndex.search(searchQuerySchema.parse(searchParams.get('q') ?? ''));
+    }
     if (method === 'GET' && path === '/api/models') return { models:await codex.models() };
     const fileRefresh = /^\/api\/resources\/([^/]+)\/refresh$/.exec(path);
     if (fileRefresh && method === 'POST') return connectedFiles.refresh(decodeURIComponent(fileRefresh[1] ?? ''));
@@ -385,7 +417,7 @@ export async function createService(options: { port?:number; token?:string; data
     if (method === 'POST' && path === '/api/chats') {
       const input = z.object({ title:z.string().trim().min(1).max(200).optional(),modelSelection:modelSelectionSchema.nullable().default(null) }).strict().parse(value);
       if (input.modelSelection) await codex.validateSelection(input.modelSelection.model,input.modelSelection.effort); const now = new Date().toISOString();
-      const chat = chatSchema.parse({ id:randomUUID(), title:input.title ?? 'New chat',modelSelection:input.modelSelection, createdAt:now, updatedAt:now, codexThreadId:null, messages:[],sortOrder:-Date.now() }); store.state.chats.unshift(chat); await store.save(); return chat;
+      const chat = chatSchema.parse({ id:randomUUID(), title:input.title ?? 'New chat',modelSelection:input.modelSelection, createdAt:now, updatedAt:now, codexThreadId:null, messages:[],sortOrder:-Date.now() }); store.state.chats.unshift(chat); await store.save(); await searchIndex.rebuild(store.state); return chat;
     }
     const chatModel = /^\/api\/chats\/([^/]+)\/model$/.exec(path);
     if (method === 'PATCH' && chatModel) {
@@ -412,6 +444,7 @@ export async function createService(options: { port?:number; token?:string; data
       store.state.chats.unshift(child);
       try { await store.save(); }
       catch (error) { busy.delete(child.id); store.state.chats = store.state.chats.filter(chat => chat.id !== child.id); throw error; }
+      await searchIndex.rebuild(store.state);
       if (prompt) void track(() => sendMessage(child.id,{content:prompt.content,context:prompt.requestContext ?? {page:'chat'},attachmentIds:prompt.attachmentIds},{existingMessageId:prompt.id,allowTools:false,forceHistory:true,reserved:true})).catch(() => undefined);
       return child;
     }
@@ -432,7 +465,7 @@ export async function createService(options: { port?:number; token?:string; data
       const chat = requireFound(store.state.chats.find(x => x.id === decodeURIComponent(archive[1] ?? '')),'Chat');
       if (busy.has(chat.id)) throw new HttpError(409,'Stop the response before deleting this chat.');
       chat.deletedAt = archive[2] === 'archive' ? chat.deletedAt ?? new Date().toISOString() : null;
-      await store.save(); return archive[2] === 'archive' ? { ok:true } : chat;
+      await store.save(); await searchIndex.rebuild(store.state); return archive[2] === 'archive' ? { ok:true } : chat;
     }
     let match = /^\/api\/chats\/([^/]+)\/(messages|cancel)$/.exec(path);
     if (match && method === 'POST') {
@@ -447,7 +480,7 @@ export async function createService(options: { port?:number; token?:string; data
       z.object({}).strict().parse(value);
       const resource = requireFound(store.state.resources.find(resource => resource.id === decodeURIComponent(match?.[1] ?? '')),'Resource');
       resource.deletedAt = match[2] === 'archive' ? resource.deletedAt ?? new Date().toISOString() : null;
-      await store.save(); return {ok:true};
+      await store.save(); await searchIndex.rebuild(store.state); return {ok:true};
     }
     match = /^\/api\/resources\/([^/]+)\/location$/.exec(path);
     if (match && method === 'PATCH') return resources.relocate(decodeURIComponent(match[1] ?? ''),resourceLocationSchema.parse(value));
@@ -463,11 +496,11 @@ export async function createService(options: { port?:number; token?:string; data
     if (method === 'POST' && path === '/api/quiz/grade') { const input = gradeSchema.parse(value); return resources.grade(input.resourceId,input.answers); }
     if (method === 'POST' && path === '/api/events') return createEvent(value);
     match = /^\/api\/events\/([^/]+)$/.exec(path);
-    if (match && method === 'PATCH') return organato.updateEvent(decodeURIComponent(match[1] ?? ''),value);
+    if (match && method === 'PATCH') return updateEvent(decodeURIComponent(match[1] ?? ''),value);
     match = /^\/api\/memories\/([^/]+)\/resolve$/.exec(path);
     if (match && method === 'POST') { const memory = requireFound(store.state.memories.find(x => x.id === decodeURIComponent(match?.[1] ?? '')),'Study memory'); memory.resolvedAt = new Date().toISOString(); await store.save(); return { ok:true }; }
-    if (method === 'POST' && path === '/api/organato/sync') { await organato.sync(); return visibleState(); }
-    if (method === 'POST' && path === '/api/organato/items') return organato.create(value);
+    if (method === 'POST' && path === '/api/organato/sync') return syncOrganato();
+    if (method === 'POST' && path === '/api/organato/items') return createOrganatoItem(value);
     if (method === 'PATCH' && path === '/api/settings') {
       const requested = z.record(z.string(),z.unknown()).parse(value);
       const patch = settingsInput.parse(requested);
@@ -496,7 +529,8 @@ export async function createService(options: { port?:number; token?:string; data
   const artifactCapability = (id: string) => createHmac('sha256',token).update(id).digest('base64url');
   const server = createServer((request,response) => {
     void track(async () => {
-      const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+      const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const path = requestUrl.pathname;
       if (path.startsWith('/artifacts/')) {
         response.setHeader('Cache-Control','no-store'); response.setHeader('X-Content-Type-Options','nosniff'); response.setHeader('Referrer-Policy','no-referrer');
         if (request.method !== 'GET') throw new HttpError(405,'Artifact previews are read-only.');
@@ -513,7 +547,8 @@ export async function createService(options: { port?:number; token?:string; data
       const provided = request.headers.authorization ?? ''; const expected = `Bearer ${token}`;
       if (Buffer.byteLength(provided) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(provided),Buffer.from(expected))) throw new HttpError(401,'Unauthorized.');
       const value = ['POST','PATCH'].includes(request.method ?? '') ? await body(request,path === '/api/attachments' && request.method === 'POST' ? 30 * 1024 * 1024 : undefined) : undefined;
-      const result = await route(request.method ?? 'GET',path,value);
+      if (path === '/api/search' && requestUrl.search.length > MAX_SEARCH_QUERY_LENGTH * 12 + 32) throw new HttpError(400,'Search query is too long.');
+      const result = await route(request.method ?? 'GET',path,value,requestUrl.searchParams);
       const content = JSON.stringify(result);
       if (request.method === 'GET' && (path === '/api/state' || path === '/api/state/poll')) {
         const etag = `"${createHash('sha256').update(content).digest('base64url')}"`;

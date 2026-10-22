@@ -24,6 +24,15 @@ test('system browser rejects file, script, credential, and arbitrary localhost U
   }
 });
 
+test('desktop search accepts one bounded encoded query and keeps other routes query free', () => {
+  const path = `/api/search?q=${encodeURIComponent('café, cell-wall 日本語')}`;
+  assert.equal(validateRequest('GET', path, undefined).path, path);
+  for (const rejected of ['/api/search', '/api/search?q=one&q=two', '/api/search?token=secret', `/api/search?q=${'x'.repeat(161)}`, '/api/state?q=cell']) {
+    assert.throws(() => validateRequest('GET', rejected, undefined));
+  }
+  assert.throws(() => validateRequest('POST', '/api/search?q=cell', undefined));
+});
+
 test('native file operations validate names and require real LaTeX for paper printing', () => {
   assert.equal(saveFileSchema.parse({ filename: 'test.tex', content: 'text', mimeType: 'application/x-tex' }).filename, 'test.tex');
   for (const filename of ['../secret', '/tmp/file', 'folder\\file', '..', '']) assert.equal(saveFileSchema.safeParse({ filename, content: '', mimeType: 'text/plain' }).success, false);

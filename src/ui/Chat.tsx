@@ -9,6 +9,7 @@ import { kindIcons, kindLabels } from './icons';
 import { Markdown } from './Markdown';
 import { InlineResourcePreview, ResourcePreviewDialog } from './ResourcePreview';
 import { routeContext, type CreateKind, type Route } from './types';
+import { useSearchTarget } from './useSearchTarget';
 import './thinking.css';
 import './side-chat.css';
 import './chat-branches.css';
@@ -249,7 +250,7 @@ function MessageActions({ message, locked, busy, visible, onEdit, onBranch, onRe
 }
 
 /** Messages for a chat plus the in-flight turn, if any. */
-export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined; turn: Turn | undefined; compact?: boolean }) {
+export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat | undefined; turn: Turn | undefined; compact?: boolean; messageId?: string }) {
   const { state, send, cancel, act } = useApp();
   const openChat = useOpenChat(compact);
   const [preview,setPreview] = useState<Resource|null>(null);
@@ -316,6 +317,7 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
     return () => container.removeEventListener('scroll',onScroll);
   },[]);
   useEffect(() => { if (turn && follow.current) end.current?.scrollIntoView({block:'end'}); },[liveSteps,turn?.id]);
+  useSearchTarget(messageId ? `chat-message-${messageId}` : undefined);
   useEffect(() => { setEditing(null); }, [chat?.id]);
 
   function retryNotice(message: string, onRetry: () => void, alert: boolean) {
@@ -336,7 +338,7 @@ export function Thread({ chat, turn, compact = false }: { chat: Chat | undefined
         const isEditing = editing === message.id;
         const actionable = chat && !isEditing && (message.role === 'assistant' || replied.has(message.id));
         return (
-          <div className="thread__item" key={message.id}>
+          <div id={`chat-message-${message.id}`} className="thread__item" key={message.id}>
             {message.role === 'user' ? (
               <div className="message message--user">
                 {marks.prompt === message.id ? <BranchLabel label="Edited prompt" /> : null}
@@ -468,7 +470,7 @@ export function HomeView() {
   );
 }
 
-export function ChatPage({ chatId }: { chatId: string }) {
+export function ChatPage({ chatId, messageId }: { chatId: string; messageId?: string }) {
   const { state, route, send, cancel, openGenerate, turns, navigate } = useApp();
   const chat = state.chats.find((item) => item.id === chatId);
   const turn = turns.find((item) => item.chatId === chatId);
@@ -489,7 +491,7 @@ export function ChatPage({ chatId }: { chatId: string }) {
   return (
     <div className="chat-page">
       <div className="chat-page__scroll">
-        <Thread chat={chat} turn={turn} />
+        <Thread chat={chat} turn={turn} messageId={messageId} />
       </div>
       <div className="chat-page__composer">
         <Composer
