@@ -29,6 +29,7 @@ const routes = [
   ['POST', /^\/api\/resources\/generate$/],
   ['PATCH', /^\/api\/resources\/[^/]+\/location$/],
   ['GET', /^\/api\/resources\/[^/]+\/(export|preview)$/],
+  ['POST', /^\/api\/resources\/[^/]+\/checklist-progress$/],
   ['POST', /^\/api\/resources\/[^/]+\/(feedback|archive|restore|refresh)$/],
   ['POST', /^\/api\/quiz\/grade$/],
   ['POST', /^\/api\/events$/],
@@ -56,7 +57,7 @@ export function validateRequest(method: unknown, path: unknown, body: unknown) {
   }
   if (request.method === 'GET' && body !== undefined) throw new Error('GET requests cannot include a body.');
   const serializedLength = JSON.stringify(body ?? null).length;
-  const maxLength = request.method === 'POST' && request.path === '/api/attachments' ? 30_000_000 : 2_000_000;
+  const maxLength = request.method === 'POST' && request.path.endsWith('/checklist-progress') ? 16_384 : request.method === 'POST' && request.path === '/api/attachments' ? 30_000_000 : 2_000_000;
   if (serializedLength > maxLength) throw new Error('This request is too large.');
   return request;
 }

@@ -1,0 +1,976 @@
+{
+  "evidence": "/tmp/centre-sandbox-7PQ2wJ",
+  "browser": "154.0.8037.92",
+  "fallbackReasons": [
+    "Preview automation client server-browser disconnected during click. (parent: aria-ref=t3-fb9d2c92-8n-e52)",
+    "Preview automation client server-browser disconnected during click. (parent: role=button[name=\"Tomorrow’s study plan\"])"
+  ],
+  "cases": [
+    {
+      "name": "self-assign",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n"
+      ],
+      "observed": {},
+      "afterFrameUrl": "about:srcdoc",
+      "recovery": {
+        "noticeVisible": true,
+        "frameUrl": "about:srcdoc",
+        "heading": "Checklist",
+        "checkboxVisible": true,
+        "trustedClickSaved": true,
+        "saveRequests": 1
+      }
+    },
+    {
+      "name": "self-replace",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n"
+      ],
+      "observed": {},
+      "afterFrameUrl": "about:srcdoc",
+      "recovery": {
+        "noticeVisible": true,
+        "frameUrl": "about:srcdoc",
+        "heading": "Checklist",
+        "checkboxVisible": true,
+        "trustedClickSaved": true,
+        "saveRequests": 1
+      }
+    },
+    {
+      "name": "self-href",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n"
+      ],
+      "observed": {},
+      "afterFrameUrl": "about:srcdoc",
+      "recovery": {
+        "noticeVisible": true,
+        "frameUrl": "about:srcdoc",
+        "heading": "Checklist",
+        "checkboxVisible": true,
+        "trustedClickSaved": true,
+        "saveRequests": 1
+      }
+    },
+    {
+      "name": "parent-navigation",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54020/artifacts/REDACTED?revision=6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b&theme=dark' from frame with URL 'about:srcdoc'. The frame attempting navigation is sandboxed, and is therefore disallowed from navigating its ancestors.\n"
+      ],
+      "observed": {
+        "triggered": "parent-navigation",
+        "errors": [
+          "SecurityError: Failed to set a named property 'href' on 'Location': The current window does not have permission to navigate the target frame to 'http://127.0.0.1:54019/attack/parent-navigation'."
+        ],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "top-navigation",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54021/__sandbox/' from frame with URL 'about:srcdoc'. The frame attempting navigation of the top-level window is sandboxed, but the flag of 'allow-top-navigation' or 'allow-top-navigation-by-user-activation' is not set.\n"
+      ],
+      "observed": {
+        "triggered": "top-navigation",
+        "errors": [
+          "SecurityError: Failed to set a named property 'href' on 'Location': The current window does not have permission to navigate the target frame to 'http://127.0.0.1:54019/attack/top-navigation'."
+        ],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "link-self",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n"
+      ],
+      "observed": {},
+      "afterFrameUrl": "about:srcdoc",
+      "recovery": {
+        "noticeVisible": true,
+        "frameUrl": "about:srcdoc",
+        "heading": "Checklist",
+        "checkboxVisible": true,
+        "trustedClickSaved": true,
+        "saveRequests": 1
+      }
+    },
+    {
+      "name": "link-parent",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54020/artifacts/REDACTED?revision=6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b&theme=dark' from frame with URL 'about:srcdoc'. The frame attempting navigation is sandboxed, and is therefore disallowed from navigating its ancestors.\n"
+      ],
+      "observed": {
+        "triggered": "link-parent",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "link-top",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54021/__sandbox/' from frame with URL 'about:srcdoc'. The frame attempting navigation of the top-level window is sandboxed, but the flag of 'allow-top-navigation' or 'allow-top-navigation-by-user-activation' is not set.\n"
+      ],
+      "observed": {
+        "triggered": "link-top",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "link-blank",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Blocked opening 'http://127.0.0.1:54019/attack/link-blank' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set."
+      ],
+      "observed": {
+        "triggered": "link-blank",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "form-self",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Blocked form submission to 'http://127.0.0.1:54019/attack/form-self' because the form's frame is sandboxed and the 'allow-forms' permission is not set."
+      ],
+      "observed": {
+        "triggered": "form-self",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "form-parent",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Blocked form submission to 'http://127.0.0.1:54019/attack/form-parent' because the form's frame is sandboxed and the 'allow-forms' permission is not set."
+      ],
+      "observed": {
+        "triggered": "form-parent",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "form-top",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Blocked form submission to 'http://127.0.0.1:54019/attack/form-top' because the form's frame is sandboxed and the 'allow-forms' permission is not set."
+      ],
+      "observed": {
+        "triggered": "form-top",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "fetch",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Connecting to 'http://127.0.0.1:54019/attack/fetch' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+        "Connecting to 'http://127.0.0.1:54019/attack/fetch' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+        "Connecting to 'http://127.0.0.1:54019/attack/fetch' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+        "Fetch API cannot load http://127.0.0.1:54019/attack/fetch. Refused to connect because it violates the document's Content Security Policy."
+      ],
+      "observed": {
+        "triggered": "fetch",
+        "errors": [
+          "TypeError: Failed to fetch"
+        ],
+        "violations": [
+          {
+            "directive": "connect-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/fetch"
+          },
+          {
+            "directive": "connect-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/fetch"
+          },
+          {
+            "directive": "connect-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/fetch"
+          }
+        ],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "beacon",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Connecting to 'http://127.0.0.1:54019/attack/beacon' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+        "Connecting to 'http://127.0.0.1:54019/attack/beacon' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+        "Connecting to 'http://127.0.0.1:54019/attack/beacon' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked."
+      ],
+      "observed": {
+        "triggered": "beacon",
+        "errors": [],
+        "violations": [
+          {
+            "directive": "connect-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/beacon"
+          },
+          {
+            "directive": "connect-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/beacon"
+          },
+          {
+            "directive": "connect-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/beacon"
+          }
+        ],
+        "beaconResult": true,
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "image",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Loading the image 'http://127.0.0.1:54019/attack/image' violates the following Content Security Policy directive: \"img-src data:\". The action has been blocked.",
+        "Loading the image 'http://127.0.0.1:54019/attack/image' violates the following Content Security Policy directive: \"img-src data:\". The action has been blocked.",
+        "Loading the image 'http://127.0.0.1:54019/attack/image' violates the following Content Security Policy directive: \"img-src data:\". The action has been blocked."
+      ],
+      "observed": {
+        "triggered": "image",
+        "errors": [],
+        "violations": [
+          {
+            "directive": "img-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/image"
+          },
+          {
+            "directive": "img-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/image"
+          },
+          {
+            "directive": "img-src",
+            "blockedURI": "http://127.0.0.1:54019/attack/image"
+          }
+        ],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "style-link",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-link' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+        "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-link' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+        "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-link' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked."
+      ],
+      "observed": {
+        "triggered": "style-link",
+        "errors": [],
+        "violations": [
+          {
+            "directive": "style-src-elem",
+            "blockedURI": "http://127.0.0.1:54019/attack/style-link"
+          },
+          {
+            "directive": "style-src-elem",
+            "blockedURI": "http://127.0.0.1:54019/attack/style-link"
+          },
+          {
+            "directive": "style-src-elem",
+            "blockedURI": "http://127.0.0.1:54019/attack/style-link"
+          }
+        ],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "style-import",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-import' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+        "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-import' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+        "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-import' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked."
+      ],
+      "observed": {
+        "triggered": "style-import",
+        "errors": [],
+        "violations": [
+          {
+            "directive": "style-src-elem",
+            "blockedURI": "http://127.0.0.1:54019/attack/style-import"
+          },
+          {
+            "directive": "style-src-elem",
+            "blockedURI": "http://127.0.0.1:54019/attack/style-import"
+          },
+          {
+            "directive": "style-src-elem",
+            "blockedURI": "http://127.0.0.1:54019/attack/style-import"
+          }
+        ],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "style-image",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [],
+      "observed": {
+        "triggered": "style-image",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "nested-frame",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+        "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"default-src 'none'\". The request has been blocked. Note that 'frame-src' was not explicitly set, so 'default-src' is used as a fallback.\n"
+      ],
+      "observed": {
+        "triggered": "nested-frame",
+        "errors": [],
+        "violations": [
+          {
+            "directive": "frame-src",
+            "blockedURI": "http://127.0.0.1:54019"
+          },
+          {
+            "directive": "frame-src",
+            "blockedURI": "http://127.0.0.1:54019"
+          },
+          {
+            "directive": "frame-src",
+            "blockedURI": "http://127.0.0.1:54019"
+          }
+        ],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "wrong-frame-outer",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [],
+      "observed": {
+        "triggered": "wrong-frame-outer",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        },
+        "attackChildExecuted": true
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "wrong-frame-app",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [],
+      "observed": {
+        "triggered": "wrong-frame-app",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "wrong-scope",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [],
+      "observed": {
+        "triggered": "wrong-scope",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    },
+    {
+      "name": "extra-keys",
+      "loadedExecutingBefore": true,
+      "beforeDocument": {
+        "ready": "generated script executing",
+        "checkboxVisible": true,
+        "origin": "null"
+      },
+      "executionRecords": 1,
+      "httpHits": 0,
+      "saveRequests": 0,
+      "topStayed": true,
+      "browserReasons": [],
+      "observed": {
+        "triggered": "extra-keys",
+        "errors": [],
+        "violations": [],
+        "ready": "generated script executing",
+        "scope": {
+          "resourceId": "sandbox-verification",
+          "documentRevision": "6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b"
+        }
+      },
+      "afterFrameUrl": "about:srcdoc"
+    }
+  ],
+  "controls": [
+    {
+      "name": "self-assign",
+      "httpHits": 1
+    },
+    {
+      "name": "self-replace",
+      "httpHits": 1
+    },
+    {
+      "name": "self-href",
+      "httpHits": 1
+    },
+    {
+      "name": "parent-navigation",
+      "httpHits": 1
+    },
+    {
+      "name": "top-navigation",
+      "httpHits": 1
+    },
+    {
+      "name": "link-self",
+      "httpHits": 1
+    },
+    {
+      "name": "link-parent",
+      "httpHits": 1
+    },
+    {
+      "name": "link-top",
+      "httpHits": 1
+    },
+    {
+      "name": "link-blank",
+      "httpHits": 1
+    },
+    {
+      "name": "form-self",
+      "httpHits": 1
+    },
+    {
+      "name": "form-parent",
+      "httpHits": 1
+    },
+    {
+      "name": "form-top",
+      "httpHits": 1
+    },
+    {
+      "name": "fetch",
+      "httpHits": 1
+    },
+    {
+      "name": "beacon",
+      "httpHits": 1
+    },
+    {
+      "name": "image",
+      "httpHits": 1
+    },
+    {
+      "name": "style-link",
+      "httpHits": 1
+    },
+    {
+      "name": "style-import",
+      "httpHits": 1
+    },
+    {
+      "name": "style-image",
+      "httpHits": 1
+    },
+    {
+      "name": "nested-frame",
+      "httpHits": 1
+    }
+  ],
+  "console": [
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54020/artifacts/REDACTED?revision=6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b&theme=dark' from frame with URL 'about:srcdoc'. The frame attempting navigation is sandboxed, and is therefore disallowed from navigating its ancestors.\n",
+    "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54021/__sandbox/' from frame with URL 'about:srcdoc'. The frame attempting navigation of the top-level window is sandboxed, but the flag of 'allow-top-navigation' or 'allow-top-navigation-by-user-activation' is not set.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54020/artifacts/REDACTED?revision=6f6e7c4e3680624df1e1eee7fa58171af565b3cd8a07c38d4b3bad414fefd62b&theme=dark' from frame with URL 'about:srcdoc'. The frame attempting navigation is sandboxed, and is therefore disallowed from navigating its ancestors.\n",
+    "Unsafe attempt to initiate navigation for frame with URL 'http://127.0.0.1:54021/__sandbox/' from frame with URL 'about:srcdoc'. The frame attempting navigation of the top-level window is sandboxed, but the flag of 'allow-top-navigation' or 'allow-top-navigation-by-user-activation' is not set.\n",
+    "Blocked opening 'http://127.0.0.1:54019/attack/link-blank' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set.",
+    "Blocked form submission to 'http://127.0.0.1:54019/attack/form-self' because the form's frame is sandboxed and the 'allow-forms' permission is not set.",
+    "Blocked form submission to 'http://127.0.0.1:54019/attack/form-parent' because the form's frame is sandboxed and the 'allow-forms' permission is not set.",
+    "Blocked form submission to 'http://127.0.0.1:54019/attack/form-top' because the form's frame is sandboxed and the 'allow-forms' permission is not set.",
+    "Connecting to 'http://127.0.0.1:54019/attack/fetch' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+    "Connecting to 'http://127.0.0.1:54019/attack/fetch' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+    "Connecting to 'http://127.0.0.1:54019/attack/fetch' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+    "Fetch API cannot load http://127.0.0.1:54019/attack/fetch. Refused to connect because it violates the document's Content Security Policy.",
+    "Connecting to 'http://127.0.0.1:54019/attack/beacon' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+    "Connecting to 'http://127.0.0.1:54019/attack/beacon' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+    "Connecting to 'http://127.0.0.1:54019/attack/beacon' violates the following Content Security Policy directive: \"connect-src 'none'\". The action has been blocked.",
+    "Loading the image 'http://127.0.0.1:54019/attack/image' violates the following Content Security Policy directive: \"img-src data:\". The action has been blocked.",
+    "Loading the image 'http://127.0.0.1:54019/attack/image' violates the following Content Security Policy directive: \"img-src data:\". The action has been blocked.",
+    "Loading the image 'http://127.0.0.1:54019/attack/image' violates the following Content Security Policy directive: \"img-src data:\". The action has been blocked.",
+    "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-link' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+    "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-link' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+    "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-link' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+    "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-import' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+    "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-import' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+    "Loading the stylesheet 'http://127.0.0.1:54019/attack/style-import' violates the following Content Security Policy directive: \"style-src 'unsafe-inline'\". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback. The action has been blocked.",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"frame-src 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:54019/' violates the following Content Security Policy directive: \"default-src 'none'\". The request has been blocked. Note that 'frame-src' was not explicitly set, so 'default-src' is used as a fallback.\n"
+  ],
+  "failures": [],
+  "sourceHashes": {
+    "server/diagram.ts": "f2dd17d2acb5c335d02b482611120d48f14a08190ad3e4c2566924376f405c32",
+    "server/index.ts": "0bb8ab698694cec9d6eeafcb94640e43ca5d352297d5ca1fba0b454716f3e4b2",
+    "server/store.ts": "21526b516aa7406db965d4d50fd9218af419cc19cd15cac59a0ed5009837e636",
+    "server/checklist-progress.ts": "5f3a72015530974b54d1848df3cb922b4c0a6708bb58292dfac1f7de17f9a258",
+    "src/ui/DiagramFrame.tsx": "13d8c16831271d05070e3aa07654aad3ce49e8d7f8f0aa2c957df14d7f2305cc",
+    "src/ui/diagram.css": "8ffe5aa351c7ff97a0280d00c2a17ad71c29394cd730e71ec53d13864fb7165d",
+    "src/data/client.ts": "2481840b30ea34873a3546178f62b791a55979f4fb4e7440beed4853db7bd4a1",
+    "shared/checklist-progress.ts": "0289a523dd0a8dde8644490e64630489b82cba3767a0ca0def977efe72d5efa7",
+    "shared/checklist-progress-queue.ts": "f5099b103e80c86a07666c124308722cc5157bd6b5ca1e3ff997182fa1209fe1"
+  },
+  "design": {
+    "savedCaption": "Saved",
+    "savedRemoved": true,
+    "checkbox": {
+      "appearance": "none",
+      "fill": "rgb(38, 38, 37)",
+      "checkmarkOpacity": "1",
+      "focusVisible": true,
+      "outline": "rgb(142, 166, 232) solid 2px"
+    },
+    "forcedColorsAppearance": "auto"
+  },
+  "persistence": {
+    "trustedClickSaved": true,
+    "diskCheckedItemIds": [
+      "study"
+    ],
+    "reloadChecked": true,
+    "serviceRestartChecked": true,
+    "saveRequests": 1
+  },
+  "finalSourceHashes": {
+    "server/diagram.ts": "f2dd17d2acb5c335d02b482611120d48f14a08190ad3e4c2566924376f405c32",
+    "server/index.ts": "0bb8ab698694cec9d6eeafcb94640e43ca5d352297d5ca1fba0b454716f3e4b2",
+    "server/store.ts": "21526b516aa7406db965d4d50fd9218af419cc19cd15cac59a0ed5009837e636",
+    "server/checklist-progress.ts": "5f3a72015530974b54d1848df3cb922b4c0a6708bb58292dfac1f7de17f9a258",
+    "src/ui/DiagramFrame.tsx": "13d8c16831271d05070e3aa07654aad3ce49e8d7f8f0aa2c957df14d7f2305cc",
+    "src/ui/diagram.css": "8ffe5aa351c7ff97a0280d00c2a17ad71c29394cd730e71ec53d13864fb7165d",
+    "src/data/client.ts": "2481840b30ea34873a3546178f62b791a55979f4fb4e7440beed4853db7bd4a1",
+    "shared/checklist-progress.ts": "0289a523dd0a8dde8644490e64630489b82cba3767a0ca0def977efe72d5efa7",
+    "shared/checklist-progress-queue.ts": "f5099b103e80c86a07666c124308722cc5157bd6b5ca1e3ff997182fa1209fe1"
+  },
+  "hits": [
+    {
+      "url": "/control/self-assign",
+      "method": "GET",
+      "time": 1792664265028
+    },
+    {
+      "url": "/control/self-replace",
+      "method": "GET",
+      "time": 1792664265573
+    },
+    {
+      "url": "/control/self-href",
+      "method": "GET",
+      "time": 1792664266112
+    },
+    {
+      "url": "/control/parent-navigation",
+      "method": "GET",
+      "time": 1792664266636
+    },
+    {
+      "url": "/control/top-navigation",
+      "method": "GET",
+      "time": 1792664267169
+    },
+    {
+      "url": "/control/link-self",
+      "method": "GET",
+      "time": 1792664267700
+    },
+    {
+      "url": "/control/link-parent",
+      "method": "GET",
+      "time": 1792664268241
+    },
+    {
+      "url": "/control/link-top",
+      "method": "GET",
+      "time": 1792664268783
+    },
+    {
+      "url": "/control/link-blank",
+      "method": "GET",
+      "time": 1792664269314
+    },
+    {
+      "url": "/control/form-self?",
+      "method": "GET",
+      "time": 1792664269843
+    },
+    {
+      "url": "/control/form-parent?",
+      "method": "GET",
+      "time": 1792664270412
+    },
+    {
+      "url": "/control/form-top?",
+      "method": "GET",
+      "time": 1792664270993
+    },
+    {
+      "url": "/control/fetch",
+      "method": "GET",
+      "time": 1792664271554
+    },
+    {
+      "url": "/control/beacon",
+      "method": "POST",
+      "time": 1792664272085
+    },
+    {
+      "url": "/control/image",
+      "method": "GET",
+      "time": 1792664272622
+    },
+    {
+      "url": "/control/style-link",
+      "method": "GET",
+      "time": 1792664273150
+    },
+    {
+      "url": "/control/style-import",
+      "method": "GET",
+      "time": 1792664273689
+    },
+    {
+      "url": "/control/style-image",
+      "method": "GET",
+      "time": 1792664274231
+    },
+    {
+      "url": "/control/nested-frame",
+      "method": "GET",
+      "time": 1792664274778
+    }
+  ]
+}

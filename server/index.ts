@@ -18,7 +18,8 @@ import { Credentials } from './credentials';
 import { Codex, type DynamicTool } from './codex';
 import { Organato, createItemSchema, updateItemSchema, validOrganatoBase } from './organato';
 import { Resources, generatedResourceSchema } from './resources';
-import { diagramDocument,diagramCsp,diagramTheme } from './diagram';
+import { diagramDocument,diagramArtifactDocument,diagramArtifactCsp,diagramTheme } from './diagram';
+import { checklistDocumentRevision,checklistPreview,updateChecklistProgress } from './checklist-progress';
 import { GoogleLogin } from './google';
 import { Connectors } from './connectors';
 import { connectorIdSchema, googleConnectorIdSchema, connectorReadSchema } from '../shared/connectors';
@@ -50,7 +51,7 @@ const alternateInstructions = 'This is an alternate reply in a separate chat. Ap
 async function body(request: IncomingMessage, maxBytes = 1024 * 1024): Promise<unknown> {
   if (!request.headers['content-type']?.startsWith('application/json')) throw new HttpError(415,'Send Content-Type: application/json.');
   let length = 0; const chunks: Buffer[] = [];
-  for await (const chunk of request) { const value: unknown = chunk; if (!Buffer.isBuffer(value)) throw new HttpError(400,'Invalid request body.'); length += value.length; if (length > maxBytes) throw new HttpError(413,`Request exceeds ${Math.round(maxBytes / (1024 * 1024))} MiB.`); chunks.push(value); }
+  for await (const chunk of request) { const value: unknown = chunk; if (!Buffer.isBuffer(value)) throw new HttpError(400,'Invalid request body.'); length += value.length; if (length > maxBytes) throw new HttpError(413,`Request exceeds ${maxBytes < 1024 * 1024 ? `${Math.round(maxBytes / 1024)} KiB` : `${Math.round(maxBytes / (1024 * 1024))} MiB`}.`); chunks.push(value); }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw new HttpError(400,'Request body is not valid JSON.'); }
 }
 const schemaTool = (name: string, description: string, schema: z.ZodType): DynamicTool => ({ type:'function', name, description, inputSchema:z.toJSONSchema(schema) });
@@ -229,7 +230,7 @@ export async function createService(options: { port?:number; token?:string; data
   function visibleState() {
     const resources = store.state.resources.filter(resource => !resource.deletedAt);
     const resourceIds = new Set(resources.map(resource => resource.id));
-    return { ...store.state,resources,memories:store.state.memories.filter(memory => resourceIds.has(memory.resourceId)),attempts:store.state.attempts.filter(attempt => resourceIds.has(attempt.resourceId)),chats:store.state.chats.filter(chat => !chat.deletedAt),codex:{ ...codex.status },pendingQuestions:questions.list(),activeResponses:[...busy].map(([chatId,startedAt]) => ({chatId,startedAt,status:cancelled.has(chatId) ? 'stopping' : 'working'})) }; }
+    return { ...store.state,resources,interactiveResourceProgress:store.state.interactiveResourceProgress.filter(progress => resourceIds.has(progress.resourceId)),memories:store.state.memories.filter(memory => resourceIds.has(memory.resourceId)),attempts:store.state.attempts.filter(attempt => resourceIds.has(attempt.resourceId)),chats:store.state.chats.filter(chat => !chat.deletedAt),codex:{ ...codex.status },pendingQuestions:questions.list(),activeResponses:[...busy].map(([chatId,startedAt]) => ({chatId,startedAt,status:cancelled.has(chatId) ? 'stopping' : 'working'})) }; }
   async function sendMessage(id: string, value: unknown, options:{existingMessageId?:string;allowTools?:boolean;forceHistory?:boolean;reserved?:boolean} = {}) {
     const input = z.object({ messageId:z.string().uuid().optional(),content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).max(MAX_ATTACHMENTS_PER_MESSAGE).refine(ids => new Set(ids).size === ids.length,'An attachment can only be included once.').default([]), resourceRequest:createResourceSchema.optional() }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
     const content = input.content.trim();
@@ -491,10 +492,17 @@ export async function createService(options: { port?:number; token?:string; data
     match = /^\/api\/resources\/([^/]+)\/(archive|restore)$/.exec(path);
     if (match && method === 'POST') {
       z.object({}).strict().parse(value);
-      const resource = requireFound(store.state.resources.find(resource => resource.id === decodeURIComponent(match?.[1] ?? '')),'Resource');
-      resource.deletedAt = match[2] === 'archive' ? resource.deletedAt ?? new Date().toISOString() : null;
-      await store.save(); await searchIndex.rebuild(store.state); return {ok:true};
+      const id = decodeURIComponent(match[1] ?? '');
+      const archive = match[2] === 'archive';
+      await store.update('resources',saved => {
+        const resource = requireFound(saved.find(resource => resource.id === id),'Resource');
+        const deletedAt = archive ? resource.deletedAt ?? new Date().toISOString() : null;
+        return resource.deletedAt === deletedAt ? undefined : saved.map(item => item === resource ? {...resource,deletedAt} : item);
+      });
+      await searchIndex.rebuild(store.state); return {ok:true};
     }
+    match = /^\/api\/resources\/([^/]+)\/checklist-progress$/.exec(path);
+    if (match && method === 'POST') return updateChecklistProgress(store,decodeURIComponent(match[1] ?? ''),value);
     match = /^\/api\/resources\/([^/]+)\/location$/.exec(path);
     if (match && method === 'PATCH') return resources.relocate(decodeURIComponent(match[1] ?? ''),resourceLocationSchema.parse(value));
     match = /^\/api\/resources\/([^/]+)\/preview$/.exec(path);
@@ -502,7 +510,8 @@ export async function createService(options: { port?:number; token?:string; data
       const resource = requireFound(store.state.resources.find(x => x.id === decodeURIComponent(match?.[1] ?? '') && !x.deletedAt), 'Resource');
       if (resource.kind !== 'diagram') throw new HttpError(400, 'Only HTML diagrams have an interactive preview.');
       const address = server.address(); if (!address || typeof address === 'string') throw new Error('Centre preview service is unavailable.');
-      return { url: `http://127.0.0.1:${address.port}/artifacts/${encodeURIComponent(resource.id)}/${artifactCapability(resource.id)}` };
+      const progress = checklistPreview(store,resource);
+      return { url: `http://127.0.0.1:${address.port}/artifacts/${encodeURIComponent(resource.id)}/${artifactCapability(resource.id,progress.documentRevision)}?revision=${progress.documentRevision}`, ...progress };
     }
     match = /^\/api\/resources\/([^/]+)\/(export|feedback)$/.exec(path);
     if (match) { const id = decodeURIComponent(match[1] ?? ''); if (method === 'GET' && match[2] === 'export') return resources.export(id); if (method === 'POST' && match[2] === 'feedback') { const input = feedbackSchema.omit({ resourceId:true }).strict().parse(value); return resources.feedback(id,input.notes,input.questionIds,input.confident); } }
@@ -545,7 +554,7 @@ export async function createService(options: { port?:number; token?:string; data
     throw new HttpError(404,'Endpoint not found.');
   }
   const token = options.token ?? randomBytes(32).toString('base64url'); if (!token) throw new Error('A non-empty API token is required.');
-  const artifactCapability = (id: string) => createHmac('sha256',token).update(id).digest('base64url');
+  const artifactCapability = (id: string,revision:string) => createHmac('sha256',token).update(`${id}:${revision}`).digest('base64url');
   const server = createServer((request,response) => {
     void track(async () => {
       const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -555,17 +564,22 @@ export async function createService(options: { port?:number; token?:string; data
         if (request.method !== 'GET') throw new HttpError(405,'Artifact previews are read-only.');
         const artifact = /^\/artifacts\/([^/]+)\/([A-Za-z0-9_-]{43})$/.exec(path);
         if (!artifact) throw new HttpError(404,'Artifact not found.');
-        const id = decodeURIComponent(artifact[1] ?? ''); const provided = artifact[2] ?? ''; const expected = artifactCapability(id);
-        if (!timingSafeEqual(Buffer.from(provided),Buffer.from(expected))) throw new HttpError(403,'Invalid artifact capability.');
+        const id = decodeURIComponent(artifact[1] ?? ''); const provided = artifact[2] ?? '';
         const resource = requireFound(store.state.resources.find(x => x.id === id && x.kind === 'diagram' && !x.deletedAt),'Diagram');
+        const documentRevision = checklistDocumentRevision(resource.content);
+        const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+        const requestedRevision = url.searchParams.get('revision') ?? '';
+        const expected = artifactCapability(id,documentRevision);
+        if (requestedRevision !== documentRevision || Buffer.byteLength(provided) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(provided),Buffer.from(expected))) throw new HttpError(403,'Invalid artifact capability.');
         response.setHeader('Content-Type','text/html; charset=utf-8');
-        response.setHeader('Content-Security-Policy',diagramCsp);
-        response.writeHead(200).end(diagramDocument(resource.content,diagramTheme(new URL(request.url ?? '/', 'http://127.0.0.1').searchParams.get('theme')))); return;
+        response.setHeader('Content-Security-Policy',diagramArtifactCsp);
+        response.writeHead(200).end(diagramArtifactDocument(resource.content,diagramTheme(url.searchParams.get('theme')),{resourceId:resource.id,documentRevision})); return;
       }
       response.setHeader('Content-Type','application/json; charset=utf-8'); response.setHeader('Cache-Control','no-store'); response.setHeader('X-Content-Type-Options','nosniff');
       const provided = request.headers.authorization ?? ''; const expected = `Bearer ${token}`;
       if (Buffer.byteLength(provided) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(provided),Buffer.from(expected))) throw new HttpError(401,'Unauthorized.');
-      const value = ['POST','PATCH'].includes(request.method ?? '') ? await body(request,path === '/api/attachments' && request.method === 'POST' ? 30 * 1024 * 1024 : undefined) : undefined;
+      const bodyLimit = path.endsWith('/checklist-progress') && request.method === 'POST' ? 16 * 1024 : path === '/api/attachments' && request.method === 'POST' ? 30 * 1024 * 1024 : undefined;
+      const value = ['POST','PATCH'].includes(request.method ?? '') ? await body(request,bodyLimit) : undefined;
       if (path === '/api/search' && requestUrl.search.length > MAX_SEARCH_QUERY_LENGTH * 12 + 32) throw new HttpError(400,'Search query is too long.');
       const result = await route(request.method ?? 'GET',path,value,requestUrl.searchParams);
       const content = JSON.stringify(result);

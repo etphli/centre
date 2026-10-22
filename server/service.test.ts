@@ -187,10 +187,10 @@ test('diagram preview capabilities are artifact-specific, read-only and isolated
     assert.equal((await f.request('/api/resources/missing/preview')).status,404);
     const preview = await f.request('/api/resources/diagram-one/preview');
     assert.equal(preview.status,200); const url = new URL(preview.body.url);
-    assert.equal(url.origin,origin); assert.equal(url.search,''); assert.ok(!url.href.includes(f.service.token));
+    assert.equal(url.origin,origin); assert.match(url.searchParams.get('revision') ?? '',/^[a-f0-9]{64}$/); assert.ok(!url.href.includes(f.service.token));
     const response = await fetch(url);
     assert.equal(response.status,200); assert.match(response.headers.get('content-type') ?? '',/^text\/html/);
-    const html = await response.text();assert.ok(html.includes(diagram.content));assert.match(html,/centre:diagram-size/);assert.match(html,/centre:theme/);
+    const html = await response.text();assert.match(html,/Explored/);assert.match(html,/centre:diagram-size/);assert.match(html,/centre:theme/);assert.match(html,/sandbox="allow-scripts"/);assert.match(html,/frame-src 'none'/);
     const light = new URL(url);light.searchParams.set('theme','light');assert.match(await (await fetch(light)).text(),/--centre-bg:#f9f9f7/);
     const csp = response.headers.get('content-security-policy') ?? '';
     for (const directive of ["default-src 'none'","script-src 'unsafe-inline'","style-src 'unsafe-inline'","img-src data:","connect-src 'none'","base-uri 'none'","form-action 'none'"]) assert.ok(csp.includes(directive));
