@@ -4,9 +4,9 @@ import { explicitChecklistItemIdSchema } from '../shared/checklist-progress';
 export type DiagramTheme = 'dark' | 'light' | 'midnight';
 
 const palettes = {
-  dark: { bg:'#1b1b1a',surface:'#20201f','surface-2':'#262625',text:'#ecebe7','text-2':'#a8a7a1',line:'#2d2d2b',accent:'#8ea6e8' },
-  light: { bg:'#f9f9f7',surface:'#ffffff','surface-2':'#f3f3f0',text:'#131313','text-2':'#7b7974',line:'#e4e4e1',accent:'#2a78d6' },
-  midnight: { bg:'#101114',surface:'#18191e','surface-2':'#202126',text:'#e8e9ec','text-2':'#a1a3ac',line:'#25272c',accent:'#8ea6e8' },
+  dark: { bg:'#1b1b1a',surface:'#20201f','surface-2':'#262625',text:'#ecebe7','text-2':'#a8a7a1',line:'#2d2d2b','line-strong':'#3b3b38',accent:'#8ea6e8' },
+  light: { bg:'#f9f9f7',surface:'#ffffff','surface-2':'#f3f3f0',text:'#131313','text-2':'#7b7974',line:'#e4e4e1','line-strong':'#d8d8d5',accent:'#2a78d6' },
+  midnight: { bg:'#101114',surface:'#18191e','surface-2':'#202126',text:'#e8e9ec','text-2':'#a1a3ac',line:'#25272c','line-strong':'#36383f',accent:'#8ea6e8' },
 } satisfies Record<DiagramTheme, Record<string,string>>;
 
 export function diagramTheme(value: string | null): DiagramTheme | undefined {
@@ -112,6 +112,13 @@ export function diagramDocument(html: string, theme?: DiagramTheme, checklistSco
 html,body{margin:0!important;min-height:0!important;height:auto!important;background:var(--centre-bg)!important;color:var(--centre-text)!important}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow-wrap:anywhere}
 *,*::before,*::after{box-sizing:border-box}img,svg,canvas{max-width:100%}input,button,select,textarea{accent-color:var(--centre-accent)}
+input[type=checkbox][data-centre-checklist-id]{appearance:none!important;-webkit-appearance:none!important;display:inline-grid;place-content:center;flex:0 0 auto;width:16px;height:16px;margin:0;border:1px solid var(--centre-line-strong)!important;border-radius:3px;background:var(--centre-surface)!important;color:var(--centre-bg)!important;vertical-align:middle;cursor:pointer}
+input[type=checkbox][data-centre-checklist-id]::after{content:"";display:block;width:8px;height:5px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-1px) rotate(-45deg);opacity:0}
+input[type=checkbox][data-centre-checklist-id]:checked{background:var(--centre-text)!important;border-color:var(--centre-text)!important}
+input[type=checkbox][data-centre-checklist-id]:checked::after{opacity:1}
+input[type=checkbox][data-centre-checklist-id]:not(:checked):not(:disabled):hover{border-color:var(--centre-text-2)!important}
+input[type=checkbox][data-centre-checklist-id]:disabled{opacity:.5;cursor:default}
+@media(forced-colors:active){input[type=checkbox][data-centre-checklist-id],input[type=checkbox][data-centre-checklist-id]:checked{appearance:auto!important;-webkit-appearance:auto!important;accent-color:auto!important;background:revert!important;border:revert!important;color:revert!important}input[type=checkbox][data-centre-checklist-id]::after{display:none}}
 button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--centre-accent);outline-offset:3px}
 </style><script>
 (()=>{

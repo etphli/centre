@@ -19,7 +19,7 @@ function frameTheme() {
   const root = document.documentElement;
   const style = getComputedStyle(root);
   const theme = root.dataset.theme === 'light' ? 'light' : root.dataset.theme === 'midnight' ? 'midnight' : 'dark';
-  const names = ['bg','surface','surface-2','text','text-2','line','accent'];
+  const names = ['bg','surface','surface-2','text','text-2','line','line-strong','accent'];
   return { type:'centre:theme',theme,colors:Object.fromEntries(names.map(name => [name,style.getPropertyValue(`--${name}`).trim()])) };
 }
 
