@@ -12,7 +12,7 @@ import { interactiveResponseInstructions } from './interactive-responses';
 
 export type DynamicTool = { type: 'function'; name: string; description: string; inputSchema: unknown };
 type Waiting = { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout };
-type Turn = { resolve: (value: string) => void; reject: (error: Error) => void; text: Map<string, { text: string; final: boolean }>; timer: NodeJS.Timeout; turnId: string | null; cancelRequested: boolean };
+type Turn = { resolve: (value: string) => void; reject: (error: Error) => void; text: Map<string, { text: string; final: boolean }>; timer: NodeJS.Timeout; turnId: string | null; cancelRequested: boolean; allowTools:boolean };
 type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
 type ActivityListener = (activity: Activity) => void;
 const catalogPageSchema = z.object({ data:z.array(z.object({ model:z.string(),displayName:z.string(),hidden:z.boolean().default(false),supportedReasoningEfforts:z.array(z.object({ reasoningEffort:z.string() })),defaultReasoningEffort:z.string() })),nextCursor:z.string().nullable() });
@@ -28,6 +28,7 @@ export class Codex {
   private readonly turns = new Map<string, Turn>();
   private readonly resumed = new Set<string>();
   private readonly activityListeners = new Map<string, Set<ActivityListener>>();
+  private readonly turnListeners = new Map<string, Set<(turnId:string) => void>>();
   private closed = false;
   readonly status = { available: false, authenticated: false, message: 'Connecting to Codex CLI…' };
   constructor(private readonly directory: string, private readonly tools: DynamicTool[], private readonly callTool: (name: string, input: unknown, threadId?: string) => Promise<unknown>) {}
@@ -75,6 +76,12 @@ export class Codex {
     listeners.add(listener);
     return () => { listeners?.delete(listener); if (!listeners?.size) this.activityListeners.delete(threadId); };
   }
+  onTurnStarted(threadId:string, listener:(turnId:string) => void) {
+    let listeners = this.turnListeners.get(threadId);
+    if (!listeners) { listeners = new Set(); this.turnListeners.set(threadId,listeners); }
+    listeners.add(listener);
+    return () => { listeners?.delete(listener); if (!listeners?.size) this.turnListeners.delete(threadId); };
+  }
   private emitActivity(threadId: string, activity: Activity) {
     const listeners = this.activityListeners.get(threadId);
     if (!listeners) return;
@@ -113,6 +120,9 @@ export class Codex {
       try {
         const call = z.object({ tool: z.string(), arguments: z.unknown(), threadId:z.string().optional() }).parse(message.params);
         threadId = call.threadId;
+        const active = threadId ? this.turns.get(threadId) : undefined;
+        if (!active || active.cancelRequested) throw new HttpError(409,'This response is no longer active.');
+        if (!active.allowTools) throw new HttpError(409,'This alternate reply cannot repeat app or connected-file actions. Ask in a new message to take an action.');
         label = this.toolActivityLabel(call.tool);
         if (threadId) this.emitActivity(threadId,activitySchema.parse({ id:activityId,kind:'tool',text:label,state:'working' }));
         const output = await this.callTool(call.tool, call.arguments, call.threadId);
@@ -145,7 +155,7 @@ export class Codex {
         this.emitActivity(params.threadId,activitySchema.parse({ id:`websearch:${item.data.id}`,kind:'tool',text:'Searching the web',state:message.method === 'item/started' ? 'working' : 'done' }));
       }
     }
-    if (message.method === 'turn/started') { const turn = object(params.turn); if (typeof turn.id === 'string') { active.turnId = turn.id; if (active.cancelRequested) await this.cancel(params.threadId); } }
+    if (message.method === 'turn/started') { const turn = object(params.turn); if (typeof turn.id === 'string') { active.turnId = turn.id; for (const listener of this.turnListeners.get(params.threadId) ?? []) listener(turn.id); if (active.cancelRequested) await this.cancel(params.threadId); } }
     if (message.method === 'item/completed') { const item = object(params.item); if (item.type === 'agentMessage' && item.phase === 'commentary' && typeof item.id === 'string' && typeof item.text === 'string') this.emitActivity(params.threadId,activitySchema.parse({ id:`update:${item.id}`,kind:'update',text:item.text.slice(0,20000),state:'done' })); if (item.type === 'agentMessage' && typeof item.id === 'string' && typeof item.text === 'string') active.text.set(item.id, { text: item.text, final: item.phase === 'final_answer' }); }
     if (message.method === 'turn/completed') {
       clearTimeout(active.timer); this.turns.delete(params.threadId);
@@ -198,12 +208,25 @@ export class Codex {
     const id = z.object({ id: z.string() }).parse(response.thread).id;
     this.resumed.add(id); return id;
   }
-  async run(threadId: string, prompt: string, model: string, outputSchema?: unknown, effort: ReasoningEffort = 'medium', imagePaths: string[] = []) {
+  async fork(threadId:string, checkpoint:{kind:'before'|'through';turnId:string}, model:string, effort:ReasoningEffort) {
+    await this.ready();
+    if (!this.status.authenticated) throw new HttpError(401,'Sign in to Codex in Settings first.');
+    const response = object(await this.rpc('thread/fork',{
+      threadId, ...(checkpoint.kind === 'before' ? {beforeTurnId:checkpoint.turnId} : {lastTurnId:checkpoint.turnId}),
+      model,cwd:this.directory,approvalPolicy:'never',sandbox:'read-only',excludeTurns:true,deferGoalContinuation:true,
+      developerInstructions:`${questionRoutingInstructions}\n\n${instructions}`,
+      config:{model_reasoning_effort:effort,web_search:'live','features.shell_tool':false,'features.unified_exec':false},
+    }));
+    const id = z.object({id:z.string().min(1)}).parse(response.thread).id;
+    if (id === threadId) throw new Error('Codex did not create an independent conversation.');
+    this.resumed.add(id); return id;
+  }
+  async run(threadId: string, prompt: string, model: string, outputSchema?: unknown, effort: ReasoningEffort = 'medium', imagePaths: string[] = [], allowTools = true) {
     if (this.turns.has(threadId)) throw new HttpError(409, 'This conversation already has a response in progress.');
     let settle: Turn | undefined;
     const completion = new Promise<string>((resolve, reject) => {
       const timer = this.turnTimeout(threadId);
-      settle = { resolve, reject, timer, text: new Map(), turnId: null, cancelRequested: false }; this.turns.set(threadId, settle);
+      settle = { resolve, reject, timer, text: new Map(), turnId: null, cancelRequested: false, allowTools }; this.turns.set(threadId, settle);
     });
     try { await this.rpc('turn/start', { threadId, model, effort, summary:'auto', input: [{ type: 'text', text: prompt, text_elements: [] }, ...imagePaths.map(path => ({ type:'localImage',path }))], ...(outputSchema === undefined ? {} : { outputSchema }), environments: [] }); }
     catch (error) { if (settle) { clearTimeout(settle.timer); this.turns.delete(threadId); settle.reject(error instanceof Error ? error : new Error(String(error))); } }
