@@ -237,6 +237,28 @@ final class ReplicaTests: XCTestCase {
         XCTAssertEqual(disk.outbox.first?.mutation.data?["revision"].int, 9)
     }
 
+    func testKeepLocalTimerPreservesLeaseAndSegmentsButNormalRecoveryStillPauses() async throws {
+        let store=try replica(), start=try Clock.date("2026-10-22T00:00:00.000Z")
+        let started=try StudyRules.start(title:"Local study",subjectId:nil,timeZone:"Australia/Sydney",now:start)
+        let local=try StudyRules.heartbeat(started,now:start.addingTimeInterval(15),activity:true)
+        var cloud=try StudyRules.recover(local,now:start.addingTimeInterval(20),restart:true)
+        XCTAssertEqual(local.revision,2);XCTAssertEqual(cloud.revision,3)
+        cloud.title="Cloud copy"
+        try await store.stage([LocalChange(kind:"studySession",id:local.id,data:JSONValue.encode(local))])
+        let remote=CloudRecord(kind:"studySession",id:local.id,version:8,cursor:"9",data:try JSONValue.encode(cloud))
+        try await store.synchronize(using:ReplicaTransport(response:.conflict(remote)))
+        let conflicted=await store.snapshot(), conflict=try XCTUnwrap(conflicted.conflicts.first)
+        try await store.resolve(conflict,useLocal:true)
+        let disk=await (try replica()).snapshot(), queued=try XCTUnwrap(disk.outbox.first)
+        let chosen=try XCTUnwrap(queued.mutation.data).decode(StudySession.self)
+        var expected=local;expected.revision=4
+        XCTAssertEqual(chosen,expected,"Only domain revision changes; the owned lease, checkpoint, open span and segments stay exact")
+        XCTAssertEqual(queued.mutation.expectedVersion,8)
+        let restarted=try StudyRules.recover(chosen,now:start.addingTimeInterval(60),restart:true)
+        XCTAssertEqual(restarted.state,.paused(reason:"recovery"));XCTAssertEqual(restarted.revision,5)
+        XCTAssertEqual(restarted.segments,[StudySegment(start:Clock.iso(start),end:Clock.iso(start.addingTimeInterval(15)))])
+    }
+
     func testAttemptConflictOnlyAcceptsCloudResultAndPreservesItAcrossRestart() async throws {
         for kind in ["attempt", "practice.attempt"] {
             let store = try Replica(directory: directory, workspace: workspace(kind))

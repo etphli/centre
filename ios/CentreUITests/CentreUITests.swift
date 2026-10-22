@@ -198,6 +198,31 @@ final class CentreUITests: XCTestCase {
         XCTAssertTrue((restored.label + " " + String(describing: restored.value ?? "")).contains("Light"))
     }
 
+    func testTimerConflictChoicePreservesLocalLeaseAndRecoversCloudLease() {
+        app.terminate()
+        app.launchArguments=["-ui-testing","-reset-fixture","-ui-testing-timer-conflict"]
+        app.launch();tab("Log")
+        XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout:5))
+        tap("settings.open")
+        tap("conflict.keepLocal.studySession/f3bfad1e-27c4-4c5c-b4cd-431fe759e43b")
+        tap("settings.done");tab("Log")
+        XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout:5),"Keep iPhone must preserve its running timer")
+        capture("20-keep-local-timer-still-running")
+        restart();tab("Log")
+        XCTAssertTrue(app.buttons["timer.resume"].waitForExistence(timeout:5),"Normal restart must still pause at checkpoint")
+        capture("21-local-timer-paused-on-restart")
+        app.terminate()
+        app.launchArguments=["-ui-testing","-reset-fixture","-ui-testing-timer-conflict","-ui-testing-cloud-running"]
+        app.launch();tab("Log")
+        XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout:5))
+        tap("settings.open")
+        tap("conflict.keepCloud.studySession/f3bfad1e-27c4-4c5c-b4cd-431fe759e43b")
+        tap("settings.done");tab("Log")
+        XCTAssertTrue(app.buttons["timer.resume"].waitForExistence(timeout:5),"Cloud choice must recover the imported running timer")
+        XCTAssertFalse(app.buttons["timer.pause"].exists)
+        capture("22-keep-cloud-timer-imported-paused")
+    }
+
     func testUnconfiguredAccountRequiresConnectionAndRejectsCredentialURL() {
         app.terminate(); app.launchArguments = ["-ui-testing-unconfigured"]; app.launch()
         let address = app.textFields["connect.url"]

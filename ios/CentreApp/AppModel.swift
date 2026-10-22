@@ -259,7 +259,10 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     func resolve(conflict:SyncConflict,useLocal:Bool) async {
         await perform {
             try await replica?.resolve(conflict,useLocal:useLocal)
-            if conflict.local.kind == "studySession" { ownedTimers.remove(conflict.local.id);try await recoverTimers(excludingLocal:true) }
+            if conflict.local.kind == "studySession", !useLocal {
+                ownedTimers.remove(conflict.local.id)
+                try await recoverTimers(excludingLocal:true)
+            }
         }
         await sync()
     }
@@ -472,13 +475,38 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             try await store.stage([LocalChange(kind:"resource",id:resourceId,data:resource),LocalChange(kind:"resource",id:diagramId,data:diagram),LocalChange(kind:"chat",id:chatId,data:chat),LocalChange(kind:"message",id:messageId,data:message),LocalChange(kind:"attachment",id:attachmentId,data:UIAttachmentFixture.metadata),LocalChange(kind:"reviewMemory",id:reviewId,data:review)])
             try await store.cacheConnector(.object(["subjects":.array([]),"assignments":.array([]),"events":.array([])]))
         }
-        try await recoverTimers();await refresh();status="Offline UI test workspace. All changes stay on this simulator."
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-timer-conflict") {
+            let now=Date()
+            var local=try StudyRules.start(title:"Local running timer",subjectId:nil,timeZone:"Australia/Sydney",now:now.addingTimeInterval(-20))
+            local.id=UITimerConflictFixture.id
+            local=try StudyRules.heartbeat(local,now:now.addingTimeInterval(-5),activity:true)
+            var remote=local;remote.revision=3
+            if !ProcessInfo.processInfo.arguments.contains("-ui-testing-cloud-running") {
+                remote=try StudyRules.recover(local,now:now,restart:true)
+            }
+            try await store.stage([LocalChange(kind:"studySession",id:local.id,data:JSONValue.encode(local))])
+            try await store.synchronize(using:UITimerConflictFixture(remote:CloudRecord(kind:"studySession",id:remote.id,version:8,cursor:"9",data:JSONValue.encode(remote))))
+            ownedTimers.insert(local.id)
+        }
+        try await recoverTimers(excludingLocal:true);await refresh();status="Offline UI test workspace. All changes stay on this simulator."
     }
     #endif
 
 }
 
 #if DEBUG
+private struct UITimerConflictFixture:CloudTransport {
+    static let id="f3bfad1e-27c4-4c5c-b4cd-431fe759e43b"
+    let remote:CloudRecord
+    func put(_ mutation:CloudMutation) async throws -> MutationResponse {
+        if mutation.kind == "studySession" { return .conflict(remote) }
+        return .accepted(CloudRecord(kind:mutation.kind,id:mutation.id,version:mutation.expectedVersion+1,cursor:"1",deleted:mutation.deleted,data:mutation.data))
+    }
+    func changes(cursor:String) async throws -> ChangesPage { ChangesPage(records:[],cursor:cursor,hasMore:false) }
+    func run(_ request:AIRequest) async throws -> AIRun { throw CentreError.unavailable("No fixture inference.") }
+    func grade(_ request:GradeRequest) async throws -> AIRun { throw CentreError.unavailable("No fixture grading.") }
+}
+
 private struct UIAttachmentFixture:AttachmentTransport {
     static let id="45c6ec2f-2aa0-40a4-b5ba-fd6b301f1594"
     static let bytes=Data("Saved attachment, available offline.\nThis file is an explicit simulator fixture. No cloud download was requested.\n".utf8)
