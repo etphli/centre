@@ -1,0 +1,606 @@
+/* Calendar week view, view toggle and event details. Month styles live in centre.css. */
+
+.calendar-editor-fields {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.calendar-head {
+  flex-wrap: wrap;
+}
+
+.calendar-head .page__title {
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar-head__actions {
+  flex-wrap: wrap;
+}
+
+.segmented.calendar-view {
+  grid-template-columns: repeat(2, 1fr);
+  padding: 2px;
+  gap: 2px;
+  margin-right: 6px;
+}
+
+.calendar-view .segmented__option {
+  height: 24px;
+  padding: 0 12px;
+}
+
+.split > .page.calendar-page--week {
+  max-width: 1240px;
+}
+
+.calendar-note--alert {
+  margin-top: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  color: var(--warn);
+  background: color-mix(in oklab, var(--warn) 9%, transparent);
+  border: 1px solid color-mix(in oklab, var(--warn) 25%, var(--line));
+}
+
+.calendar-zone {
+  margin: -6px 0 12px;
+  color: var(--text-3);
+  font-size: 0.8125rem;
+}
+
+.month__chip--session {
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--tint) 80%, var(--text));
+}
+
+/* Week grid. One scroller owns both axes so the day header, due row and hour gutter stay aligned. */
+
+.week {
+  --gutter: 56px;
+  --hour: 56px;
+  position: relative;
+  max-height: clamp(380px, calc(100vh - 340px), 820px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--bg);
+}
+
+.week:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.week__inner {
+  min-width: calc(var(--gutter) + var(--week-min, 868px));
+}
+
+.week__row {
+  display: grid;
+  grid-template-columns: var(--gutter) var(--week-columns, repeat(7, minmax(124px, 1fr)));
+}
+
+.week__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.week__corner,
+.week__gutter-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.week__gutter-label {
+  padding: 6px 8px 0 0;
+  text-align: right;
+  font-size: 0.6875rem;
+  color: var(--text-3);
+}
+
+.week__day {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  border-left: 1px solid var(--line);
+  text-align: left;
+  color: var(--text-2);
+}
+
+.week__day:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.week__day:focus-visible {
+  outline-offset: -2px;
+}
+
+.week__weekday {
+  font-size: 0.75rem;
+}
+
+.week__date {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* Today is marked in the theme's own ink rather than the accent, matching the neutral selection states. */
+.week__day.is-today .week__date,
+.split--calendar .month__cell.is-today .month__date {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.week__day.is-selected {
+  background: var(--surface-2);
+  box-shadow: inset 0 -2px 0 var(--text-2);
+}
+
+.week__row--due {
+  border-top: 1px solid var(--line);
+  min-height: 34px;
+}
+
+.week__due {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  max-height: 92px;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+}
+
+.due-chip {
+  --tint: #8b8a85;
+  display: flex;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.71875rem;
+  line-height: 1.5;
+  text-align: left;
+  color: color-mix(in oklab, var(--tint) 40%, var(--text));
+  background: transparent;
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--tint) 70%, var(--text-3));
+}
+
+button.due-chip:hover,
+.due-chip.is-selected {
+  background: color-mix(in oklab, var(--tint) 14%, transparent);
+}
+
+.due-chip.is-selected {
+  box-shadow: inset 2px 0 0 var(--tint), inset 0 0 0 1px color-mix(in oklab, var(--tint) 45%, transparent);
+}
+
+.due-chip__time {
+  flex: none;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.due-chip__title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.due-chip.is-done {
+  opacity: 0.5;
+}
+
+.due-chip.is-done .due-chip__title {
+  text-decoration: line-through;
+}
+
+/* Time body */
+
+.week__row--body {
+  position: relative;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--line) 0 1px,
+    transparent 1px calc(var(--hour) / 2),
+    color-mix(in oklab, var(--line) 45%, transparent) calc(var(--hour) / 2) calc(var(--hour) / 2 + 1px),
+    transparent calc(var(--hour) / 2 + 1px) var(--hour)
+  );
+}
+
+.week__hours {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+}
+
+.week__hours li {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 0.6875rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.week__column {
+  position: relative;
+  border-left: 1px solid var(--line);
+}
+
+.week__column.is-selected {
+  background: color-mix(in oklab, var(--surface) 55%, transparent);
+}
+
+.week__sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.week__slot {
+  position: absolute;
+  z-index: 1;
+  padding: 1px 0;
+  container-type: inline-size;
+}
+
+.week__slot.is-selected {
+  z-index: 2;
+}
+
+/* Narrow overlap lanes keep the title and drop the time; the full time is in the label and details. */
+@container (max-width: 76px) {
+  .session {
+    padding-inline: 6px 4px;
+  }
+
+  .session .session__time,
+  .session .session__flag {
+    display: none;
+  }
+
+  .session:not(.is-short):not(.is-compact) .session__title {
+    -webkit-line-clamp: 3;
+  }
+}
+
+.session {
+  --tint: #8b8a85;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 3px 6px 3px 8px;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  text-align: left;
+  background: color-mix(in oklab, var(--tint) 22%, var(--bg));
+  color: color-mix(in oklab, var(--tint) 30%, var(--text));
+  box-shadow: inset 3px 0 0 var(--tint), 0 0 0 1px var(--bg);
+}
+
+.session:hover {
+  background: color-mix(in oklab, var(--tint) 30%, var(--bg));
+}
+
+.session:focus-visible {
+  outline-offset: 1px;
+}
+
+.session.is-selected {
+  background: color-mix(in oklab, var(--tint) 36%, var(--bg));
+  color: var(--text);
+  box-shadow: inset 3px 0 0 var(--tint), 0 0 0 1px var(--bg), 0 0 0 2px var(--text);
+}
+
+.session__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.session__time {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: color-mix(in oklab, var(--tint) 20%, var(--text-2));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session.is-short {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-block: 0;
+}
+
+.session.is-short .session__title {
+  -webkit-line-clamp: 1;
+  flex: 0 1 auto;
+  min-width: 2.5em;
+}
+
+/* A short block keeps its title; the time is in its label, the details panel and the hour grid. */
+.session.is-short .session__time {
+  flex: 0 100 auto;
+  min-width: 0;
+}
+
+.session__flag {
+  margin-top: auto;
+  font-size: 0.65625rem;
+  color: var(--warn);
+}
+
+/* Overlapping plans get a warning edge on the right so they read as a conflict, not a layout quirk. */
+.session.is-overlap {
+  box-shadow: inset 3px 0 0 var(--tint), inset -2px 0 0 var(--warn), 0 0 0 1px var(--bg);
+}
+
+.session.is-overlap.is-selected {
+  box-shadow: inset 3px 0 0 var(--tint), inset -2px 0 0 var(--warn), 0 0 0 1px var(--bg), 0 0 0 2px var(--text);
+}
+
+.session.is-clipped-end {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 2px dashed color-mix(in oklab, var(--tint) 70%, transparent);
+}
+
+.session.is-clipped-start {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 2px dashed color-mix(in oklab, var(--tint) 70%, transparent);
+}
+
+.session.is-done {
+  background: color-mix(in oklab, var(--tint) 8%, var(--bg));
+  color: var(--text-3);
+}
+
+.session.is-done .session__title {
+  text-decoration: line-through;
+}
+
+.week__due-line {
+  --tint: #8b8a85;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed color-mix(in oklab, var(--tint) 70%, var(--text-3));
+  pointer-events: none;
+}
+
+.week__due-line::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  background: color-mix(in oklab, var(--tint) 70%, var(--text-3));
+}
+
+.week__now {
+  position: absolute;
+  left: -1px;
+  right: 0;
+  z-index: 3;
+  height: 0;
+  border-top: 2px solid var(--text-2);
+  pointer-events: none;
+}
+
+.week__now::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+/* Event details in the inspector */
+
+.todo__open {
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.todo__open:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.event-details {
+  --tint: #8b8a85;
+  padding: 12px 14px 14px;
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: inset 3px 0 0 var(--tint);
+}
+
+.event-details .inspector__heading-row {
+  margin-bottom: 2px;
+}
+
+.event-details__source {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+
+.event-details__title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.event-details__facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+}
+
+.event-details__facts dt {
+  color: var(--text-3);
+}
+
+.event-details__facts dd {
+  margin: 0;
+  display: grid;
+  font-variant-numeric: tabular-nums;
+}
+
+.event-details__zone {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+
+.event-details__notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.event-details__overlap {
+  margin: 0 0 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  font-size: 0.78125rem;
+  color: var(--warn);
+  background: color-mix(in oklab, var(--warn) 9%, transparent);
+}
+
+.event-details__done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  margin-bottom: 10px;
+}
+
+.event-details__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.event-details__actions .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.event-details__remove {
+  color: var(--danger);
+}
+
+.event-details__remove:hover:not(:disabled) {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 10%, transparent);
+}
+
+.event-details__hint {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+
+@media (max-width: 760px) {
+  .week {
+    --gutter: 44px;
+    max-height: calc(100vh - 220px);
+  }
+}
+
+.week__day:has(.week__dst) {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+.week__dst {
+  flex-basis: 100%;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  color: var(--warn);
+}
+
+/* Daylight-saving hour. Hatched where the clock skips, tinted where the hour repeats. */
+.week__clock-change {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 0.65625rem;
+  line-height: 1.2;
+  color: var(--warn);
+  pointer-events: none;
+  border-block: 1px dashed color-mix(in oklab, var(--warn) 45%, transparent);
+}
+
+.week__clock-change--skip {
+  background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--warn) 12%, transparent) 0 4px, transparent 4px 9px);
+}
+
+.week__clock-change--repeat {
+  background: color-mix(in oklab, var(--warn) 9%, transparent);
+}
+
+.session.is-compact .session__title,
+.session.is-short .session__title {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
