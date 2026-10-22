@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { StudyLog } from '../shared/study-log';
 import { snapshotSchema, type Snapshot } from '../shared/schema';
 
 export const emptySnapshot = (): Snapshot => snapshotSchema.parse({ subjects: [], topics: [], resources: [], chats: [], events: [], memories: [], assignments: [], settings: {}, codex: { available: false, authenticated: false, message: 'Connecting to Codex CLI…' }, lastSyncedAt: null });
@@ -33,6 +34,9 @@ export class Store {
   }
   save(): Promise<void> {
     return this.enqueue(() => this.write(this.state));
+  }
+  saveStudyLog(studyLog:StudyLog):Promise<void> {
+    return this.atomic(() => ({value:undefined,apply:state=>{state.studyLog=studyLog;}}));
   }
   update(change:(state:Snapshot) => void):Promise<void> {
     return this.atomic(() => ({value:undefined,apply:change}));
