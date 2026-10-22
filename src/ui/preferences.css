@@ -8,7 +8,8 @@
 .settings-layout__nav{display:flex;flex-direction:column;gap:2px;position:sticky;top:0;align-self:start}
 .settings-layout__nav h1{font-size:1.125rem;font-weight:500;margin:0 0 23px 8px;letter-spacing:-.4px}
 .settings-layout__nav button{display:flex;align-items:center;gap:9px;font-size:0.75rem;text-align:left;padding:8px;border-radius:6px;color:var(--text-2)}
-.settings-layout__nav button:hover,.settings-layout__nav button[aria-current=page]{background:var(--surface-3);color:var(--text)}
+.settings-layout__nav button:hover{background:var(--surface-2);color:var(--text)}
+.settings-layout__nav button[aria-current=page]{background:var(--surface-3);color:var(--text);font-weight:550}
 .settings-layout__content{min-width:0;padding-top:0}
 .settings-layout__content>h1{font-family:var(--font-sans);font-size:1.25rem;font-weight:500;letter-spacing:-.4px;margin:0 0 25px}
 .preferences-title{font-size:0.8125rem;font-weight:500;margin:24px 0 8px}
@@ -24,7 +25,7 @@
 .preference-choice{display:flex;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--surface);gap:1px}
 .preference-choice button{font-size:0.6875rem;color:var(--text-3);padding:5px 8px;border-radius:4px;white-space:nowrap}
 .preference-choice button[aria-pressed=true]{background:var(--surface-3);color:var(--text)}
-.theme-options{display:flex;gap:9px}
+.theme-options{display:flex;flex-wrap:wrap;gap:9px}
 .theme-option{display:grid;gap:6px;font-size:0.625rem;color:var(--text-3);text-align:left}
 .theme-option[aria-pressed=true]{color:var(--text)}
 .theme-option__preview{display:grid;grid-template-columns:16px 1fr;width:55px;height:36px;border:1px solid #555;border-radius:5px;overflow:hidden;background:#1b1b1a;position:relative}
