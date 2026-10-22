@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "metrics": [
+    {
+      "width": 708,
+      "scrollWidth": 708,
+      "scrollTop": 756,
+      "days": [
+        {
+          "left": 291,
+          "right": 374
+        },
+        {
+          "left": 374,
+          "right": 457
+        },
+        {
+          "left": 457,
+          "right": 540
+        },
+        {
+          "left": 540,
+          "right": 706
+        },
+        {
+          "left": 706,
+          "right": 789
+        },
+        {
+          "left": 789,
+          "right": 872
+        },
+        {
+          "left": 872,
+          "right": 955
+        }
+      ]
+    },
+    {
+      "monthBottom": 621.9375,
+      "dockTop": 631
+    }
+  ]
+}

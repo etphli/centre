@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "today": "2026-10-22",
+  "nextDate": "2026-10-23",
+  "removedEventId": "f824fd12-2b79-431e-95cf-c9fee1947918",
+  "revision": 4,
+  "assignmentIds": [
+    "fixture-session-3",
+    "fixture-session-2",
+    "fixture-session-1",
+    "essay",
+    "problem-set"
+  ],
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ],
+  "screenshots": [
+    ".runtime/calendar-evidence/month.png",
+    ".runtime/calendar-evidence/week-details.png",
+    ".runtime/calendar-evidence/editor.png",
+    ".runtime/calendar-evidence/remove-error.png",
+    ".runtime/calendar-evidence/week-after-remove.png"
+  ]
+}

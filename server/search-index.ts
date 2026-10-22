@@ -246,8 +246,15 @@ export class SearchIndex {
         }
       }
     }
-    for (const event of snapshot.events) add({ id: `event:${event.id}`, kind: 'event', label: event.title, sourceLabel: 'Calendar event', contextLabel: event.date, text: [event.title, event.notes].filter(Boolean).join('\n'), target: { kind: 'calendar' } });
-    for (const assignment of snapshot.assignments) add({ id: `assignment:${assignment.id}`, kind: 'assignment', label: assignment.title, sourceLabel: 'Assignment', contextLabel: assignment.dueDate ? `Due ${assignment.dueDate}` : assignment.status, text: assignment.title, target: { kind: 'calendar' } });
+    const archivedCalendarItems = new Set(snapshot.events.flatMap(event => event.deletedAt && event.organatoId ? [event.organatoId] : []));
+    for (const event of snapshot.events) {
+      if (event.deletedAt) continue;
+      add({ id: `event:${event.id}`, kind: 'event', label: event.title, sourceLabel: 'Calendar event', contextLabel: event.date, text: [event.title, event.notes].filter(Boolean).join('\n'), target: { kind: 'calendar' } });
+    }
+    for (const assignment of snapshot.assignments) {
+      if (archivedCalendarItems.has(assignment.id)) continue;
+      add({ id: `assignment:${assignment.id}`, kind: 'assignment', label: assignment.title, sourceLabel: 'Assignment', contextLabel: assignment.dueDate ? `Due ${assignment.dueDate}` : assignment.status, text: assignment.title, target: { kind: 'calendar' } });
+    }
 
     const workspaceId = this.attachments.workspaceId;
     const scopedChats = snapshot.chats.map(chat => ({ workspaceId, chat }));

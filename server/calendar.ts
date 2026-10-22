@@ -1,22 +1,35 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { z } from 'zod';
 import { HttpError } from './errors';
+import { calendarStartInstant, calendarTimeKey } from '../shared/calendar-time';
+import { calendarTimeSchema } from '../shared/schema';
 
-export const calendarInputSchema = z.object({title:z.string().trim().min(1).max(500),date:z.iso.date(),time:z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),subjectId:z.string().nullable().optional(),notes:z.string().max(20000).default('')}).strict();
-export const calendarPatchSchema = calendarInputSchema.partial().extend({notes:z.string().max(20000).optional(),completedAt:z.iso.datetime().nullable().optional()}).strict();
+const timeSchema = calendarTimeSchema;
+const durationSchema = z.number().int().min(5).max(720);
+export const calendarInputSchema = z.object({
+  title:z.string().trim().min(1).max(200), date:z.iso.date(), time:timeSchema.nullable().optional(),
+  plannedDurationMinutes:durationSchema.nullable().optional(), subjectId:z.string().nullable().optional(), notes:z.string().max(20000).default(''),
+}).strict().refine(value => !value.plannedDurationMinutes || Boolean(value.time), 'A planned session needs a start time.');
+export const calendarPatchSchema = z.object({
+  title:z.string().trim().min(1).max(200).optional(), date:z.iso.date().optional(), time:timeSchema.nullable().optional(),
+  plannedDurationMinutes:durationSchema.nullable().optional(), subjectId:z.string().nullable().optional(), notes:z.string().max(20000).optional(),
+  completedAt:z.iso.datetime().nullable().optional(), expectedRevision:z.number().int().positive().optional(),
+}).strict().refine(value => value.plannedDurationMinutes == null || value.time !== null, 'A planned session needs a start time.');
+export const archiveCalendarEventSchema = z.object({expectedRevision:z.number().int().positive()}).strict();
 export function organatoDeadline(date: string,time: string | null | undefined,timeZone: string) {
   if (!time) return {dueAt:null,dueDateLocal:date,dueHasExplicitTime:false};
   try {
-    const day = Temporal.PlainDate.from(date); const clock = Temporal.PlainTime.from(time);
-    const instant = Temporal.ZonedDateTime.from({year:day.year,month:day.month,day:day.day,hour:clock.hour,minute:clock.minute,timeZone},{disambiguation:'reject'}).toInstant();
+    const instant = calendarStartInstant(date,time,timeZone);
     return {dueAt:instant.toString(),dueDateLocal:null,dueHasExplicitTime:true};
   } catch { throw new HttpError(400,'This calendar date or time is invalid, ambiguous or does not exist in the selected time zone. Choose another time.'); }
 }
 export function calendarDate(dueAt: string | null,dueDateLocal: string | null,timeZone: string) {
   if (dueAt) {
-    const value = Temporal.Instant.from(dueAt).toZonedDateTimeISO(timeZone);
-    return {date:value.toPlainDate().toString(),time:value.toPlainTime().toString({smallestUnit:'minute'})};
+    try {
+      const value = Temporal.Instant.from(dueAt).toZonedDateTimeISO(timeZone);
+      return {date:value.toPlainDate().toString(),time:calendarTimeKey(value.toPlainTime()),startAt:Temporal.Instant.from(dueAt).toString()};
+    } catch { throw new HttpError(400,'Organato returned a deadline Centre could not read in the selected time zone.'); }
   }
-  if (dueDateLocal) return {date:dueDateLocal,time:null};
+  if (dueDateLocal) return {date:dueDateLocal,time:null,startAt:null};
   return null;
 }
