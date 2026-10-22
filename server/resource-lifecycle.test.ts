@@ -19,7 +19,11 @@ test('a failed disk save leaves no resource behind and a retry saves exactly one
   try {
     await store.save();
     await mkdir(join(directory,'state.json.tmp'));
-    await assert.rejects(resources.saveGenerated(input,generated),{code:'EISDIR'});
+    await assert.rejects(resources.saveGenerated(input,generated),error => {
+      assert.ok(error instanceof Error && 'status' in error && error.status === 503);
+      assert.ok(error.cause instanceof Error && 'code' in error.cause && error.cause.code === 'EISDIR');
+      return true;
+    });
     assert.equal(store.state.resources.length,0);
     assert.equal((await Store.open(directory)).state.resources.length,0);
     await rm(join(directory,'state.json.tmp'),{recursive:true});
