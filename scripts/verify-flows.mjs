@@ -49,7 +49,7 @@ const fixture = {
 };
 fixture.topics.push({id:'qa-pythagoras',subjectId:'qa-maths',name:'Pythagoras',description:''});
 fixture.resources.push({...fixture.resources[0],id:'qa-paper',title:'Synthetic paper',kind:'test',durationMinutes:45,testLength:{mode:'time',minutes:45},content:'Legacy template'});
-fixture.resources.push({...fixture.resources[0],id:'qa-diagram',title:'Synthetic diagram',kind:'diagram',questions:[],content:`<style>body{background:white;color:#17324d}.panel{background:#fff;padding:24px}main{padding:12px}</style><main><section class="panel"><h2>Right triangles</h2><p>A diagram in your theme.</p><button id="explore" onclick="this.textContent='Explored'">Explore</button><svg viewBox="0 0 200 100"><path d="M10 10L10 90L190 90Z" fill="#e6a23c"/><text x="50" y="70" fill="#17324d">a² + b² = c²</text></svg></section></main>`});
+fixture.resources.push({...fixture.resources[0],id:'qa-diagram',title:'Synthetic diagram',kind:'diagram',questions:[],content:`<style>body{background:white;color:#17324d}.panel{background:#fff;padding:24px}main{padding:12px}</style><h1>Minimal checklist</h1><main><section class="panel"><h2>Right triangles</h2><p>A diagram in your theme.</p><button id="explore" onclick="this.textContent='Explored'">Explore</button><svg viewBox="0 0 200 100"><path d="M10 10L10 90L190 90Z" fill="#e6a23c"/><text x="50" y="70" fill="#17324d">a² + b² = c²</text></svg></section></main><label><input type="checkbox" id="last-checklist-item" data-centre-checklist-id="last-checklist-item">Final checklist item</label>`});
 await writeFile(join(dataDirectory, 'state.json'), JSON.stringify(fixture, null, 2));
 
 const entrySource = `
@@ -284,6 +284,7 @@ app.on('browser-window-created', (_event, createdWindow) => {
       await pause(500);
       const darkDiagram = await diagramValue("({theme:document.documentElement.dataset.theme,bg:getComputedStyle(document.body).backgroundColor,panel:getComputedStyle(document.querySelector('.panel')).backgroundColor,ink:getComputedStyle(document.querySelector('p')).color,height:Math.ceil(document.body.getBoundingClientRect().height)})");
       check('Legacy light diagrams follow the dark app palette',darkDiagram.theme==='dark' && darkDiagram.bg==='rgb(27, 27, 26)' && darkDiagram.panel==='rgb(32, 32, 31)' && darkDiagram.ink==='rgb(236, 235, 231)',darkDiagram);
+      check('A minimally styled checklist keeps its final checkbox visible', await diagramValue("document.getElementById('last-checklist-item').getBoundingClientRect().bottom <= innerHeight"));
       const embedHeight = await evaluate("Number.parseFloat(getComputedStyle(document.querySelector('iframe.diagram-embed')).height)");
       check('Diagram embedding follows content height',Math.abs(embedHeight-darkDiagram.height)<=4,{embedHeight,contentHeight:darkDiagram.height});
       await diagramValue("document.getElementById('explore').click()");
