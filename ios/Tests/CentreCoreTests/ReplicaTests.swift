@@ -224,6 +224,40 @@ final class ReplicaTests: XCTestCase {
         XCTAssertEqual(disk.cursor, "4")
     }
 
+    func testKeepLocalAdvancesDomainRevisionSeparatelyFromTransportVersion() async throws {
+        let store = try replica()
+        try await store.stage([LocalChange(kind: "interactiveProgress", id: "progress", data: .object(["revision": .number(3)]))])
+        let remote = CloudRecord(kind: "interactiveProgress", id: "progress", version: 20, cursor: "40", data: .object(["revision": .number(8)]))
+        try await store.synchronize(using: ReplicaTransport(response: .conflict(remote)))
+        let conflicted = await store.snapshot()
+        let conflict = try XCTUnwrap(conflicted.conflicts.first)
+        try await store.resolve(conflict, useLocal: true)
+        let disk = await (try replica()).snapshot()
+        XCTAssertEqual(disk.outbox.first?.mutation.expectedVersion, 20)
+        XCTAssertEqual(disk.outbox.first?.mutation.data?["revision"].int, 9)
+    }
+
+    func testAttemptConflictOnlyAcceptsCloudResultAndPreservesItAcrossRestart() async throws {
+        for kind in ["attempt", "practice.attempt"] {
+            let store = try Replica(directory: directory, workspace: workspace(kind))
+            try await store.stage([LocalChange(kind: kind, id: "attempt", data: .object(["revision": .number(1), "totalScore": .number(2)]))])
+            let remote = CloudRecord(kind: kind, id: "attempt", version: 1, cursor: "4", data: .object(["revision": .number(1), "totalScore": .number(3)]))
+            try await store.synchronize(using: ReplicaTransport(response: .conflict(remote)))
+            let before = await store.snapshot()
+            let conflict = try XCTUnwrap(before.conflicts.first)
+            do { try await store.resolve(conflict, useLocal: true); XCTFail("Immutable attempt must reject local overwrite") }
+            catch let error as CentreError { guard case .invalid = error else { return XCTFail("Unexpected error: \(error)") } }
+            let unchanged = await store.snapshot()
+            XCTAssertEqual(unchanged.outbox, before.outbox)
+            XCTAssertEqual(unchanged.conflicts, before.conflicts)
+            try await store.resolve(conflict, useLocal: false)
+            let disk = await (try Replica(directory: directory, workspace: workspace(kind))).snapshot()
+            XCTAssertTrue(disk.outbox.isEmpty)
+            XCTAssertTrue(disk.conflicts.isEmpty)
+            XCTAssertEqual(disk.records, [remote])
+        }
+    }
+
     func testPartialEditPreservesUnknownJSONFields() async throws {
         let store = try replica()
         let record = CloudRecord(kind: "resource", id: "r1", version: 1, cursor: "1", data: .object(["title": .string("Old"), "future": .array([.number(1), .bool(false), .null])]))

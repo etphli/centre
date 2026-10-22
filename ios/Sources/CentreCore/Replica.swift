@@ -96,6 +96,9 @@ public actor Replica {
     public func cacheConnector(_ connector: JSONValue) throws { try requireActive();var next=state;next.connector=connector;try persist(next) }
     public func resolve(_ conflict: SyncConflict, useLocal: Bool) throws {
         try requireActive()
+        guard !useLocal || !["attempt","practice.attempt"].contains(conflict.local.kind) else {
+            throw CentreError.invalid("Marked attempts are immutable. Keep the cloud result.")
+        }
         guard let current = state.conflicts.first(where:{$0.key == conflict.key}), current == conflict else { throw CentreError.invalid("This conflict changed. Reload it before choosing.") }
         var next=state
         next.outbox.removeAll(where:{$0.mutation.key == conflict.key})
