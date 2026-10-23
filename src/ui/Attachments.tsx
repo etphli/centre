@@ -29,7 +29,6 @@ export function useComposerAttachments() {
   }
   async function addFiles(incoming:File[]) {
     if (adding.current) return;
-    if (files.length+incoming.length > 5) { setError('Attach up to five files per message.'); return; }
     if (incoming.some(file => file.size > 20*1024*1024)) { setError('Each file must be 20 MB or smaller.'); return; }
     adding.current = true; setUploading(true); setError('');
     try { for (const file of incoming) await upload([await filePayload(file)]); }
@@ -42,7 +41,6 @@ export function useComposerAttachments() {
     adding.current = true; setUploading(true); setError('');
     try {
       const payloads = await chooseAttachmentFiles();
-      if (files.length+payloads.length > 5) throw new Error('Attach up to five files per message.');
       await upload(payloads);
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'The file could not be attached.'); }
     finally { adding.current = false; setUploading(false); }
@@ -51,7 +49,7 @@ export function useComposerAttachments() {
   const chips = files.length || uploading ? <div className="composer-files">{files.map(file => <span className="composer-file" key={file.id}><FileText size={13} /><span title={`${file.name}, ${sizeLabel(file.size)}`}>{file.name}</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles(current => current.filter(item => item.id !== file.id))}><X size={11} /></button></span>)}{uploading ? <span className="composer-file"><span className="spinner spinner--small" /> Adding files</span> : null}</div> : null;
   async function restore(ids:string[]) {
     const restored = await Promise.allSettled(ids.map(id => api.getAttachment(id)));
-    setFiles(current => [...current,...restored.flatMap(result => result.status === 'fulfilled' && !current.some(file => file.id === result.value.id) ? [result.value] : [])].slice(0,5));
+    setFiles(current => [...current,...restored.flatMap(result => result.status === 'fulfilled' && !current.some(file => file.id === result.value.id) ? [result.value] : [])]);
   }
   return { files,uploading,error,setError,picker,chips,pick,addFiles,restore,clear:()=>setFiles([]) };
 }
