@@ -1,0 +1,2 @@
+PASS installation-qr QR independently decoded; scheme=https
+PASS installation-qr-screen QR independently decoded; scheme=https

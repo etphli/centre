@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { preferencesSchema, resourceSchema, memorySchema, calendarEventSchema, subjectSchema, type Resource } from '../shared/schema';
+import { preferencesSchema, resourceSchema, memorySchema, calendarEventSchema, eventSchema, assignmentSchema, subjectSchema, type Resource } from '../shared/schema';
 import { quizDraftSchema, attemptSchema } from '../shared/practice';
 import { syncedChatSchema, syncedMessageSchema } from '../shared/chat-sync';
-import { closeRunning, recoverStudySession, studySessionSchema, weeklyStudyGoalSchema, localStudyInstant, type StudySession } from '../shared/study-log';
+import { closeRunning, recoverStudySession, studySessionSchema, weeklyStudyGoalSchema, localStudyInstant, type StudySession, studyTimeZoneSchema } from '../shared/study-log';
 import type { MobileEntity } from './data/store';
 
 export function records<T>(entities: readonly MobileEntity[], kind: string, schema: z.ZodType<T>): T[] {
@@ -26,7 +26,8 @@ export function library(entities: readonly MobileEntity[]) {
     preferences: records(entities, 'preferences', preferencesSchema)[0] ?? preferencesSchema.parse({}),
   };
 }
-export const organatoSnapshotSchema = z.object({ subjects: z.array(subjectSchema), events: z.array(z.unknown()), fetchedAt: z.string() });
+export const organatoSnapshotSchema = z.object({ subjects: z.array(subjectSchema), events: z.array(eventSchema.extend({timeZone:studyTimeZoneSchema})), assignments:z.array(assignmentSchema).default([]), fetchedAt: z.string() });
+export type OrganatoSnapshot = z.infer<typeof organatoSnapshotSchema>;
 export type Subject = z.infer<typeof subjectSchema>;
 export function timeLabel(milliseconds: number): string {
   const minutes = Math.floor(Math.max(0, milliseconds) / 60_000);
@@ -81,3 +82,5 @@ export function pairingCode(input: string, origin: string): string {
   if (!/^[A-Za-z0-9_-]{32,200}$/.test(code)) throw new Error('Paste the one-time account code from Centre on your Mac.');
   return code;
 }
+
+export function clockLabel(ms:number):string {const seconds=Math.ceil(Math.max(0,ms)/1000),minutes=Math.floor(seconds/60);return `${minutes}:${String(seconds%60).padStart(2,'0')}`;}

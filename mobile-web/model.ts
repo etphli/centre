@@ -1,7 +1,8 @@
 import { studySessionSchema, type StudySession } from '../shared/study-log';
 import { freshDraft, library, newTimer, timerChange } from './domain';
 import { quizDraftSchema } from '../shared/practice';
-import type { Resource } from '../shared/schema';
+import { preferencesSchema, type Resource } from '../shared/schema';
+import type { z } from 'zod';
 import { MobileStore } from './data/store';
 
 export class MobileModel {
@@ -9,12 +10,28 @@ export class MobileModel {
   private ownedTimer: string | null = null;
   private releaseTimer: (()=>void) | null = null;
   private activityAt = Date.now();
-  constructor(readonly store: MobileStore) {}
+  readonly store: Pick<MobileStore,'getSnapshot'|'save'|'saveBatch'|'saveLocal'|'getLocal'|'request'|'sync'|'resolveConflict'|'disconnect'>;
+  constructor(readonly source: MobileStore) {
+    const workspaceId=source.getSnapshot().workspaceId;
+    this.store={
+      getSnapshot:()=>{const state=source.getSnapshot();if(state.workspaceId!==workspaceId)throw new Error('The Centre account changed. Open this action again.');return state;},
+      save:(kind,id,data,deleted)=>source.save(kind,id,data,deleted,workspaceId),
+      saveBatch:(items,local)=>source.saveBatch(items,local,workspaceId),
+      saveLocal:(key,value)=>source.saveLocal(key,value,workspaceId),
+      getLocal:key=>source.getLocal(key,workspaceId),
+      request:(path,init)=>source.request(path,init,workspaceId),
+      sync:()=>source.sync(workspaceId),
+      resolveConflict:(key,choice)=>source.resolveConflict(key,choice,workspaceId),
+      disconnect:()=>source.disconnect(workspaceId),
+    };
+  }
+  dispose(){this.release();}
   serial<T>(work: ()=>Promise<T>): Promise<T> {
     const next = this.queue.then(work);
     this.queue = next.catch(()=>undefined);
     return next;
   }
+  preferences(patch:Partial<z.infer<typeof preferencesSchema>>){return this.serial(async()=>{const current=library(this.store.getSnapshot().entities).preferences;await this.store.save('preferences','preferences',preferencesSchema.parse({...current,...patch}));});}
   activity() { this.activityAt = Date.now(); }
   async startTimer(title: string, subjectId: string | null, timeZone: string, resumeId?: string, targetMinutes?:number) {
     if (!navigator.locks) throw new Error('This browser cannot safely own a study timer. You can still log completed study manually.');

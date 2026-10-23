@@ -91,3 +91,7 @@ Both routes create in-memory requests in `server/questions.ts`. The authenticate
 
 
 Automatically applied skills and tool-loaded skills appear by name in response activity. The activity panel contains public reasoning summaries, completed progress messages, and tool status. It never requests private reasoning text. The composer reads the chat's optional model override; Settings owns defaults for new chats and the separate marking model.
+
+## iPhone Home Screen client
+
+`mobile-web/` is an independent React client built by `vite.iphone.config.ts`. The existing Worker serves public static files only under `/iphone/` through `ASSETS`; generic authenticated APIs and their workspace repository remain unchanged. The service worker caches the public shell only. `MobileStore` owns an origin/workspace-scoped IndexedDB replica, atomic outbox and private journals. Canonical portable schemas validate every known record. `MobileModel` binds screen actions to their originating workspace and serializes local domain edits. Hosted AI uses the existing durable run/grading routes. See [the client design and verification](iphone-web.md) and [native parity](ios/web-installation-parity.md).

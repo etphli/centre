@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChevronLeft, LoaderCircle } from 'lucide-react';
+import { z } from 'zod';
 import { MobileRequestError } from './data/store';
 export function friendlyError(error:unknown):string {
   if (error instanceof MobileRequestError) {
@@ -9,6 +10,9 @@ export function friendlyError(error:unknown):string {
     if (error.status===429) return 'Centre Cloud has reached its current limit. Your work is saved here. Try again later.';
     if (error.status>=500) return 'Centre Cloud is unavailable right now. Your work is saved here. Try again later.';
   }
+  if(error instanceof TypeError)return 'Centre Cloud could not be reached. Your saved work stays on this device.';
+  if(error instanceof z.ZodError)return error.issues[0]?.message??'Check the entered details and try again.';
+  if(error instanceof DOMException&&error.name==='QuotaExceededError')return 'Browser storage is full. Keep this page open and free some space before trying to save again.';
   return error instanceof Error ? error.message : 'This could not be completed. Please try again.';
 }
 export function useAction() {

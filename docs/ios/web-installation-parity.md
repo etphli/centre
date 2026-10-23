@@ -1,6 +1,6 @@
 # iPhone web installation and native parity
 
-Centre's iPhone web app is a browser client served at `/iphone/`. Its intended installation path is Safari's Add to Home Screen, without distributing a signed native app. The SwiftUI app remains a separate iOS client. This page records the shared cloud contracts, offline scope, and platform differences for the web path.
+Centre's iPhone web app is a browser client served at `/iphone/`. Its installation path is Safari's Add to Home Screen, without distributing a signed native app. The SwiftUI app remains a separate iOS client. This page records the shared cloud contracts, offline scope, and platform differences for the web path.
 
 ## Install the web app before pairing
 
@@ -8,9 +8,9 @@ Open `https://centre-cloud.etphli.workers.dev/iphone/` in Safari on the iPhone. 
 
 The public installation QR contains only the `/iphone/` address. It carries no account code, device token, or account authority. It is safe to share.
 
-To pair, create a new one-time code in Centre on the Mac and scan the account QR. The `/pair` page offers **Copy account code** and **Open web app**. Open Centre, paste the code, and submit it there. Loading `/pair` does not redeem the code. The code expires after five minutes and can be used once. Treat it as a secret until it expires or is redeemed.
+To pair, create a new one-time code in Centre on the Mac and scan the account QR. The `/pair` page offers **Copy account code** and **Install Centre for iPhone**. Open Centre, paste the code, and submit it there. Loading `/pair` does not redeem the code. The code expires after five minutes and can be used once. Treat it as a secret until it expires or is redeemed.
 
-The account code is in the URL fragment, as in `/pair#code=...`. Browsers do not send a fragment with the HTTP request. The page clears the fragment from the address bar. The native app's **Open Centre** action uses `centre://pair` and shows an explicit confirmation sheet. `centre://pair` is a custom URL scheme. The HTTPS `/pair` page is not an Apple universal link, and this feature does not claim an associated domain.
+The account code is in the URL fragment, as in `/pair#code=...`. Browsers do not send a fragment with the HTTP request. The page clears the fragment from the address bar. The native app's **Open native Centre** action uses `centre://pair` and shows an explicit confirmation sheet. `centre://pair` is a custom URL scheme. The HTTPS `/pair` page is not an Apple universal link, and this feature does not claim an associated domain.
 
 ## Cloud authority is shared, local storage is separate
 

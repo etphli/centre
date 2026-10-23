@@ -4,6 +4,7 @@
   "main": "index.ts",
   "compatibility_date": "2026-10-22",
   "workers_dev": true,
+  "keep_vars": true,
   "assets": {
     "directory": "../dist-iphone",
     "binding": "ASSETS",

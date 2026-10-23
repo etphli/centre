@@ -45,6 +45,7 @@ export type MobilePhase =
   | "error";
 
 export interface MobileState {
+  workspaceId: string | null;
   session: CloudAuth | null;
   entities: MobileEntity[];
   pending: number;
@@ -473,6 +474,10 @@ function assertPersistedOrigin(state: PersistedMobileState, origin: string): voi
   }
 }
 
+function assertWorkspace(state: PersistedMobileState, expected: string | null | undefined): void {
+  if (expected !== undefined && state.activeWorkspaceId !== expected) throw new SessionChangedError();
+}
+
 function activeWorkspace(state: PersistedMobileState): MobileWorkspaceState | null {
   const id = state.activeWorkspaceId;
   return id ? state.workspaces[workspaceKey(id)] ?? null : null;
@@ -578,7 +583,13 @@ function isOfflineError(error: unknown): boolean {
 }
 
 function errorText(error: unknown): string {
-  if (error instanceof MobileRequestError) return error.message;
+  if (error instanceof MobileRequestError) {
+    if(error.status===429)return 'Sync is paused at the current cloud limit. Your changes are saved on this device.';
+    if(error.status>=500)return 'Centre Cloud is unavailable. Your changes are saved on this device.';
+    return error.message;
+  }
+  if(error instanceof TypeError)return 'Centre Cloud could not be reached. Your changes are saved on this device.';
+  if(error instanceof z.ZodError)return 'Centre returned data this version could not read. Your local work has been kept.';
   if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) return "Centre did not respond before the mobile request timed out.";
   return error instanceof Error ? error.message : "Centre mobile sync failed.";
 }
@@ -757,6 +768,7 @@ export class MobileStore {
   private readonly channel: BroadcastChannel | null;
   private persisted = emptyPersistedState();
   private snapshot: MobileState = {
+    workspaceId: null,
     session: null,
     entities: [],
     pending: 0,
@@ -769,6 +781,7 @@ export class MobileStore {
   private opened = false;
   private generation = 0;
   private syncPromise: Promise<void> | null = null;
+  private syncGeneration: number | null = null;
   private syncing = false;
 
   constructor(options: MobileStoreOptions = {}) {
@@ -889,10 +902,11 @@ export class MobileStore {
     });
   }
 
-  async disconnect(): Promise<void> {
+  async disconnect(expectedWorkspaceId?: string | null): Promise<void> {
     await this.ensureOpen();
-    this.generation++;
     await this.transact((state) => {
+      assertWorkspace(state, expectedWorkspaceId);
+      this.generation++;
       const currentId = state.activeWorkspaceId;
       if (currentId) {
         updateWorkspace(state, currentId, (workspace) => {
@@ -909,8 +923,9 @@ export class MobileStore {
     id: string,
     data: Record<string, unknown> | null,
     deleted = false,
+    expectedWorkspaceId?: string | null,
   ): Promise<void> {
-    await this.saveBatch([{ kind, id, data, deleted }]);
+    await this.saveBatch([{ kind, id, data, deleted }], undefined, expectedWorkspaceId);
   }
 
   async saveBatch(
@@ -921,6 +936,7 @@ export class MobileStore {
       deleted?: boolean;
     }>,
     localValues?: Record<string, unknown>,
+    expectedWorkspaceId?: string | null,
   ): Promise<void> {
     if (!Array.isArray(items)) throw new Error("Mobile save batches must be an array.");
     if (items.length > 25) throw new Error("Mobile save batches can contain at most 25 items.");
@@ -969,6 +985,7 @@ export class MobileStore {
     const timestamp = dateNow(this.now);
 
     await this.transact((state) => {
+      assertWorkspace(state, expectedWorkspaceId);
       const workspaceId = state.activeWorkspaceId;
       if (!workspaceId) throw new Error("Pair Centre before saving mobile study data.");
       updateWorkspace(state, workspaceId, (workspace) => {
@@ -1006,7 +1023,7 @@ export class MobileStore {
     });
   }
 
-  async saveLocal(key: string, value: unknown): Promise<void> {
+  async saveLocal(key: string, value: unknown, expectedWorkspaceId?: string | null): Promise<void> {
     await this.ensureOpen();
     if (!key || key.length > 200) throw new Error("Local mobile value keys must contain 1 to 200 characters.");
     const serialized = JSON.stringify(value);
@@ -1016,6 +1033,7 @@ export class MobileStore {
       throw new Error("Local mobile values are larger than the cloud record limit.");
     }
     await this.transact((state) => {
+      assertWorkspace(state, expectedWorkspaceId);
       const workspaceId = state.activeWorkspaceId;
       if (!workspaceId) throw new Error("Pair Centre before saving workspace-scoped mobile values.");
       updateWorkspace(state, workspaceId, (workspace) => {
@@ -1028,25 +1046,32 @@ export class MobileStore {
     });
   }
 
-  async getLocal(key: string): Promise<unknown> {
+  async getLocal(key: string, expectedWorkspaceId?: string | null): Promise<unknown> {
     await this.ensureOpen();
     await this.refreshFromPersistence(false);
+    assertWorkspace(this.persisted, expectedWorkspaceId);
     const workspace = activeWorkspace(this.persisted);
     if (!workspace) throw new Error("Pair Centre before reading workspace-scoped mobile values.");
     return clone(workspace.localValues[slot("v:", key)]);
   }
 
-  async request(path: string, init: RequestInit = {}): Promise<unknown> {
+  async request(path: string, init: RequestInit = {}, expectedWorkspaceId?: string | null): Promise<unknown> {
     await this.ensureOpen();
     const context = await this.captureContext();
+    if(expectedWorkspaceId !== undefined && context.workspaceId !== expectedWorkspaceId) throw new SessionChangedError();
     return this.authenticatedRequest(path, init, context, false);
   }
 
-  sync(): Promise<void> {
-    if (this.syncPromise) return this.syncPromise;
-    const operation = this.syncOnce().finally(() => {
+  sync(expectedWorkspaceId?: string | null): Promise<void> {
+    if(expectedWorkspaceId !== undefined && this.snapshot.workspaceId !== expectedWorkspaceId) return Promise.reject(new SessionChangedError());
+    if (this.syncPromise) {
+      return this.syncGeneration === this.generation ? this.syncPromise : this.syncPromise.then(()=>this.sync(expectedWorkspaceId));
+    }
+    this.syncGeneration = this.generation;
+    const operation = this.syncOnce(expectedWorkspaceId).finally(() => {
       this.syncing = false;
       this.syncPromise = null;
+      this.syncGeneration = null;
       this.publish();
     });
     this.syncing = true;
@@ -1055,11 +1080,12 @@ export class MobileStore {
     return operation;
   }
 
-  private async syncOnce(): Promise<void> {
+  private async syncOnce(expectedWorkspaceId?: string | null): Promise<void> {
     await this.ensureOpen();
     let context: RequestContext;
     try {
       context = await this.captureContext();
+      if(expectedWorkspaceId !== undefined && context.workspaceId !== expectedWorkspaceId) throw new SessionChangedError();
     } catch (error) {
       if (error instanceof MobileRequestError && error.status === 401) return;
       throw error;
@@ -1090,10 +1116,11 @@ export class MobileStore {
     }
   }
 
-  async resolveConflict(key: string, choice: "local" | "cloud"): Promise<void> {
+  async resolveConflict(key: string, choice: "local" | "cloud", expectedWorkspaceId?: string | null): Promise<void> {
     await this.ensureOpen();
     const timestamp = dateNow(this.now);
     await this.transact((state) => {
+      assertWorkspace(state, expectedWorkspaceId);
       const workspaceId = state.activeWorkspaceId;
       const workspace = activeWorkspace(state);
       if (!workspaceId || !workspace) throw new Error("Pair Centre before resolving mobile conflicts.");
@@ -1472,6 +1499,7 @@ export class MobileStore {
               ? "error"
               : "ready";
     this.snapshot = {
+      workspaceId: this.persisted.activeWorkspaceId,
       session,
       entities: clone(sortedEntities(workspace)),
       pending: workspace?.outbox.length ?? 0,

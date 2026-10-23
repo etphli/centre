@@ -741,3 +741,47 @@ test("a late pairing response cannot replace authority established in another ta
   assert.equal(persisted.activeWorkspaceId, currentSession.workspaceId);
   assert.equal(persisted.workspaces[`w:${currentSession.workspaceId}`]?.session?.token, currentSession.token);
 });
+
+test('an old screen cannot write or request under a newly paired workspace', async t => {
+  const cloud=await worker(t),{store,persistence}=await pairStore(cloud);
+  const first=store.getSnapshot().workspaceId;
+  assert.ok(first);
+  await store.pair(await invitation(cloud,'bob'));
+  const second=store.getSnapshot().workspaceId;
+  assert.notEqual(first,second);
+  const before=await persistence.read();
+  await assert.rejects(store.save('topic','stale-topic',topic('stale-topic','Private Alice topic'),false,first),/account changed/);
+  await assert.rejects(store.saveBatch([{kind:'topic',id:'stale-batch',data:topic('stale-batch','Private')}],{'private-journal':'Alice'},first),/account changed/);
+  await assert.rejects(store.saveLocal('private','Alice',first),/account changed/);
+  await assert.rejects(store.getLocal('private',first),/account changed/);
+  await assert.rejects(store.request('/v1/bootstrap',{},first),/account changed/);
+  await assert.rejects(store.sync(first),/account changed/);
+  await assert.rejects(store.disconnect(first),/account changed/);
+  const after=await persistence.read();
+  assert.equal(after.activeWorkspaceId,second);
+  assert.deepEqual(after.workspaces,before.workspaces);
+});
+
+test('a new workspace waits for the old sync then performs its own initial pull', async t=>{
+  const cloud=await worker(t),persistence=new MemoryPersistence();
+  const bob=z.object({token:z.string()}).parse(await cloud.login('bob'));
+  assert.equal((await cloud.call('/v1/records','POST',{mutationId:randomUUID(),kind:'topic',id:'bob-topic',schemaVersion:1,expectedVersion:0,deleted:false,data:topic('bob-topic','Bob topic')},bob.token)).status,200);
+  let aliceToken='',block=false,unblock=()=>{},started=()=>{};
+  const held=new Promise<void>(resolve=>{unblock=resolve;}),entered=new Promise<void>(resolve=>{started=resolve;});
+  const requests:string[]=[];
+  const fetcher:typeof fetch=async(input,init)=>{
+    const request=new Request(input,init);
+    if(new URL(request.url).pathname==='/v1/changes'){
+      const alice=request.headers.get('Authorization')===`Bearer ${aliceToken}`;
+      requests.push(alice?'A':'B');
+      if(alice&&block){started();await held;}
+    }
+    return cloud.fetch(request);
+  };
+  const store=makeStore(cloud,persistence,fetcher);await store.open();await store.pair(await invitation(cloud));const session=store.getSnapshot().session;assert.ok(session);aliceToken=session.token;
+  const a=store.getSnapshot().workspaceId;block=true;const old=store.sync(a);await entered;
+  await store.disconnect(a);await store.pair(await invitation(cloud,'bob'));
+  const next=store.sync(store.getSnapshot().workspaceId);unblock();await Promise.all([old,next]);
+  assert.deepEqual(requests,['A','B']);
+  assert.ok(store.getSnapshot().entities.some(item=>item.id==='bob-topic'));
+});

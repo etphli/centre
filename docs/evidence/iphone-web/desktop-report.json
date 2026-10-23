@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "actual Electron Settings offers Home Screen installation",
+      "passed": true
+    },
+    {
+      "name": "signed-out account pairing stays disabled",
+      "passed": true
+    },
+    {
+      "name": "public installation QR is available without sign-in",
+      "passed": true
+    },
+    {
+      "name": "desktop settings have no body overflow",
+      "passed": true
+    },
+    {
+      "name": "desktop 960px layout has no body overflow",
+      "passed": true
+    },
+    {
+      "name": "account controls can scroll above the composer",
+      "passed": true
+    },
+    {
+      "name": "no uncaught renderer exceptions",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "scope": "Actual production Electron renderer/service in isolated profile. Public QR only; no real account paired. Theme and text size changed through actual Settings."
+}

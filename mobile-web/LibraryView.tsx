@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { BookOpen, ChevronRight, Search } from 'lucide-react';
 import { library, dateLabel } from './domain';
@@ -13,7 +13,7 @@ const gradeInput=z.object({id:z.uuid(),resourceId:z.string(),draftId:z.uuid(),ex
 const gradeJournal=gradeInput.extend({terminal:z.boolean().default(false)});
 const gradeReply=z.object({status:z.string(),attempt:attemptSchema.optional()});
 export function LibraryView({state,model}:{state:MobileState;model:MobileModel}) {
-  const data=library(state.entities),[selected,setSelected]=useState<string|null>(null),[search,setSearch]=useState('');
+  const data=useMemo(()=>library(state.entities),[state.entities]),[selected,setSelected]=useState<string|null>(null),[search,setSearch]=useState('');
   const resource=data.resources.find(item=>item.id===selected);
   if(resource)return <ResourceView key={resource.id} resource={resource} state={state} model={model} onBack={()=>setSelected(null)}/>;
   const results=data.resources.filter(item=>`${item.title} ${item.kind} ${item.kind==='diagram'?'':item.content}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
@@ -22,7 +22,7 @@ export function LibraryView({state,model}:{state:MobileState;model:MobileModel})
   </>;
 }
 function ResourceView({resource,state,model,onBack}:{resource:Resource;state:MobileState;model:MobileModel;onBack:()=>void}) {
-  const action=useAction(),data=library(state.entities);
+  const action=useAction(),data=useMemo(()=>library(state.entities),[state.entities]);
   return <><Back onClick={()=>void action.run(async()=>{await model.serial(async()=>undefined);onBack();})}>Resources</Back><div className="page-title"><div><p className="muted kind">{resource.kind}</p><h1>{resource.title}</h1></div></div>
     {resource.questions.length?<Quiz resource={resource} state={state} model={model}/>:resource.kind==='diagram'?<SafeDocument resource={resource} state={state} model={model}/>:<Markdown text={resource.content}/>}
     {!resource.questions.length&&resource.kind!=='diagram'?<button className="button" disabled={action.busy} onClick={()=>void action.run(()=>model.store.save('resource',resource.id,{...resource,connectedFile:undefined,completedAt:resource.completedAt?null:new Date().toISOString(),updatedAt:new Date().toISOString()}))}>{resource.completedAt?'Mark as unfinished':'Mark done'}</button>:null}
@@ -31,7 +31,7 @@ function ResourceView({resource,state,model,onBack}:{resource:Resource;state:Mob
   </>;
 }
 function Quiz({resource,state,model}:{resource:Resource;state:MobileState;model:MobileModel}) {
-  const data=library(state.entities),draft=data.drafts.find(item=>item.resourceId===resource.id);
+  const data=useMemo(()=>library(state.entities),[state.entities]),draft=data.drafts.find(item=>item.resourceId===resource.id);
   const [answers,setAnswers]=useState<Record<string,string>>(()=>draft?.answers??{}),[saving,setSaving]=useState(0),[saveError,setSaveError]=useState<string|null>(null);
   const [journal,setJournal]=useState<z.infer<typeof gradeJournal>|null>(null),[journalLoaded,setJournalLoaded]=useState(false),[result,setResult]=useState<z.infer<typeof attemptSchema>|null>(null);
   const action=useAction();
@@ -54,7 +54,7 @@ function Quiz({resource,state,model}:{resource:Resource;state:MobileState;model:
     try {
       try{reply=await model.store.request(`/v1/ai/grades/${input.id}`);}catch(error){if(!(error instanceof MobileRequestError)||error.status!==404)throw error;reply=await model.store.request('/v1/ai/grades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(gradeInput.parse(input))});}
     } catch(error) {
-      if(error instanceof MobileRequestError && [409,422].includes(error.status)){const failed={...input,terminal:true};await model.store.saveLocal(key,failed);setJournal(failed);}
+      if(error instanceof MobileRequestError && [400,409,413,415,422].includes(error.status)){const failed={...input,terminal:true};await model.store.saveLocal(key,failed);setJournal(failed);throw new Error('Marking could not finish. Start over to try a new draft. Your saved attempts will stay.');}
       throw error;
     }
     const grade=gradeReply.parse(reply);
@@ -63,10 +63,10 @@ function Quiz({resource,state,model}:{resource:Resource;state:MobileState;model:
   }
   return <section className="quiz"><div className="quiz-status"><span>{saving?'Saving answers…':saveError?'Answers need saving':draft?'Answers saved on this device':'Your answers save as you type'}</span><span>{Object.values(answers).filter(value=>value.trim()).length} of {resource.questions.length} answered</span></div>
     <ErrorLine error={saveError}/>{saveError?<button className="button" onClick={()=>{for(const [id,value]of Object.entries(answers))answer(id,value);}}>Retry saving answers</button>:null}
-    {journal?<p className="notice">{journal.terminal?'This marking request could not finish. Your answers are still saved. You can start a new draft.':'A marking request is saved. Check its result before changing your answers.'}</p>:null}
+    {journal&&!journal.terminal?<p className="notice">A marking request is saved. Check its result before changing your answers.</p>:null}
     {resource.questions.map((question,index)=><section className="question" key={question.id}><p className="detail">Question {index+1} · {question.marks} {question.marks===1?'mark':'marks'}</p><Markdown text={question.prompt}/>{question.responseType==='multiple_choice'?<fieldset disabled={!!journal||action.busy}><legend className="sr-only">Answer for question {index+1}</legend>{question.choices.map(choice=><label className="choice" key={choice}><input type="radio" name={question.id} checked={answers[question.id]===choice} onChange={()=>answer(question.id,choice)}/><span>{choice}</span></label>)}</fieldset>:<label><span className="sr-only">Answer for question {index+1}</span><textarea rows={question.responseType==='long_response'?6:3} maxLength={4000} disabled={!!journal||action.busy} value={answers[question.id]??''} onChange={event=>answer(question.id,event.target.value)} placeholder="Your answer"/></label>}</section>)}
-    <p className="detail">Written answers use Centre Cloud AI when you choose Mark answers. Marking needs the internet and may have daily limits.</p><button className="button primary" disabled={action.busy||saving>0||!journalLoaded||!!saveError||journal?.terminal} onClick={()=>void action.run(mark)}>{action.busy?'Checking…':journal?'Check result':'Mark answers'}</button><ErrorLine error={action.error}/>
-    {result?<div className="result" role="status"><h2>{result.result.score} of {result.result.total} marks</h2><p>Your attempt is saved. Open Saved attempts below to review feedback.</p></div>:null}
-    {((draft&&!journal)||journal?.terminal)?<button className="text-button danger" disabled={saving>0||action.busy} onClick={()=>{if(window.confirm('Start a new attempt? Your unfinished answers will be removed. Saved attempts stay.'))void action.run(async()=>{await model.serial(async()=>{const current=library(model.store.getSnapshot().entities).drafts.find(item=>item.id===draft?.id);if(current)await model.store.save('practice.draft',current.id,quizDraftSchema.parse({...current,revision:current.revision+1,deletedAt:new Date().toISOString(),updatedAt:new Date().toISOString()}));});await model.store.saveLocal(key,null);setJournal(null);setAnswers({});setResult(null);await model.draft(resource);});}}>Start over</button>:null}
+    <p className="detail">Written answers use Centre Cloud AI when you choose Mark answers. Marking needs the internet and may have daily limits.</p>{!journal?.terminal?<button className="button primary" disabled={action.busy||saving>0||!journalLoaded||!!saveError} onClick={()=>void action.run(mark)}>{action.busy?'Checking…':journal?'Check result':'Mark answers'}</button>:null}<ErrorLine error={action.error??(journal?.terminal?'Marking could not finish. Start over to try a new draft. Your saved attempts will stay.':null)}/>
+    {result?<div className="result" role="status"><h2>{result.result.score} of {result.result.total} marks</h2><p>Your attempt is saved. Review answers and feedback in Quiz history below.</p></div>:null}
+    {((draft&&!journal)||journal?.terminal)?<button className="button danger" disabled={saving>0||action.busy} onClick={()=>{if(window.confirm('Start a new attempt? Your unfinished answers will be removed. Saved attempts stay.'))void action.run(async()=>{await model.serial(async()=>{const current=library(model.store.getSnapshot().entities).drafts.find(item=>item.id===draft?.id);if(current)await model.store.save('practice.draft',current.id,quizDraftSchema.parse({...current,revision:current.revision+1,deletedAt:new Date().toISOString(),updatedAt:new Date().toISOString()}));});await model.store.saveLocal(key,null);setJournal(null);setAnswers({});setResult(null);await model.draft(resource);});}}>Start over</button>:null}
   </section>;
 }
