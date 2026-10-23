@@ -63,7 +63,7 @@ export class StudyLogService {
         const existing = log.sessions.find(session => session.id === input.id);
         if (existing) {
           const same = ['subjectId', 'taskId', 'title', 'notes', 'timeZone'].every(key => Reflect.get(existing, key) === Reflect.get(input, key));
-          if (!existing.deletedAt && same && existing.source === (timer ? 'timer' : 'manual') && (timer || ('segments' in input && JSON.stringify(existing.segments) === JSON.stringify(input.segments)))) return;
+          if (!existing.deletedAt && same && existing.source === (timer ? 'timer' : 'manual') && (timer ? existing.targetMinutes === Reflect.get(input, 'targetMinutes') : ('segments' in input && JSON.stringify(existing.segments) === JSON.stringify(input.segments)))) return;
           throw new HttpError(409, 'This study ID is already in use.');
         }
         if (timer && log.sessions.some(session => !session.deletedAt && session.state.kind !== 'completed')) throw new HttpError(409, 'Stop the current timer before starting another.');
@@ -92,6 +92,7 @@ export class StudyLogService {
         const session = requireFound(log.sessions.find(session => session.id === timerMatch[1] && !session.deletedAt && session.source === 'timer'), 'Timer');
         // A safety pause discovered by this command wins over the caller's stale running revision.
         const original = this.store.state.studyLog.sessions.find(item => item.id === session.id);
+        if (session.state.kind === 'completed' && original?.state.kind === 'running' && original.revision === input.expectedRevision) return;
         const safetyPaused = session.state.kind === 'paused' && original?.state.kind === 'running' && original.revision === input.expectedRevision;
         if (safetyPaused && action !== 'stop') return;
         if (!safetyPaused) this.revision(session, input.expectedRevision);

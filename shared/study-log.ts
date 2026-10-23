@@ -5,6 +5,10 @@ export const HEARTBEAT_MS = 15_000;
 export const LEASE_MS = 45_000;
 export const IDLE_MS = 10 * 60_000;
 export const CHECK_IN_MS = 60 * 60_000;
+export const DEFAULT_TIMER_MINUTES = 30;
+export const TIMER_STEP_MINUTES = 5;
+export const MAX_TIMER_MINUTES = 1440;
+export const timerMinutesSchema = z.number().int().min(TIMER_STEP_MINUTES).max(MAX_TIMER_MINUTES).multipleOf(TIMER_STEP_MINUTES);
 const instant = z.iso.datetime().refine(value => Number.isFinite(Date.parse(value)), 'Use a valid UTC instant.');
 export const studyTimeZoneSchema = z.string().max(100).refine(value => {
   try { Temporal.Now.zonedDateTimeISO(value); return true; } catch { return false; }
@@ -16,6 +20,7 @@ export const studyTagsSchema = z.object({ subjectId: z.string().min(1).max(200).
 const recordShape = { schemaVersion: z.literal(1), id: z.uuid(), revision: z.number().int().positive(), createdAt: instant, updatedAt: instant, deletedAt: instant.nullable() };
 export const studySessionSchema = studyTagsSchema.extend({
   ...recordShape, source: z.enum(['timer', 'manual']), segments: studySegmentsSchema,
+  targetMinutes: timerMinutesSchema.optional(),
   state: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('running'), since: instant, checkpointAt: instant, lastActivityAt: instant, confirmedAt: instant }).strict(),
     z.object({ kind: z.literal('paused'), reason: z.enum(['user', 'idle', 'recovery', 'check-in', 'clock']) }).strict(),
@@ -23,6 +28,7 @@ export const studySessionSchema = studyTagsSchema.extend({
   ]),
 }).strict().superRefine((session, ctx) => {
   const state = session.state;
+  if (session.source !== 'timer' && session.targetMinutes !== undefined) ctx.addIssue({ code: 'custom', message: 'Only timers have a countdown duration.' });
   if (session.source === 'manual' && (state.kind !== 'completed' || session.segments.length === 0)) ctx.addIssue({ code: 'custom', message: 'Manual study needs completed intervals.' });
   if (session.deletedAt && state.kind !== 'completed') ctx.addIssue({ code: 'custom', message: 'Finish a timer before deleting it.' });
   if (state.kind === 'running') {
@@ -40,7 +46,7 @@ export type StudyLog = z.infer<typeof studyLogSchema>;
 export const emptyStudyLog = (): StudyLog => ({ schemaVersion: 1, sessions: [], goals: [] });
 export const studyCreateSchema = studyTagsSchema.extend({ id: z.uuid(), segments: studySegmentsSchema.nonempty() }).strict();
 export const studyEditSchema = studyCreateSchema.omit({ id: true }).extend({ expectedRevision: z.number().int().positive() }).strict();
-export const timerStartSchema = studyTagsSchema.extend({ id: z.uuid() }).strict();
+export const timerStartSchema = studyTagsSchema.extend({ id: z.uuid(), targetMinutes: timerMinutesSchema.optional() }).strict();
 export const studyRevisionSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
 export const timerCommandSchema = studyRevisionSchema.extend({ activity: z.boolean().optional() }).strict();
 export const studyGoalInputSchema = weeklyStudyGoalSchema.pick({ id: true, weekStart: true, timeZone: true, targetMinutes: true }).extend({ expectedRevision: z.number().int().positive().optional() }).strict();
@@ -48,7 +54,7 @@ export type TimerAction = 'heartbeat' | 'pause' | 'resume' | 'stop' | 'confirm';
 export const timerActionSchema = z.enum(['heartbeat', 'pause', 'resume', 'stop', 'confirm']);
 const iso = (ms: number) => new Date(ms).toISOString();
 
-export function runningLimit(session: StudySession, now: number): { end: number; reason: 'idle' | 'check-in' | 'recovery' | 'clock' | null } {
+export function runningLimit(session: StudySession, now: number): { end: number; reason: 'idle' | 'check-in' | 'recovery' | 'clock' | 'finished' | null } {
   const state = session.state;
   if (state.kind !== 'running') return { end: now, reason: null };
   const checkpoint = Date.parse(state.checkpointAt);
@@ -56,8 +62,9 @@ export function runningLimit(session: StudySession, now: number): { end: number;
   const idle = Date.parse(state.lastActivityAt) + IDLE_MS;
   const checkIn = Date.parse(state.confirmedAt) + CHECK_IN_MS;
   const lease = now - checkpoint > LEASE_MS;
-  const end = Math.min(now, idle, checkIn, lease ? checkpoint : now);
-  return { end, reason: lease && end === checkpoint ? 'recovery' : end === idle ? 'idle' : end === checkIn ? 'check-in' : null };
+  const deadline = session.targetMinutes === undefined ? Infinity : Date.parse(state.since) + Math.max(0, session.targetMinutes * 60000 - durationMs(session.segments));
+  const end = Math.min(now, idle, checkIn, lease ? checkpoint : now, deadline);
+  return { end, reason: lease && end === checkpoint ? 'recovery' : end === deadline ? 'finished' : end === idle ? 'idle' : end === checkIn ? 'check-in' : null };
 }
 export function closeRunning(session: StudySession, end: number, state: StudySession['state']): StudySession {
   if (session.state.kind !== 'running') return { ...session, state };
@@ -68,7 +75,10 @@ export function recoverStudySession(session: StudySession, now: number, restart 
   if (session.state.kind !== 'running') return session;
   const limit = restart ? { end: Date.parse(session.state.checkpointAt), reason: 'recovery' as const } : runningLimit(session, now);
   if (!limit.reason) return session;
-  return { ...closeRunning(session, limit.end, { kind: 'paused', reason: limit.reason }), revision: session.revision + 1, updatedAt: iso(now) };
+  return { ...closeRunning(session, limit.end, limit.reason === 'finished' ? { kind: 'completed' } : { kind: 'paused', reason: limit.reason }), revision: session.revision + 1, updatedAt: iso(now) };
+}
+export function timerRemainingMs(session: StudySession, now: number): number | null {
+  return session.targetMinutes === undefined ? null : Math.max(0, session.targetMinutes * 60000 - durationMs(sessionSegments(session, now)));
 }
 export function sessionSegments(session: StudySession, now: number): StudySegment[] {
   if (session.deletedAt) return [];

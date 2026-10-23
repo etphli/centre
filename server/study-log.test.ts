@@ -24,6 +24,44 @@ async function fixture() {
   return { directory, store, service, call, setNow: (value: number) => { now = value; }, advance: (ms: number) => { now += ms; }, now: () => now, cleanup: () => rm(directory, { recursive: true, force: true }) };
 }
 
+test('countdown completes at the chosen duration, excluding pauses, and persists its target', async () => {
+  const f = await fixture();
+  try {
+    const id = randomUUID();
+    let log = await f.call('/timer/start', { id, ...tags, targetMinutes: 5 });
+    const command = async (action: string) => { log = await f.call(`/timer/${id}/${action}`, { expectedRevision: log.sessions[0].revision, activity: true }); };
+    for (let i = 0; i < 10; i++) { f.advance(15000); await command('heartbeat'); }
+    await command('pause');
+    f.advance(3600000); await command('resume');
+    for (let i = 0; i < 9; i++) { f.advance(15000); await command('heartbeat'); }
+    f.advance(20000); await command('heartbeat');
+    assert.equal(log.sessions[0].state.kind, 'completed');
+    assert.equal(durationMs(log.sessions[0].segments), 300000);
+    const saved = (await Store.open(f.directory)).state.studyLog.sessions[0];
+    assert.equal(Reflect.get(saved, 'targetMinutes'), 5);
+    assert.equal(saved.state.kind, 'completed');
+    await assert.rejects(f.call('/timer/start', { id, ...tags, targetMinutes: 10 }), /already in use/);
+  } finally { await f.cleanup(); }
+});
+
+test('countdown rejects invalid increments and recovery excludes unattended time', async () => {
+  const f = await fixture();
+  try {
+    for (const targetMinutes of [0, 1, 7, 30.5, 1445]) {
+      await assert.rejects(f.call('/timer/start', { id: randomUUID(), ...tags, targetMinutes }));
+    }
+    const id = randomUUID();
+    let log = await f.call('/timer/start', { id, ...tags, targetMinutes: 30 });
+    f.advance(15000);
+    log = await f.call(`/timer/${id}/heartbeat`, { expectedRevision: log.sessions[0].revision, activity: true });
+    f.advance(3600000);
+    log = await f.service.recover(true);
+    assert.deepEqual(log.sessions[0].state, { kind: 'paused', reason: 'recovery' });
+    assert.equal(durationMs(log.sessions[0].segments), 15000);
+    assert.equal(Reflect.get(log.sessions[0], 'targetMinutes'), 30);
+  } finally { await f.cleanup(); }
+});
+
 test('timer persists pause/resume intervals, excludes paused and restart time, and stops once', async () => {
   const f = await fixture();
   try {
