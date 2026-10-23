@@ -310,6 +310,55 @@ final class CentreUITests: XCTestCase {
         capture("16-offline-message-restored-no-fixture-inference")
     }
 
+    func testComposerDraftSurvivesSwitchingAppTabsAndReturning() {
+        let chatId="07cc79cc-af72-4768-b211-94b365c50a64",text=String(repeating:"x",count:500)
+        tab("Chat");tap("chat.row.\(chatId)")
+        let composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText(text)
+        tab("Resources");tab("Chat")
+        XCTAssertEqual(composer.value as? String,text,"Returning to the Chat tab after rapid input must restore the latest unsent text.")
+        capture("24-composer-draft-after-tab-return")
+    }
+
+    func testComposerDraftsStayWithTheirChatsAcrossRestartAndSendClearsOnlyItsOwn() {
+        let chatId="07cc79cc-af72-4768-b211-94b365c50a64"
+        let firstText="Draft belongs to the existing chat."
+        let secondText="Draft belongs to the new chat."
+        tab("Chat");tap("chat.row.\(chatId)")
+        var composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText(firstText)
+        app.navigationBars.buttons.element(boundBy:0).tap()
+
+        tap("chat.new")
+        composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText(secondText)
+        app.navigationBars.buttons.element(boundBy:0).tap()
+        restart();tab("Chat")
+
+        let unsent=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","chat.unsent.")).firstMatch
+        XCTAssertTrue(unsent.waitForExistence(timeout:5),"A new-chat prompt must remain reopenable after restart.")
+        let secondChatId=String(unsent.identifier.dropFirst("chat.unsent.".count))
+        unsent.tap()
+        composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
+        XCTAssertEqual(composer.value as? String,secondText,"A local new-chat draft must keep its own identity.")
+        app.navigationBars.buttons.element(boundBy:0).tap()
+        tap("chat.row.\(chatId)")
+        composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
+        XCTAssertEqual(composer.value as? String,firstText,"The existing chat must restore its own prompt, not the new chat's.")
+
+        tap("chat.send");tap("chat.allowAI")
+        waitText(firstText)
+        let cleared=expectation(for:NSPredicate(format:"value == %@ OR value == %@","","Message Centre"),evaluatedWith:composer)
+        wait(for:[cleared],timeout:5)
+        app.navigationBars.buttons.element(boundBy:0).tap()
+        let stillUnsent=app.buttons["chat.unsent.\(secondChatId)"]
+        XCTAssertTrue(stillUnsent.waitForExistence(timeout:5),"Sending in one chat must preserve other chats' drafts.")
+        stillUnsent.tap()
+        composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
+        XCTAssertEqual(composer.value as? String,secondText)
+        capture("25-composer-drafts-isolated-and-send-clears-one")
+    }
+
     func testCachedAttachmentOpensWithoutDesktopOrNetwork() {
         tab("Chat")
         tap("chat.row.07cc79cc-af72-4768-b211-94b365c50a64")

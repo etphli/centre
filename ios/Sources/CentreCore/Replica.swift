@@ -35,6 +35,42 @@ public struct ReplicaState: Codable, Sendable {
     public var conflicts: [SyncConflict]
     public var ai: [PendingAI]
     public var connector: JSONValue
+    public var composerDrafts: [String: String]
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, workspace, cursor, shadow, outbox, conflicts, ai, connector, composerDrafts
+    }
+
+    public init(schemaVersion: Int, workspace: WorkspaceKey, cursor: String, shadow: [String: CloudRecord], outbox: [QueuedMutation], conflicts: [SyncConflict], ai: [PendingAI], connector: JSONValue, composerDrafts: [String: String] = [:]) {
+        self.schemaVersion=schemaVersion;self.workspace=workspace;self.cursor=cursor;self.shadow=shadow;self.outbox=outbox;self.conflicts=conflicts;self.ai=ai;self.connector=connector;self.composerDrafts=composerDrafts
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values=try decoder.container(keyedBy:CodingKeys.self)
+        schemaVersion=try values.decode(Int.self,forKey:.schemaVersion)
+        workspace=try values.decode(WorkspaceKey.self,forKey:.workspace)
+        cursor=try values.decode(String.self,forKey:.cursor)
+        shadow=try values.decode([String:CloudRecord].self,forKey:.shadow)
+        outbox=try values.decode([QueuedMutation].self,forKey:.outbox)
+        conflicts=try values.decode([SyncConflict].self,forKey:.conflicts)
+        ai=try values.decode([PendingAI].self,forKey:.ai)
+        connector=try values.decode(JSONValue.self,forKey:.connector)
+        composerDrafts=try values.decodeIfPresent([String:String].self,forKey:.composerDrafts) ?? [:]
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var values=encoder.container(keyedBy:CodingKeys.self)
+        try values.encode(schemaVersion,forKey:.schemaVersion)
+        try values.encode(workspace,forKey:.workspace)
+        try values.encode(cursor,forKey:.cursor)
+        try values.encode(shadow,forKey:.shadow)
+        try values.encode(outbox,forKey:.outbox)
+        try values.encode(conflicts,forKey:.conflicts)
+        try values.encode(ai,forKey:.ai)
+        try values.encode(connector,forKey:.connector)
+        try values.encode(composerDrafts,forKey:.composerDrafts)
+    }
+
     public var records: [CloudRecord] {
         var result = shadow
         for queued in outbox {
@@ -73,7 +109,7 @@ public actor Replica {
         }
     }
     public func snapshot() -> ReplicaState { state }
-    public func stage(_ changes: [LocalChange], ai: PendingAI? = nil) throws {
+    public func stage(_ changes: [LocalChange], ai: PendingAI? = nil, clearingComposerDraft: (chatId: String, text: String)? = nil) throws {
         try requireActive()
         var next = state
         for change in changes {
@@ -91,6 +127,18 @@ public actor Replica {
             }
         }
         if let ai, !next.ai.contains(where:{$0.id == ai.id}) { next.ai.append(ai) }
+        if let clearingComposerDraft, next.composerDrafts[clearingComposerDraft.chatId] == clearingComposerDraft.text {
+            next.composerDrafts.removeValue(forKey:clearingComposerDraft.chatId)
+        }
+        try persist(next)
+    }
+    public func setComposerDraft(_ text: String?, forChatId chatId: String) throws {
+        try requireActive()
+        guard !chatId.isEmpty, chatId.utf16.count <= 200 else { throw CentreError.invalid("Invalid chat identity for a prompt draft.") }
+        if let text, text.utf16.count > 100_000 { throw CentreError.invalid("The unsent prompt is too long to save on this iPhone.") }
+        var next=state
+        if let text, !text.isEmpty { next.composerDrafts[chatId]=text }
+        else { next.composerDrafts.removeValue(forKey:chatId) }
         try persist(next)
     }
     public func cacheConnector(_ connector: JSONValue) throws { try requireActive();var next=state;next.connector=connector;try persist(next) }
