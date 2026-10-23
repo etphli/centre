@@ -10,7 +10,7 @@ import { manualSession } from '../mobile-web/domain';
 // browser storage, Worker routing, CAS, grading and persistence are the actual implementations.
 const root=resolve(import.meta.dirname,'..'),port=Number(process.env.CENTRE_IPHONE_FIXTURE_PORT??5328);
 const fixture=await createCloudTestHarness({extension:handleCloudExtension});
-let inferences=0,lostAck=false,lostGrade=false,lostChat=false,failGrade=false;
+let inferences=0,lostAck=false,lostGrade=false,lostChat=false,failGrade=false,shellRevision=0;
 fixture.env.AI={async run(){inferences++;if(failGrade)return {response:'not valid grade JSON'};return {response:'A local test reply: break the problem into one small step, then check your understanding.'};}};
 const account=await fixture.login('alice'),other=await fixture.login('bob');
 const token=String(account.token),stamp=new Date().toISOString(),ids={note:crypto.randomUUID(),quiz:crypto.randomUUID(),checklist:crypto.randomUUID(),review:crypto.randomUUID(),calendar:crypto.randomUUID(),written:crypto.randomUUID()};
@@ -31,6 +31,7 @@ const server=createServer(async(req,res)=>{try{
  if(url.pathname==='/_fixture/invitation'){const who=url.searchParams.get('workspace')==='bob'?other:account;const value=await fixture.call('/v1/pairings','POST',{},String(who.token));res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value.value));return;}
  if(url.pathname==='/_fixture/state'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({inferences,attacks,ids,rows:(await fixture.call('/v1/changes?cursor=0&limit=500','GET',undefined,token)).value.records}));return;}
  if(url.pathname==='/_fixture/lose-next-record'){lostAck=true;res.end('ok');return;}
+ if(url.pathname==='/_fixture/upgrade-shell'&&req.method==='POST'){shellRevision++;res.end('ok');return;}
  if(url.pathname==='/_fixture/lose-next-grade'){lostGrade=true;res.end('ok');return;}
  if(url.pathname==='/_fixture/lose-next-chat'){lostChat=true;res.end('ok');return;}
  if(url.pathname==='/_fixture/fail-grading'){failGrade=true;res.end('ok');return;}
@@ -43,7 +44,9 @@ const server=createServer(async(req,res)=>{try{
  if(url.pathname==='/v1/ai/grades'&&req.method==='POST'&&lostGrade){lostGrade=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:{code:'fixture_ack_lost',message:'The committed result could not be delivered.'}}));return;}
  if(url.pathname==='/v1/ai/runs'&&req.method==='POST'&&lostChat){lostChat=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:{code:'fixture_ack_lost',message:'The committed result could not be delivered.'}}));return;}
  if(url.pathname==='/v1/records'&&req.method==='POST'&&lostAck){lostAck=false;res.destroy();return;}
- res.statusCode=response.status;response.headers.forEach((value,name)=>res.setHeader(name,value));res.end(Buffer.from(await response.arrayBuffer()));
+ res.statusCode=response.status;response.headers.forEach((value,name)=>res.setHeader(name,value));
+ if(url.pathname==='/iphone/sw.js'){res.end(await response.text()+`\n// Disposable fixture update ${shellRevision}\n`);return;}
+ res.end(Buffer.from(await response.arrayBuffer()));
 }catch(error){res.statusCode=500;res.end(error instanceof Error?error.stack:String(error));}});
 await new Promise<void>(done=>server.listen(port,'127.0.0.1',done));
 await mkdir(resolve(root,'.runtime/iphone-fixture'),{recursive:true});

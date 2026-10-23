@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play, Plus, Square } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play, Plus, Square, BookOpen, ClipboardCheck } from 'lucide-react';
 import { durationMs, sessionSegments, shiftStudyDate, weeklyStudy, weekStartAt, weeklyStudyGoalSchema, timerRemainingMs } from '../shared/study-log';
 import { dateLabel, library, localDate, manualSession, timeLabel, clockLabel, type Subject } from './domain';
 import type { MobileState } from './data/store';
 import type { MobileModel } from './model';
+import { latestUnfinishedQuiz } from './resume';
 import { AttemptHistory } from './AttemptHistory';
 import { ErrorLine, useAction, Empty } from './ui';
 
-export function LogView({state,model,subjects}:{state:MobileState;model:MobileModel;subjects:Subject[]}) {
+export function LogView({state,model,subjects,onResume,onReview}:{state:MobileState;model:MobileModel;subjects:Subject[];onResume:(id:string)=>void;onReview:()=>void}) {
   const data=useMemo(()=>library(state.entities),[state.entities]),zone=data.preferences.timeZone;
   const [now,setNow]=useState(Date.now()),[week,setWeek]=useState(()=>weekStartAt(Date.now(),zone)),[adding,setAdding]=useState(false),[aim,setAim]=useState(false);
   const action=useAction();
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
   const summary=weeklyStudy(data.sessions,week,zone,now),goal=data.goals.find(item=>item.weekStart===week&&item.timeZone===zone);
+  const unfinished=latestUnfinishedQuiz(data.resources,data.drafts);
+  const due=data.reviews.filter(item=>!item.resolvedAt&&Date.parse(item.nextReviewAt)<=now).length;
   const maximum=Math.max(...summary.days.map(item=>item.durationMs),3_600_000);
   const timer=data.sessions.find(item=>item.source==='timer'&&item.state.kind!=='completed');
   const [timerTitle,setTimerTitle]=useState('Study session'),[targetMinutes,setTargetMinutes]=useState(30);
@@ -24,6 +27,10 @@ export function LogView({state,model,subjects}:{state:MobileState;model:MobileMo
       {goal?<progress max={goal.targetMinutes*60_000} value={summary.durationMs} aria-label="Weekly study aim"/>:null}
       {aim?<form className="inline-form" onSubmit={event=>{event.preventDefault();const input=new FormData(event.currentTarget);void action.run(async()=>{const stamp=new Date().toISOString();const next=weeklyStudyGoalSchema.parse({...goal,schemaVersion:1,id:goal?.id??crypto.randomUUID(),revision:(goal?.revision??0)+1,createdAt:goal?.createdAt??stamp,updatedAt:stamp,deletedAt:null,weekStart:week,timeZone:zone,targetMinutes:Number(input.get('minutes'))});await model.store.save('studyGoal',next.id,next);setAim(false);});}}><label>Aim in minutes<input name="minutes" type="number" min="1" max="10080" required defaultValue={goal?.targetMinutes??300}/></label><button className="button" disabled={action.busy}>Save aim</button></form>:null}
     </section>
+    {unfinished||due?<section className="continue-study section" aria-label="Continue studying"><h2>Pick up where you left off</h2><div className="list">
+      {unfinished?<button className="list-row" aria-label={`Continue ${unfinished.resource.title}`} onClick={()=>onResume(unfinished.resource.id)}><BookOpen size={20}/><div><h3>{unfinished.resource.title}</h3><p>{unfinished.answered} of {unfinished.resource.questions.length} answered. Saved on this device.</p></div><ChevronRight size={18}/></button>:null}
+      {due?<button className="list-row" onClick={onReview}><ClipboardCheck size={20}/><div><h3>{due} {due===1?'review':'reviews'} ready</h3><p>Revisit what needs another look.</p></div><ChevronRight size={18}/></button>:null}
+    </div></section>:null}
     <section className="section timer"><div className="section-heading"><h2>Study timer</h2>{timer?<span className="chip">{timer.state.kind==='running'?'Running':timer.state.kind==='paused'&&timer.state.reason==='recovery'?'Recovered paused':'Paused'}</span>:null}</div>
       {timer?<><h3>{timer.title}</h3><div className="timer-time" aria-live="off">{timerRemainingMs(timer,now)===null?timeLabel(durationMs(sessionSegments(timer,now))):`${clockLabel(timerRemainingMs(timer,now)??0)} left`}</div><div className="button-row">{timer.state.kind==='running'?<button className="button primary" disabled={action.busy} onClick={()=>void action.run(()=>model.timer('pause',timer.id))}><Pause size={16}/>Pause</button>:<button className="button primary" disabled={action.busy} onClick={()=>void action.run(()=>model.startTimer(timer.title,timer.subjectId,timer.timeZone,timer.id))}><Play size={16}/>Resume</button>}<button className="button" disabled={action.busy} onClick={()=>void action.run(()=>model.timer('finish',timer.id))}><Square size={14}/>Finish</button>{timer.state.kind==='running'?<button className="text-button" onClick={()=>void action.run(()=>model.timer('confirm',timer.id))}>Still studying</button>:null}</div></>:<form onSubmit={event=>{event.preventDefault();void action.run(()=>model.startTimer(timerTitle,null,zone,undefined,targetMinutes));}}><label className="sr-only" htmlFor="timer-title">What are you studying?</label><input id="timer-title" value={timerTitle} maxLength={200} required onChange={event=>setTimerTitle(event.target.value)}/><label className="timer-duration">Minutes<input type="number" min="5" max="1440" step="5" value={targetMinutes} onChange={event=>setTargetMinutes(Number(event.target.value))} required/></label><button className="button primary" disabled={action.busy}><Play size={16}/>Start timer</button></form>}
       <p className="detail">Keep Centre open while timing. Leaving the app pauses it. If iOS closes it, recovery stops at the last saved checkpoint.</p>

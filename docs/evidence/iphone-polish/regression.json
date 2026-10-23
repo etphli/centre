@@ -1,0 +1,138 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "installation fits 390px",
+      "passed": true
+    },
+    {
+      "name": "real browser pairing and initial Worker pull",
+      "passed": true
+    },
+    {
+      "name": "manual study persists in actual IndexedDB projection",
+      "passed": true
+    },
+    {
+      "name": "manual study survives full reload",
+      "passed": true
+    },
+    {
+      "name": "unfinished quiz answer survives reload",
+      "passed": true
+    },
+    {
+      "name": "real objective grader saves one immutable attempt",
+      "passed": true
+    },
+    {
+      "name": "checklist progress survives actual reload",
+      "passed": true
+    },
+    {
+      "name": "untrusted resource scripts and network images never execute",
+      "passed": true
+    },
+    {
+      "name": "review resolution is saved locally",
+      "passed": true
+    },
+    {
+      "name": "real router loads saved messages and hosted AI run (inference simulated)",
+      "passed": true
+    },
+    {
+      "name": "definitive grading failure can start a new unlocked draft",
+      "passed": true
+    },
+    {
+      "name": "canonical planned calendar renders",
+      "passed": true
+    },
+    {
+      "name": "calendar fits 390px",
+      "passed": true
+    },
+    {
+      "name": "light large settings fit 390px",
+      "passed": true
+    },
+    {
+      "name": "light large Log fits 390px",
+      "passed": true
+    },
+    {
+      "name": "large Log fits 320px",
+      "passed": true
+    },
+    {
+      "name": "large resource reading fits 320px",
+      "passed": true
+    },
+    {
+      "name": "midnight large Log fits 320px",
+      "passed": true
+    },
+    {
+      "name": "keyboard focus is visible",
+      "passed": true
+    },
+    {
+      "name": "real exclusive timer starts and pauses",
+      "passed": true
+    },
+    {
+      "name": "a running IndexedDB timer recovers paused after real reload",
+      "passed": true
+    },
+    {
+      "name": "offline full reload uses cached shell and real IndexedDB library",
+      "passed": true
+    },
+    {
+      "name": "service worker cache contains static files only",
+      "passed": true
+    },
+    {
+      "name": "disconnect hides the private library",
+      "passed": true
+    },
+    {
+      "name": "a second account never sees first account resources",
+      "passed": true
+    },
+    {
+      "name": "no renderer exceptions",
+      "passed": true
+    },
+    {
+      "name": "lost replies replay safely with one chat inference, one failed grading inference and one saved attempt",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "cache": {
+    "keys": [
+      "centre-iphone-4032a51c5e3dafd6"
+    ],
+    "paths": [
+      "/iphone/assets/AttemptHistory-B9uCb7RB.js",
+      "/iphone/assets/ChatView-CmEomDNO.js",
+      "/iphone/assets/LibraryView-A_KDybM9.js",
+      "/iphone/assets/LogView-Btzkg6Oh.js",
+      "/iphone/assets/Markdown-DMcg7_N6.js",
+      "/iphone/assets/OtherViews-wQlWAc3i.js",
+      "/iphone/assets/chevron-right-mhuxEk2J.js",
+      "/iphone/assets/index-BqR5CHE7.js",
+      "/iphone/assets/index-amYJxyZk.css",
+      "/iphone/assets/plus-Cq_e6gKe.js",
+      "/iphone/icons/icon-180.png",
+      "/iphone/icons/icon-192.png",
+      "/iphone/icons/icon-512.png",
+      "/iphone/index.html",
+      "/iphone/manifest.webmanifest",
+      "/iphone/"
+    ]
+  },
+  "scope": "Actual Chromium browser, IndexedDB, service worker, Worker/SQLite auth/CAS; Google identity and inference simulated; not physical Safari."
+}
