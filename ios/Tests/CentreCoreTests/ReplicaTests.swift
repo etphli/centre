@@ -239,7 +239,7 @@ final class ReplicaTests: XCTestCase {
 
     func testKeepLocalTimerPreservesLeaseAndSegmentsButNormalRecoveryStillPauses() async throws {
         let store=try replica(), start=try Clock.date("2026-10-22T00:00:00.000Z")
-        let started=try StudyRules.start(title:"Local study",subjectId:nil,timeZone:"Australia/Sydney",now:start)
+        let started=try StudyRules.start(title:"Local study",subjectId:nil,targetMinutes:30,timeZone:"Australia/Sydney",now:start)
         let local=try StudyRules.heartbeat(started,now:start.addingTimeInterval(15),activity:true)
         var cloud=try StudyRules.recover(local,now:start.addingTimeInterval(20),restart:true)
         XCTAssertEqual(local.revision,2);XCTAssertEqual(cloud.revision,3)
@@ -253,9 +253,11 @@ final class ReplicaTests: XCTestCase {
         let chosen=try XCTUnwrap(queued.mutation.data).decode(StudySession.self)
         var expected=local;expected.revision=4
         XCTAssertEqual(chosen,expected,"Only domain revision changes; the owned lease, checkpoint, open span and segments stay exact")
+        XCTAssertEqual(chosen.targetMinutes,30,"Keep iPhone must preserve the selected countdown duration")
         XCTAssertEqual(queued.mutation.expectedVersion,8)
         let restarted=try StudyRules.recover(chosen,now:start.addingTimeInterval(60),restart:true)
         XCTAssertEqual(restarted.state,.paused(reason:"recovery"));XCTAssertEqual(restarted.revision,5)
+        XCTAssertEqual(restarted.targetMinutes,30,"Restart recovery must retain the selected countdown duration")
         XCTAssertEqual(restarted.segments,[StudySegment(start:Clock.iso(start),end:Clock.iso(start.addingTimeInterval(15)))])
     }
 

@@ -32,7 +32,7 @@ const fixture = {
 };
 await writeFile(join(directory, 'data/state.json'), JSON.stringify(fixture));
 const entry = join(runtime, `verify-study-log-${process.pid}.cjs`);
-const screenshots = Object.fromEntries(['dark', 'light-large', 'midnight', 'manual', 'date-picker', 'date-picker-small', 'time-suggestions', 'narrow', 'aim', 'timer', 'recovered'].map(name => [name, join(runtime, `study-log-${name}.png`)]));
+const screenshots = Object.fromEntries(['dark', 'light-large', 'midnight', 'manual', 'date-picker', 'date-picker-small', 'time-suggestions', 'narrow', 'aim', 'timer', 'recovered', 'countdown-dark', 'countdown-light-large', 'countdown-narrow', 'countdown-error', 'countdown-complete'].map(name => [name, join(runtime, `study-log-${name}.png`)]));
 const report = join(runtime, 'study-log-ui-results.json');
 const source = `
 const { app, BrowserWindow, dialog } = require('electron');
@@ -65,6 +65,26 @@ app.on('browser-window-created', (_event, win) => {
     await wait('Boolean(window.centre)&&Boolean(document.querySelector(".study-timer button:not(:disabled)"))');
     await click('Log'); await wait('Boolean(document.querySelector(".study-aim"))');
     await check('Production Log renders through real desktop IPC', 'document.title==="Centre"&&document.querySelector("h1").textContent==="Log"');
+    if(process.env.CENTRE_STUDY_PHASE==='countdown') {
+      await clickLabel('Resume study timer');
+      await wait('!document.querySelector(".study-timer__readout")');
+      const state = await evaluate('window.centre.request("GET","/study-log")');
+      const completed = state.sessions.find(s=>s.title==='Finishing countdown');
+      assert.equal(completed.state.kind,'completed');
+      assert.equal(completed.segments.reduce((sum,s)=>sum+Date.parse(s.end)-Date.parse(s.start),0),300000);
+      checks.push({name:'Countdown automatically completes and saves exactly five active minutes',passed:true});
+      await shot('countdown-complete');
+      await evaluate('document.querySelector(".study-timer button").click()');
+      await click('Start timer');
+      await wait(hasLabel('Pause study timer'));
+      const started = await evaluate('window.centre.request("GET","/study-log")');
+      const fresh = started.sessions.find(s=>s.state.kind==='running');
+      assert.equal(fresh.title,'Study session'); assert.equal(fresh.targetMinutes,30);
+      checks.push({name:'Default countdown starts without entering study details',passed:true});
+      await clickLabel('Stop and save study timer');
+      assert.deepEqual(errors,[]);
+      await finish(); return;
+    }
     if(process.env.CENTRE_STUDY_PHASE==='restart') {
       await check('Restart recovers timer paused at checkpoint', 'document.querySelector(".study-active").textContent.includes("Recovered paused at the last saved checkpoint")');
       const state = await evaluate('window.centre.request("GET","/study-log")');
@@ -157,9 +177,34 @@ app.on('browser-window-created', (_event, win) => {
       await wait('Boolean(document.querySelector(".study-timer button:not(:disabled)"))'); await click('Log');
       await wait('document.documentElement.dataset.theme==='+JSON.stringify(theme)+'&&document.documentElement.dataset.textSize==='+JSON.stringify(textSize));
       await check('Theme and text settings apply: '+name, 'document.documentElement.scrollWidth<=innerWidth'); await check('Neutral action and data tokens: '+name, '(()=>{const c=getComputedStyle(document.documentElement);return c.getPropertyValue("--accent").trim()===c.getPropertyValue("--text-2").trim()&&getComputedStyle(document.querySelector(".study-days__track > span")).backgroundColor===getComputedStyle(document.querySelector(".study-week-chart__track > span")).backgroundColor})()'); await shot(name);
+      await evaluate('document.querySelector(".study-timer button").click()');
+      await check('Countdown defaults to 30 minutes with optional details: '+name, 'document.querySelector(".study-countdown output").textContent==="30minutes"&&!document.querySelector("dialog details").open');
+      await check('Countdown has visible initial keyboard focus: '+name, 'document.activeElement?.getAttribute("aria-label")==="Decrease timer by 5 minutes"');
+      if(name!=='midnight') await shot('countdown-'+name);
+      await click('Cancel');
     }
-    await evaluate('document.querySelector(".study-timer button").click()'); await field('dialog input[maxlength="200"]','Desktop timer'); await click('Start timer');
+    await evaluate('document.querySelector(".study-timer button").click()');
+    await clickLabel('Increase timer by 5 minutes');
+    await check('Plus adds exactly five minutes', 'document.querySelector(".study-countdown output").textContent==="35minutes"');
+    for(let i=0;i<6;i++) await clickLabel('Decrease timer by 5 minutes');
+    await check('Minus stops at five minutes', 'document.querySelector(".study-countdown output").textContent==="5minutes"&&[...document.querySelectorAll("dialog button")].find(b=>b.getAttribute("aria-label")==="Decrease timer by 5 minutes").disabled');
+    for(let i=0;i<4;i++) await clickLabel('Increase timer by 5 minutes');
+    window.setSize(960,660); await delay(100);
+    await check('Countdown fits the minimum desktop window', '(()=>{const r=document.querySelector("dialog").getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&document.querySelector("dialog").scrollWidth<=r.width})()');
+    await shot('countdown-narrow'); window.setSize(1280,900);
+    await evaluate('document.querySelector("dialog summary").click()');
+    await field('dialog input[maxlength="200"]','Desktop timer');
+    const conflictId = ${JSON.stringify(randomUUID())};
+    await evaluate('window.centre.request("POST","/study-log/timer/start",'+JSON.stringify({id:conflictId,title:'Concurrent timer',notes:'Synthetic conflict',subjectId:null,taskId:null,timeZone:'Australia/Sydney',targetMinutes:30})+')');
+    await click('Start timer');
+    await wait('Boolean(document.querySelector("dialog [role=alert]"))');
+    await wait('!document.querySelector("dialog button[type=button]").disabled');
+    await check('Failed start retains chosen duration and allows retry', 'document.querySelector(".study-countdown output").textContent==="25minutes"&&!document.querySelector("dialog button[type=button]").disabled');
+    await shot('countdown-error');
+    await evaluate('(async()=>{const l=await window.centre.request("GET","/study-log");const s=l.sessions.find(s=>s.id==='+JSON.stringify(conflictId)+');await window.centre.request("POST","/study-log/timer/"+s.id+"/stop",{expectedRevision:s.revision});})()');
+    await click('Start timer');
     await wait(hasLabel('Pause study timer'));
+    await check('Chosen duration starts as a countdown', '(()=>{const t=document.querySelector(".study-timer__readout");return t.getAttribute("aria-label").includes("remaining")&&/^00:2[45]:/.test(t.textContent)})()');
     await delay(1100); await click('Resources');
     await check('Timer survives navigation without leaving the current page', 'document.querySelector("h1").textContent==="Resources"&&'+hasLabel('Pause study timer'));
     await clickLabel('Pause study timer'); await wait(hasLabel('Resume study timer'));
@@ -181,7 +226,13 @@ require(${JSON.stringify(join(root, 'dist-electron/main.cjs'))});
 await writeFile(entry, source);
 let failure = false;
 try {
-  for (const phase of ['initial', 'restart']) {
+  for (const phase of ['initial', 'restart', 'countdown']) {
+    if (phase === 'countdown') {
+      const end = Date.now() - 1000;
+      const stamp = new Date(end).toISOString();
+      const session = { schemaVersion:1, id:randomUUID(), revision:1, createdAt:new Date(end-298000).toISOString(), updatedAt:stamp, deletedAt:null, source:'timer', subjectId:null, taskId:null, title:'Finishing countdown', notes:'Synthetic near-completion fixture.', timeZone, targetMinutes:5, segments:[{start:new Date(end-298000).toISOString(),end:stamp}], state:{kind:'paused',reason:'user'} };
+      await writeFile(join(directory,'data/state.json'),JSON.stringify({...fixture,studyLog:{schemaVersion:1,sessions:[session],goals:[]}}));
+    }
     const env = { ...process.env, CENTRE_STUDY_PHASE: phase, CENTRE_DATA_DIR: join(directory, 'data'), CENTRE_RENDERER_URL: pathToFileURL(join(root, 'dist/index.html')).href, CENTRE_CODEX_BIN: '/centre-verification/no-codex' };
     delete env.ELECTRON_RUN_AS_NODE;
     const child = spawn(require('electron'), [entry], { env, cwd: root, stdio: 'inherit' });

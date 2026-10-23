@@ -13,6 +13,7 @@ import { canShareChatAttachment } from '../shared/chat-lineage';
 import { cloudAttachmentSchema } from '../shared/cloud-entities';
 import { AttachmentStore } from './attachments';
 import { CloudSync } from './cloud-sync';
+import { chronologicalAttempts, compareAttempts } from '../shared/attempt-comparison';
 import type { CredentialName, Credentials } from './credentials';
 import { Store, writeStateFile } from './store';
 import { StudyLogService } from './study-log';
@@ -211,17 +212,20 @@ test('account changes stop uploads and another workspace cannot read the library
 test('incoming running timers pause at their checkpoint and persist the recovery as a pending edit', async t => {
   const cloud = await backend(t), a = await device(t, cloud);
   await a.sync.enableImport();
-  const session = studySessionSchema.parse({ schemaVersion: 1, id: randomUUID(), revision: 1, createdAt: instant, updatedAt: instant, deletedAt: null, subjectId: null, taskId: null, title: 'Maths', notes: '', timeZone: 'Australia/Sydney', source: 'timer', segments: [], state: { kind: 'running', since: instant, checkpointAt: '2026-10-22T00:00:15.000Z', lastActivityAt: instant, confirmedAt: instant } });
+  const session = studySessionSchema.parse({ schemaVersion: 1, id: randomUUID(), revision: 1, createdAt: instant, updatedAt: instant, deletedAt: null, subjectId: null, taskId: null, title: 'Maths', notes: '', timeZone: 'Australia/Sydney', source: 'timer', targetMinutes: 30, segments: [], state: { kind: 'running', since: instant, checkpointAt: '2026-10-22T00:00:15.000Z', lastActivityAt: instant, confirmedAt: instant } });
   await seed(cloud, a, 'studySession', session.id, session);
   await a.sync.sync();
   const reopened = await reopen(a), recovered = reopened.store.state.studyLog.sessions[0];
   assert.deepEqual(recovered?.state, { kind: 'paused', reason: 'recovery' });
   assert.deepEqual(recovered?.segments, [{ start: instant, end: '2026-10-22T00:00:15.000Z' }]);
   assert.equal(recovered?.revision, 2);
+  assert.equal(recovered?.targetMinutes, 30);
   const persisted = await journal(a.directory);
   assert.ok(persisted.outbox.some(row => row.kind === 'studySession' && row.id === session.id));
   assert.equal((await reopened.sync.sync()).error, null);
-  assert.deepEqual((await changes(cloud, reopened)).find(row => row.kind === 'studySession')?.data?.state, { kind: 'paused', reason: 'recovery' });
+  const remote = (await changes(cloud, reopened)).find(row => row.kind === 'studySession');
+  assert.deepEqual(remote?.data?.state, { kind: 'paused', reason: 'recovery' });
+  assert.equal(remote?.data?.targetMinutes, 30);
 });
 
 test('attachments preserve IDs and bytes across devices, deferred messages and future kinds survive restart', async t => {
@@ -880,4 +884,38 @@ test('keeping a local running timer conflict preserves its lease until normal re
   assert.equal(recovered.sessions[0]?.revision, 5);
   assert.deepEqual(recovered.sessions[0]?.segments, [...local.segments, { start: instant, end: '2026-10-22T00:00:30.000Z' }]);
   await reopened.sync.close();
+});
+
+test('read-only comparison survives independent D1 sync, offline restart, resource deletion and account isolation', async t => {
+  const cloud = await backend(t), alice = await device(t,cloud);
+  const records = [0,1].map((score,index) => attemptSchema.parse({id:randomUUID(),sourceDraftId:randomUUID(),resourceId:'history-quiz',answers:{q:'saved answer'},createdAt:`2026-10-2${index+1}T00:00:00.000Z`,result:{score,total:1,feedback:[{questionId:'q',concept:'Fractions',score,maxScore:1,feedback:'Retained grade',needsReview:!score}]}}));
+  await alice.store.update(state => { state.resources.push(resource('history-quiz')); state.attempts.push(...records); });
+  assert.equal((await alice.sync.enableImport()).error,null);
+  const phone = await device(t,cloud);
+  assert.equal((await phone.sync.enableImport()).error,null);
+  assert.deepEqual(chronologicalAttempts(phone.store.state.attempts),records);
+  const first = records[0], second = records[1];
+  assert.ok(first && second);
+  const expected = compareAttempts(first,second);
+  assert.equal(expected?.percentagePointChange,100);
+  assert.equal(expected?.questions[0]?.change,'improved');
+  const savedJournal = await readFile(join(phone.directory,'cloud-sync.json'),'utf8');
+  assert.deepEqual(compareAttempts(first,second),expected);
+  assert.equal(await readFile(join(phone.directory,'cloud-sync.json'),'utf8'),savedJournal,'Comparison never enqueues writes.');
+  await alice.store.update(state => { const item = state.resources.find(item=>item.id==='history-quiz'); if(item)item.deletedAt=instant; });
+  assert.equal((await alice.sync.sync()).error,null);
+  assert.equal((await phone.sync.sync()).error,null);
+  assert.deepEqual(phone.store.state.attempts,records);
+  await phone.sync.close();
+  const offline = await Store.open(phone.directory);
+  assert.deepEqual(offline.state.attempts,records,'Restart reads saved history without a network connection.');
+  assert.deepEqual(compareAttempts(offline.state.attempts[0],offline.state.attempts[1]),expected);
+  const bob = await cloud.login('bob');
+  const response = await cloud.call('/v1/changes?cursor=0','GET',undefined,String(bob.token));
+  assert.equal(response.status,200);
+  assert.deepEqual(cloudChangesSchema.parse(response.value).records,[],'Another account receives no history records.');
+  const aliceHistory = (await changes(cloud,alice)).filter(record => record.kind === 'practice.attempt');
+  assert.deepEqual(new Set(aliceHistory.map(record => record.id)),new Set(records.map(record => record.id)));
+  const persisted = await Store.open(alice.directory);
+  assert.deepEqual(persisted.state.attempts,records,'No content was overwritten by comparing or deleting the resource.');
 });

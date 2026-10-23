@@ -2,6 +2,8 @@
 
 Centre stores actual study separately from planned Calendar events. The Log route shows eight weekly totals, daily totals, subject attribution, a per-week aim, and editable study entries. The top-bar timer remains mounted across navigation. `StudyLogPage` is the content extension point for future Log features; no quiz comparison is implemented here.
 
+Starting a timer opens a 30-minute countdown picker. The minus and plus controls change it by five minutes, from five minutes to 24 hours. Study details are optional; a blank title saves as `Study session`. The top bar shows time remaining, and reaching zero completes and saves the session. Pausing freezes the countdown. Manual entries still record actual start and end times.
+
 ## Persisted records
 
 The authoritative Zod schemas and inferred TypeScript types are in `shared/study-log.ts`. Portable examples and expected totals are in `shared/fixtures/study-log-v1.json`.
@@ -16,6 +18,8 @@ A session contains `source:timer|manual`, nullable `subjectId` and `taskId`, `ti
 - `{kind:'paused',reason:'user'|'idle'|'recovery'|'check-in'|'clock'}`
 - `{kind:'completed'}`
 
+Countdown sessions also store optional `targetMinutes`, an integer multiple of five from 5 to 1440. Only timer sessions accept it. Older timer records without a target retain elapsed-time stopwatch behavior. The target travels with cloud records and is preserved when a remote running timer recovers paused. The cloud Worker must use the updated shared schema before clients sync countdown records. Older client builds also need the matching update before reading countdown records.
+
 Manual sessions are completed and contain at least one interval. Paused time is absent from segments. A timer may complete with no elapsed time. Completed timer entries retain their separate intervals when edited; changing metadata preserves exact timestamps.
 
 A goal contains `weekStart`, an ISO Monday date, `timeZone`, and integer `targetMinutes` from 1 to 10080. There is one live aim per week and timezone. Aims do not silently repeat into future weeks.
@@ -25,6 +29,8 @@ A goal contains `weekStart`, an ISO Monday date, `timeZone`, and integer `target
 The service clock controls timer transitions. The renderer checkpoints every 15 seconds. A lease expires after 45 seconds without a checkpoint, and recovery closes the interval at the last persisted checkpoint. Service startup performs the same recovery. Closed-app time is never added. Resume is explicit.
 
 Ten minutes without pointer, keyboard, or scroll interaction pauses at the idle boundary. Reading for longer requires interaction or **Still studying** in timer details. A separate 60-minute check-in limit applies even with continuous interaction. Clock rollback pauses at the saved checkpoint. Safety boundaries take precedence over heartbeat or resume requests, so a late heartbeat cannot resume an unattended timer.
+
+The countdown deadline uses active elapsed time across all intervals. A command arriving after the deadline completes the session at that deadline, without adding excess time. Lease expiry and restart recovery still exclude time after the last checkpoint.
 
 Weeks start Monday in `settings.timeZone`. Temporal calendar arithmetic determines local day and week boundaries, including 23-hour and 25-hour days. Durations use UTC elapsed milliseconds. Overnight entries split across local days and weeks. An entry spanning two weeks shows only the selected week's time in the list.
 
@@ -46,7 +52,7 @@ Every route requires the existing local bearer capability or validated Electron 
 | POST | `/api/study-log/sessions` | `{id,subjectId,taskId,title,notes,timeZone,segments}` |
 | PATCH | `/api/study-log/sessions/:id` | `{expectedRevision,subjectId,taskId,title,notes,timeZone,segments}` |
 | POST | `/api/study-log/sessions/:id/delete` | `{expectedRevision}` |
-| POST | `/api/study-log/timer/start` | `{id,subjectId,taskId,title,notes,timeZone}` |
+| POST | `/api/study-log/timer/start` | `{id,subjectId,taskId,title,notes,timeZone,targetMinutes?}` |
 | POST | `/api/study-log/timer/:id/:action` | `{expectedRevision,activity?:boolean}` |
 | POST | `/api/study-log/goals` | `{id,weekStart,timeZone,targetMinutes,expectedRevision?:number}` |
 

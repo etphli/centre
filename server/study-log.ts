@@ -1,4 +1,4 @@
-import { closeRunning, recoverStudySession, sessionSegments, studyCreateSchema, studyEditSchema, studyGoalInputSchema, studyLogSchema, studyRevisionSchema, studySessionSchema, timerActionSchema, timerCommandSchema, timerStartSchema, type StudyLog, type StudySegment, type StudySession, type StudyTags } from '../shared/study-log';
+import { closeRunning, recoverStudySession, sessionSegments, timerRemainingMs, studyCreateSchema, studyEditSchema, studyGoalInputSchema, studyLogSchema, studyRevisionSchema, studySessionSchema, timerActionSchema, timerCommandSchema, timerStartSchema, type StudyLog, type StudySegment, type StudySession, type StudyTags } from '../shared/study-log';
 import { HttpError, requireFound } from './errors';
 import type { Store } from './store';
 
@@ -63,7 +63,7 @@ export class StudyLogService {
         const existing = log.sessions.find(session => session.id === input.id);
         if (existing) {
           const same = ['subjectId', 'taskId', 'title', 'notes', 'timeZone'].every(key => Reflect.get(existing, key) === Reflect.get(input, key));
-          if (!existing.deletedAt && same && existing.source === (timer ? 'timer' : 'manual') && (timer || ('segments' in input && JSON.stringify(existing.segments) === JSON.stringify(input.segments)))) return;
+          if (!existing.deletedAt && same && existing.source === (timer ? 'timer' : 'manual') && (timer ? existing.targetMinutes === Reflect.get(input, 'targetMinutes') : ('segments' in input && JSON.stringify(existing.segments) === JSON.stringify(input.segments)))) return;
           throw new HttpError(409, 'This study ID is already in use.');
         }
         if (timer && log.sessions.some(session => !session.deletedAt && session.state.kind !== 'completed')) throw new HttpError(409, 'Stop the current timer before starting another.');
@@ -92,6 +92,7 @@ export class StudyLogService {
         const session = requireFound(log.sessions.find(session => session.id === timerMatch[1] && !session.deletedAt && session.source === 'timer'), 'Timer');
         // A safety pause discovered by this command wins over the caller's stale running revision.
         const original = this.store.state.studyLog.sessions.find(item => item.id === session.id);
+        if (session.state.kind === 'completed' && original?.state.kind === 'running' && original.revision === input.expectedRevision) return;
         const safetyPaused = session.state.kind === 'paused' && original?.state.kind === 'running' && original.revision === input.expectedRevision;
         if (safetyPaused && action !== 'stop') return;
         if (!safetyPaused) this.revision(session, input.expectedRevision);
@@ -103,12 +104,15 @@ export class StudyLogService {
           next = closeRunning(session, now, { kind: 'paused', reason: 'user' });
         } else if (action === 'resume') {
           if (session.state.kind !== 'paused') throw new HttpError(409, 'This timer is already running.');
-          if (log.sessions.some(other => other.id !== session.id && !other.deletedAt && other.state.kind === 'running')) throw new HttpError(409, 'Pause or stop the other running timer first.');
-          next = { ...session, state: { kind: 'running', since: timestamp, checkpointAt: timestamp, lastActivityAt: timestamp, confirmedAt: timestamp } };
+          if (timerRemainingMs(session, now) === 0) next = { ...session, state: { kind: 'completed' } };
+          else {
+            if (log.sessions.some(other => other.id !== session.id && !other.deletedAt && other.state.kind === 'running')) throw new HttpError(409, 'Pause or stop the other running timer first.');
+            next = { ...session, state: { kind: 'running', since: timestamp, checkpointAt: timestamp, lastActivityAt: timestamp, confirmedAt: timestamp } };
+          }
         } else if (session.state.kind === 'running') {
           next = { ...session, state: { ...session.state, checkpointAt: timestamp, lastActivityAt: input.activity || action === 'confirm' ? timestamp : session.state.lastActivityAt, confirmedAt: action === 'confirm' ? timestamp : session.state.confirmedAt } };
         } else throw new HttpError(409, 'Resume this paused timer first.');
-        if (action === 'resume') this.overlap(log, next, now, [{ start: timestamp, end: new Date(now + 1).toISOString() }]);
+        if (action === 'resume' && next.state.kind === 'running') this.overlap(log, next, now, [{ start: timestamp, end: new Date(now + 1).toISOString() }]);
         if ((action === 'heartbeat' || action === 'confirm') && session.state.kind === 'running' && now > Date.parse(session.state.checkpointAt)) {
           this.overlap(log, next, now, [{ start: session.state.checkpointAt, end: timestamp }]);
         }

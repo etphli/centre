@@ -48,6 +48,10 @@ final class CentreUITests: XCTestCase {
     private func waitText(_ text: String) {
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.waitForExistence(timeout: 10), text)
     }
+    private func waitLabel(_ element: XCUIElement, _ label: String) {
+        let changed = expectation(for: NSPredicate(format: "label == %@", label), evaluatedWith: element)
+        wait(for: [changed], timeout: 5)
+    }
     private func restart() {
         app.terminate(); app.launchArguments = ["-ui-testing"]; app.launch()
         XCTAssertTrue(app.tabBars.buttons["Resources"].waitForExistence(timeout: 15))
@@ -57,6 +61,30 @@ final class CentreUITests: XCTestCase {
         let row = app.buttons["resources.row.\(quizId)"]
         XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
         XCTAssertTrue(app.staticTexts["quiz.prompt"].waitForExistence(timeout: 5))
+    }
+    private func launchPracticeHistoryFixture() {
+        app.terminate()
+        app.launchArguments = ["-ui-testing", "-reset-fixture", "-ui-testing-attempt-history"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Chat"].waitForExistence(timeout: 15))
+    }
+    private func choosePickerOption(_ pickerId: String, containing optionText: String, fromBottom: Bool = false) {
+        let picker = app.descendants(matching: .any).matching(identifier: pickerId).firstMatch
+        if fromBottom {
+            for _ in 0..<10 {
+                if picker.exists && picker.isHittable { break }
+                scrollContainer().swipeDown()
+            }
+        }
+        reveal(picker)
+        XCTAssertTrue(picker.isHittable, "Attempt picker must be reachable: \(pickerId)")
+        picker.tap()
+        let predicate = optionText.hasPrefix("Attempt ")
+            ? NSPredicate(format: "label BEGINSWITH %@", optionText)
+            : NSPredicate(format: "label == %@", optionText)
+        let option = app.buttons.matching(predicate).firstMatch
+        XCTAssertTrue(option.waitForExistence(timeout: 5), "Missing attempt option: \(optionText)")
+        option.tap()
     }
 
     func testOfflineNoteBodySurvivesRestart() {
@@ -108,10 +136,20 @@ final class CentreUITests: XCTestCase {
 
     func testTimerRecoversPausedAndCompletedLogAndGoalPersist() {
         tab("Log")
+        let duration = app.staticTexts["timer.duration.value"]
+        XCTAssertTrue(duration.waitForExistence(timeout: 5))
+        XCTAssertEqual(duration.label, "30 minutes")
+        tap("timer.duration.increase")
+        XCTAssertEqual(duration.label, "35 minutes")
+        tap("timer.duration.decrease")
+        XCTAssertEqual(duration.label, "30 minutes")
         let title = app.textFields["timer.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("Cell biology reading\n")
         tap("timer.start")
         XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout: 5))
+        let countdown = app.descendants(matching: .any).matching(identifier: "timer.clock").firstMatch
+        XCTAssertTrue(countdown.waitForExistence(timeout: 5))
+        XCTAssertTrue(countdown.label.contains("remaining"), "A target timer must read down instead of up")
         restart(); tab("Log")
         XCTAssertTrue(app.buttons["timer.resume"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["timer.pause"].exists)
@@ -129,6 +167,18 @@ final class CentreUITests: XCTestCase {
         let completed = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "log.session.", "Cell biology reading")).firstMatch
         reveal(completed)
         capture("06-completed-log-and-goal-restored")
+    }
+
+    func testTimerStartsWithoutMetadataUsingDefaultTitleAndDuration() {
+        tab("Log")
+        XCTAssertEqual(app.staticTexts["timer.duration.value"].label, "30 minutes")
+        tap("timer.start")
+        XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Study session"].waitForExistence(timeout: 5))
+        let countdown = app.descendants(matching: .any).matching(identifier: "timer.clock").firstMatch
+        XCTAssertTrue(countdown.waitForExistence(timeout: 5))
+        XCTAssertTrue(countdown.label.contains("remaining"))
+        capture("23-default-countdown-without-study-metadata")
     }
 
     func testReviewCalendarAndSettingsReportOfflineState() {
@@ -286,6 +336,74 @@ final class CentreUITests: XCTestCase {
         XCTAssertTrue(localText.exists)
         XCTAssertEqual(app.state, .runningForeground)
         capture("13-saved-diagram-navigation-cancelled")
+    }
+
+    func testNativeLogEntryAndEarlierLaterAttemptPickersUpdateComparison() {
+        launchPracticeHistoryFixture()
+        tab("Log")
+        tap("log.quizHistory")
+
+        let activeResource = app.buttons["practiceHistory.resource.\(quizId)"]
+        let deletedResource = app.buttons["practiceHistory.resource.deleted-resource"]
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.subjectFilter").firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.resourceFilter").firstMatch.exists)
+        choosePickerOption("practiceHistory.subjectFilter", containing: "Biology")
+        XCTAssertTrue(activeResource.exists)
+        XCTAssertFalse(deletedResource.exists)
+        choosePickerOption("practiceHistory.subjectFilter", containing: "Subject unavailable")
+        XCTAssertFalse(activeResource.exists)
+        XCTAssertTrue(deletedResource.exists)
+        choosePickerOption("practiceHistory.subjectFilter", containing: "All subjects")
+        choosePickerOption("practiceHistory.resourceFilter", containing: "Cell biology practice")
+        XCTAssertTrue(activeResource.exists)
+        XCTAssertFalse(deletedResource.exists)
+        choosePickerOption("practiceHistory.resourceFilter", containing: "All resources")
+        tap("practiceHistory.resource.\(quizId)")
+        waitText("original question text and marking model were not saved")
+
+        let change = app.staticTexts["practiceHistory.change.q1"]
+        reveal(change)
+        XCTAssertTrue(change.waitForExistence(timeout: 10))
+        XCTAssertEqual(change.label, "Repeated mistake", "Default comparison should use the oldest and latest saved attempts.")
+        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
+        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.outcome"].label, "Partial")
+        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.answer"].label, "First saved response")
+        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.feedback"].label, "First saved feedback.")
+        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
+        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.feedback"].label, "Latest saved feedback.")
+        XCTAssertTrue(app.staticTexts["Current prompt"].exists)
+
+        choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 2", fromBottom: true)
+        reveal(change)
+        waitLabel(change, "Lower mark")
+        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
+        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.answer"].label, "Second saved response")
+        choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 1", fromBottom: true)
+        choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 2")
+        reveal(change)
+        waitLabel(change, "Improved")
+        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Second saved response")
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.repeatedMistake.q1").firstMatch.exists,
+                      "A partial improvement can still be below full marks in both attempts.")
+        choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 4", fromBottom: true)
+        reveal(change)
+        waitLabel(change, "Repeated mistake")
+        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
+        capture("23-native-log-practice-attempt-comparison")
+    }
+
+    func testDeletedResourceHistoryUsesSavedQuestionIdsWithoutCurrentContent() {
+        launchPracticeHistoryFixture()
+        tab("Log")
+        tap("log.quizHistory")
+        tap("practiceHistory.resource.deleted-resource")
+
+        waitText("This resource is deleted or unavailable")
+        reveal(app.staticTexts["Saved deleted-resource answer"])
+        XCTAssertTrue(app.staticTexts["Saved deleted-resource answer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved deleted-resource feedback."].exists)
+        XCTAssertFalse(app.staticTexts["Current prompt"].exists, "Deleted resources must not supply current prompt text.")
+        capture("24-deleted-resource-attempt-history")
     }
 
 }

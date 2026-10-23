@@ -27,6 +27,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     private var scheduledSync:Task<Void,Never>?
     private var syncing=false
     private var signingOut=false
+    private var timerHeartbeatRunning=false
     private var lastInteraction=Date()
     private var aiJobs:[PendingAI]=[]
     private var ownedTimers:Set<String>=[]
@@ -186,14 +187,14 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             }
         }
     }
-    @discardableResult func timer(action:String,id:String?,title:String,subjectId:String?) async -> Bool {
+    @discardableResult func timer(action:String,id:String?,title:String,subjectId:String?,targetMinutes:Int?=nil) async -> Bool {
         let saved = await perform {
             guard let replica else { return }
             let now=Date(),value:StudySession
             var previous:StudySession?
             if action == "start" {
                 guard activeTimer == nil else { throw CentreError.invalid("Finish your current timer before starting another.") }
-                value=try StudyRules.start(title:title,subjectId:subjectId,timeZone:timeZone,now:now)
+                value=try StudyRules.start(title:title,subjectId:subjectId,targetMinutes:targetMinutes,timeZone:timeZone,now:now)
             } else {
                 guard let id,let record=record(kind:"studySession",id:id),let data=record.data else { throw CentreError.invalid("This timer is unavailable.") }
                 let session=try data.decode(StudySession.self);previous=session
@@ -214,11 +215,17 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     func heartbeat() async {
         guard !signingOut else { return }
         guard let replica,let timer=activeTimer,let body=timer.data,body["state"]["kind"].string == "running" else { return }
+        guard !timerHeartbeatRunning else { return }
+        timerHeartbeatRunning=true
+        defer { timerHeartbeatRunning=false }
         do {
+            let now=Date()
             let original=try body.decode(StudySession.self)
-            let value=try StudyRules.heartbeat(original,now:Date(),activity:Date().timeIntervalSince(lastInteraction)<15)
-            try StudyRules.validate(value,others:sessions.filter{$0.id != value.id},now:Date(),previous:original)
-            try await replica.stage([LocalChange(kind:"studySession",id:value.id,data:JSONValue.encode(value))]);await refresh();scheduleSync()
+            let value=try StudyRules.heartbeat(original,now:now,activity:now.timeIntervalSince(lastInteraction)<15)
+            try StudyRules.validate(value,others:sessions.filter{$0.id != value.id},now:now,previous:original)
+            try await replica.stage([LocalChange(kind:"studySession",id:value.id,data:JSONValue.encode(value))])
+            if value.state.kind == "running" { ownedTimers.insert(value.id) } else { ownedTimers.remove(value.id) }
+            await refresh();scheduleSync()
         } catch { self.error=error.localizedDescription }
     }
     func recoverTimers(excludingLocal:Bool=false) async throws {
@@ -472,8 +479,53 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             let diagramId="fdd186b8-aea0-4d85-9538-390f076f0379"
             let diagram=resource.merging(.object(["id":.string(diagramId),"title":.string("Navigation containment"),"kind":.string("diagram"),"questions":.array([]),"content":.string("<h2>Saved drawing stays here</h2><p><a href=\"https://example.invalid/escape\">Attempt external navigation</a></p><script>window.location='https://example.invalid/script-escape'</script><img src=\"https://example.invalid/image-escape\"><form action=\"https://example.invalid/form-escape\"><input type=submit value=Escape></form>")]))
             _ = try await attachments.download(id:attachmentId,chatId:chatId,using:UIAttachmentFixture())
-            try await store.stage([LocalChange(kind:"resource",id:resourceId,data:resource),LocalChange(kind:"resource",id:diagramId,data:diagram),LocalChange(kind:"chat",id:chatId,data:chat),LocalChange(kind:"message",id:messageId,data:message),LocalChange(kind:"attachment",id:attachmentId,data:UIAttachmentFixture.metadata),LocalChange(kind:"reviewMemory",id:reviewId,data:review)])
-            try await store.cacheConnector(.object(["subjects":.array([]),"assignments":.array([]),"events":.array([])]))
+            let includesPracticeHistory = ProcessInfo.processInfo.arguments.contains("-ui-testing-attempt-history")
+            let savedResource = includesPracticeHistory
+                ? resource.merging(.object(["subjectId":.string("biology")]))
+                : resource
+            var fixtureChanges = [
+                LocalChange(kind:"resource",id:resourceId,data:savedResource),
+                LocalChange(kind:"resource",id:diagramId,data:diagram),
+                LocalChange(kind:"chat",id:chatId,data:chat),
+                LocalChange(kind:"message",id:messageId,data:message),
+                LocalChange(kind:"attachment",id:attachmentId,data:UIAttachmentFixture.metadata),
+                LocalChange(kind:"reviewMemory",id:reviewId,data:review)
+            ]
+            if includesPracticeHistory {
+                func attempt(_ id: String, kind: String = "practice.attempt", resourceId: String,
+                             questionId: String = "q1", createdAt: String, answer: String,
+                             score: Double, feedback: String) -> LocalChange {
+                    let data: JSONValue = .object([
+                        "schemaVersion":.number(1),"revision":.number(1),"id":.string(id),
+                        "resourceId":.string(resourceId),"answers":.object([questionId:.string(answer)]),
+                        "result":.object(["score":.number(score),"total":.number(1),"feedback":.array([
+                            .object(["questionId":.string(questionId),"concept":.string("Energy"),
+                                     "score":.number(score),"maxScore":.number(1),
+                                     "feedback":.string(feedback),"needsReview":.bool(score < 1)])
+                        ])]),
+                        "createdAt":.string(createdAt)
+                    ])
+                    return LocalChange(kind:kind,id:id,data:data)
+                }
+                fixtureChanges.append(contentsOf: [
+                    attempt("10000000-0000-4000-8000-000000000001", resourceId:resourceId,
+                            createdAt:"2026-10-19T01:00:00.000Z", answer:"First saved response", score:0.25, feedback:"First saved feedback."),
+                    attempt("10000000-0000-4000-8000-000000000002", resourceId:resourceId,
+                            createdAt:"2026-10-20T01:00:00.000Z", answer:"Second saved response", score:0.75, feedback:"Second saved feedback."),
+                    attempt("10000000-0000-4000-8000-000000000003", resourceId:resourceId,
+                            createdAt:"2026-10-21T01:00:00.000Z", answer:"Third saved response", score:0.5, feedback:"Third saved feedback."),
+                    attempt("10000000-0000-4000-8000-000000000004", resourceId:resourceId,
+                            createdAt:"2026-10-22T01:00:00.000Z", answer:"Latest saved response", score:0.25, feedback:"Latest saved feedback."),
+                    attempt("20000000-0000-4000-8000-000000000001", kind:"attempt", resourceId:"deleted-resource",
+                            questionId:"saved-question-id", createdAt:"2026-10-18T01:00:00.000Z",
+                            answer:"Saved deleted-resource answer", score:0, feedback:"Saved deleted-resource feedback.")
+                ])
+            }
+            try await store.stage(fixtureChanges)
+            let subjects: [JSONValue] = includesPracticeHistory
+                ? [.object(["id":.string("biology"),"name":.string("Biology"),"shortName":.string("Bio"),"color":.string("blue"),"icon":.string("book")])]
+                : []
+            try await store.cacheConnector(.object(["subjects":.array(subjects),"assignments":.array([]),"events":.array([])]))
         }
         if ProcessInfo.processInfo.arguments.contains("-ui-testing-timer-conflict") {
             let now=Date()

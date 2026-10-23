@@ -1118,6 +1118,9 @@ private struct QuizView: View {
         .navigationDestination(item: $shownAttempt) { id in
             if let attempt = attemptsForResource().first(where: { $0.id == id }) {
                 AttemptResultView(attempt: attempt, resource: resource)
+            } else {
+                ContentUnavailableView("Attempt unavailable", systemImage: "clock.arrow.circlepath",
+                                       description: Text("This saved attempt is no longer in the current account workspace. Pull to refresh."))
             }
         }
     }
@@ -1891,6 +1894,7 @@ private struct LogTab: View {
 
     var body: some View {
         let tz = When.zone(model.preferences)
+        let attempts = savedPracticeAttempts(model)
         let sessions = model.items("studySession")
             .filter { model.data($0)["state"]["kind"].string == "completed" && model.data($0)["deletedAt"].uiIsNull }
             .sorted { Study.start(model.data($0)) ?? .distantPast > Study.start(model.data($1)) ?? .distantPast }
@@ -1899,6 +1903,27 @@ private struct LogTab: View {
             List {
                 Section { TimerPanel() }.centreRow(palette)
                 Section("This week") { goalRow }.centreRow(palette)
+                Section("Practice history") {
+                    if attempts.isEmpty {
+                        Text("Marked quiz and test attempts appear here. Saved history remains available offline.")
+                            .font(.subheadline).foregroundStyle(palette.text3)
+                    } else {
+                        NavigationLink(destination: PracticeAttemptHistoryView()) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Compare attempts")
+                                    Text("\(attempts.count) saved \(attempts.count == 1 ? "attempt" : "attempts")")
+                                        .font(.footnote).foregroundStyle(palette.text3)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(palette.text3)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .accessibilityIdentifier("log.quizHistory")
+                    }
+                }
+                .centreRow(palette)
                 ForEach(byDay.keys.sorted(by: >), id: \.self) { ymd in
                     let day = When.day(ymd, tz)
                     Section(day.map { When.dayTitle($0, tz) } ?? ymd) {
@@ -1992,12 +2017,549 @@ private struct LogTab: View {
     }
 }
 
+private enum PracticeSubjectFilter: Hashable, Identifiable {
+    case all, subject(String), personal, unavailable
+    var id: String {
+        switch self {
+        case .all: return "all"
+        case .subject(let id): return "subject:\(id)"
+        case .personal: return "personal"
+        case .unavailable: return "unavailable"
+        }
+    }
+}
+
+private struct PracticeSubjectOption: Identifiable {
+    let filter: PracticeSubjectFilter
+    let title: String
+    var id: PracticeSubjectFilter { filter }
+}
+
+private enum PracticeResourceFilter: Hashable, Identifiable {
+    case all, resource(String)
+    var id: String {
+        switch self {
+        case .all: return "all"
+        case .resource(let id): return "resource:\(id)"
+        }
+    }
+}
+
+private struct PracticeResourceOption: Identifiable {
+    let resourceId: String
+    let title: String
+    var id: String { resourceId }
+}
+
+@MainActor
+private struct PracticeAttemptHistoryView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.centre) private var palette
+    @State private var subjectFilter: PracticeSubjectFilter = .all
+    @State private var resourceFilter: PracticeResourceFilter = .all
+
+    var body: some View {
+        let attempts = savedPracticeAttempts(model)
+        let resources = practiceResourceRecords(model)
+        let subjectOptions = makeSubjectOptions(for: attempts, resources: resources)
+        let resourceOptions = makeResourceOptions(for: attempts)
+        let filtered = attempts.filter { attempt in
+            switch resourceFilter {
+            case .all: break
+            case .resource(let id): if attempt.resourceId != id { return false }
+            }
+            if subjectFilter != .all, subjectFilterFor(attempt, resources: resources) != subjectFilter { return false }
+            return true
+        }
+        let groups = Dictionary(grouping: filtered, by: \.resourceId)
+        let resourceIds = filtered.reduce(into: [String]()) { ids, attempt in
+            if !ids.contains(attempt.resourceId) { ids.append(attempt.resourceId) }
+        }
+
+        List {
+            Section("Filter history") {
+                Picker("Subject", selection: $subjectFilter) {
+                    Text("All subjects").tag(PracticeSubjectFilter.all)
+                    ForEach(subjectOptions) { option in Text(option.title).tag(option.filter) }
+                }
+                .accessibilityIdentifier("practiceHistory.subjectFilter")
+                Picker("Resource", selection: $resourceFilter) {
+                    Text("All resources").tag(PracticeResourceFilter.all)
+                    ForEach(resourceOptions) { option in
+                        Text(option.title).tag(PracticeResourceFilter.resource(option.resourceId))
+                    }
+                }
+                .accessibilityIdentifier("practiceHistory.resourceFilter")
+            }
+            .centreRow(palette)
+
+            ForEach(resourceIds, id: \.self) { resourceId in
+                let resourceAttempts = groups[resourceId] ?? []
+                Section(practiceResourceTitle(resourceId, model: model)) {
+                    NavigationLink(destination: PracticeResourceHistoryView(resourceId: resourceId)) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(resourceAttempts.count == 1 ? "View saved attempt" : "Choose attempts to compare")
+                                Text("\(resourceAttempts.count) \(resourceAttempts.count == 1 ? "attempt" : "attempts") · \(subjectTitle(for: resourceId, resources: resources))")
+                                    .font(.footnote).foregroundStyle(palette.text3)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.footnote).foregroundStyle(palette.text3)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .accessibilityIdentifier("practiceHistory.resource.\(resourceId)")
+                }
+                .centreRow(palette)
+            }
+
+            if filtered.isEmpty {
+                Section {
+                    Text(attempts.isEmpty
+                         ? "Marked quiz and test attempts saved to this Centre account appear here. Pull to refresh; cached attempts remain available offline."
+                         : "No saved attempts match these filters.")
+                        .font(.subheadline).foregroundStyle(palette.text3)
+                }
+                .centreRow(palette)
+            }
+        }
+        .centreList(palette)
+        .navigationTitle("Practice history")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await model.sync() }
+        .onChange(of: subjectOptions.map(\.filter.id)) { _, ids in
+            if case .subject(let id) = subjectFilter, !ids.contains("subject:\(id)") { subjectFilter = .all }
+            if subjectFilter == .personal, !ids.contains("personal") { subjectFilter = .all }
+            if subjectFilter == .unavailable, !ids.contains("unavailable") { subjectFilter = .all }
+        }
+        .onChange(of: resourceOptions.map(\.id)) { _, ids in
+            if case .resource(let id) = resourceFilter, !ids.contains(id) { resourceFilter = .all }
+        }
+    }
+
+    private func makeSubjectOptions(for attempts: [PracticeAttemptSnapshot], resources: [String: CloudRecord]) -> [PracticeSubjectOption] {
+        let filters = Set(attempts.map { subjectFilterFor($0, resources: resources) }).subtracting([.all])
+        return filters.map { filter in
+            let title: String
+            switch filter {
+            case .all: title = "All subjects"
+            case .subject(let id): title = Subjects.name(model, id) ?? "Unavailable subject · \(id.prefix(8))"
+            case .personal: title = "Personal learning"
+            case .unavailable: title = "Subject unavailable"
+            }
+            return PracticeSubjectOption(filter: filter, title: title)
+        }
+        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    private func subjectFilterFor(_ attempt: PracticeAttemptSnapshot, resources: [String: CloudRecord]) -> PracticeSubjectFilter {
+        guard let resource = resources[attempt.resourceId], let data = resource.data else { return .unavailable }
+        if let subjectId = data["subjectId"].string { return .subject(subjectId) }
+        return .personal
+    }
+
+    private func subjectTitle(for resourceId: String, resources: [String: CloudRecord]) -> String {
+        switch subjectFilterForResource(resourceId, resources: resources) {
+        case .all: return "All subjects"
+        case .subject(let id): return Subjects.name(model, id) ?? "Unavailable subject"
+        case .personal: return "Personal learning"
+        case .unavailable: return "Subject unavailable"
+        }
+    }
+
+    private func subjectFilterForResource(_ resourceId: String, resources: [String: CloudRecord]) -> PracticeSubjectFilter {
+        guard let resource = resources[resourceId], let data = resource.data else { return .unavailable }
+        if let subjectId = data["subjectId"].string { return .subject(subjectId) }
+        return .personal
+    }
+
+    private func makeResourceOptions(for attempts: [PracticeAttemptSnapshot]) -> [PracticeResourceOption] {
+        Array(Set(attempts.map(\.resourceId))).map { id in
+            PracticeResourceOption(resourceId: id, title: practiceResourceTitle(id, model: model))
+        }
+        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+}
+
+@MainActor
+private struct PracticeResourceHistoryView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.centre) private var palette
+    let resourceId: String
+    @State private var earlierAttemptId: String?
+    @State private var laterAttemptId: String?
+
+    var body: some View {
+        let attempts = PracticeAttemptChronology.chronological(savedPracticeAttempts(model).filter { $0.resourceId == resourceId })
+        let pair = selectedPair(in: attempts)
+        let resource = model.record(kind: "resource", id: resourceId)
+        let resourceData = resource.map { model.data($0) } ?? .object([:])
+        let currentQuestions = Dictionary(resourceData["questions"].array.compactMap { question -> (String, String)? in
+            guard let id = question["id"].string, let prompt = question["prompt"].string else { return nil }
+            return (id, prompt)
+        }, uniquingKeysWith: { first, _ in first })
+
+        List {
+            Section {
+                if resource != nil {
+                    Text(historyCaveat)
+                        .font(.footnote).foregroundStyle(palette.text2)
+                    NavigationLink(destination: ResourceDetailView(resourceId: resourceId)) {
+                        Label("Open current resource", systemImage: "books.vertical")
+                    }
+                    if let subjectId = resourceData["subjectId"].string,
+                       let subjectName = Subjects.name(model, subjectId) {
+                        NavigationLink {
+                            List {
+                                ForEach(model.items("resource").filter {
+                                    model.data($0)["subjectId"].string == subjectId
+                                }) { resource in
+                                    NavigationLink(destination: ResourceDetailView(resourceId: resource.id)) {
+                                        ResourceRow(resource: resource)
+                                    }
+                                    .centreRow(palette)
+                                }
+                            }
+                            .centreList(palette)
+                            .navigationTitle(subjectName)
+                            .navigationBarTitleDisplayMode(.inline)
+                        } label: {
+                            Label("Browse \(subjectName)", systemImage: "book")
+                        }
+                    }
+                } else {
+                    Text(historyCaveat + " This resource is deleted or unavailable; saved answers and feedback remain available by question ID.")
+                        .font(.footnote).foregroundStyle(palette.text2)
+                }
+            }
+            .centreRow(palette)
+
+            if attempts.count > 1 {
+                Section("Saved score history") {
+                    ForEach(attempts) { attempt in
+                        attemptHistoryRow(attempt, title: attemptDate(attempt))
+                    }
+                }
+                .centreRow(palette)
+            }
+
+            if attempts.isEmpty {
+                Section {
+                    Text("These attempts are no longer available in the current account workspace. Pull to refresh.")
+                        .font(.subheadline).foregroundStyle(palette.text3)
+                }
+                .centreRow(palette)
+            } else if attempts.count == 1, let attempt = attempts.first {
+                Section("Saved attempt") { attemptSummary(attempt) }
+                    .centreRow(palette)
+                ForEach(attempt.questions) { question in
+                    singleAttemptQuestion(question, attempt: attempt, currentQuestions: currentQuestions)
+                }
+            } else if let pair, let comparison = PracticeAttemptComparison(first: pair.0, second: pair.1) {
+                Section("Choose attempts") {
+                    let earlierOptions = Array(attempts.dropLast())
+                    Picker("Earlier attempt", selection: Binding(
+                        get: { pair.0.id },
+                        set: { chooseEarlier($0, in: attempts) }
+                    )) {
+                        ForEach(Array(earlierOptions.enumerated()), id: \.element.id) { index, attempt in
+                            Text(attemptPickerLabel(attempt, index: index)).tag(attempt.id)
+                        }
+                    }
+                    .accessibilityIdentifier("practiceHistory.earlierAttempt")
+                    let earlierIndex = attempts.firstIndex(where: { $0.id == pair.0.id }) ?? 0
+                    let laterOptions = Array(attempts.dropFirst(earlierIndex + 1))
+                    Picker("Later attempt", selection: Binding(
+                        get: { pair.1.id },
+                        set: { laterAttemptId = $0 }
+                    )) {
+                        ForEach(Array(laterOptions.enumerated()), id: \.element.id) { offset, attempt in
+                            Text(attemptPickerLabel(attempt, index: earlierIndex + 1 + offset)).tag(attempt.id)
+                        }
+                    }
+                    .accessibilityIdentifier("practiceHistory.laterAttempt")
+                }
+                .centreRow(palette)
+
+                Section("Saved score comparison") {
+                    attemptHistoryRow(pair.0, title: "Earlier attempt")
+                    attemptHistoryRow(pair.1, title: "Later attempt")
+                    LabeledContent("Normalized change", value: comparison.percentagePointChange.map {
+                        "\(signed($0)) percentage points"
+                    } ?? "Unavailable")
+                    if let trend = comparison.overallTrend {
+                        LabeledContent("Saved score change", value: trend.savedScoreTitle)
+                    } else {
+                        Text(overallLimit(comparison))
+                            .font(.footnote).foregroundStyle(palette.text2)
+                    }
+                    LabeledContent("Questions in both attempts", value: "\(comparison.sharedQuestions)")
+                }
+                .centreRow(palette)
+
+                Section("Question trend counts") {
+                    LabeledContent("Improved", value: count(.improved, in: comparison))
+                    LabeledContent("Lower mark", value: count(.lower, in: comparison))
+                    LabeledContent("Same mark", value: count(.same, in: comparison))
+                    LabeledContent("Repeated mistake", value: "\(comparison.repeatedMistakeCount)")
+                    LabeledContent("Unanswered in later attempt", value: count(.unanswered, in: comparison))
+                    LabeledContent("Answered this time", value: count(.answeredNow, in: comparison))
+                    LabeledContent("Changed marking", value: count(.changedMarking, in: comparison))
+                    LabeledContent("Not comparable", value: "\(count(.notShared, in: comparison) + count(.ungraded, in: comparison))")
+                    Text("Repeated mistake flags count answered, graded questions below full marks in both attempts. A flag can coexist with an improved partial mark.")
+                        .font(.footnote).foregroundStyle(palette.text3)
+                }
+                .centreRow(palette)
+
+                ForEach(comparison.questions) { question in
+                    comparisonQuestion(question, currentQuestions: currentQuestions,
+                                       earlier: pair.0, later: pair.1)
+                }
+            }
+        }
+        .centreList(palette)
+        .navigationTitle(resource.map { model.data($0)["title"].string.nonEmpty ?? "Practice history" } ?? "Unavailable resource")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await model.sync() }
+        .onAppear { reconcileSelection(in: attempts) }
+        .onChange(of: attempts.map(\.id)) { _, _ in reconcileSelection(in: attempts) }
+    }
+
+    private func selectedPair(in attempts: [PracticeAttemptSnapshot]) -> (PracticeAttemptSnapshot, PracticeAttemptSnapshot)? {
+        guard attempts.count >= 2 else { return nil }
+        let earlierIndex = attempts.firstIndex(where: { $0.id == earlierAttemptId }) ?? 0
+        let requestedLater = attempts.firstIndex(where: { $0.id == laterAttemptId })
+        let laterIndex = requestedLater.flatMap { $0 > earlierIndex ? $0 : nil } ?? attempts.count - 1
+        guard laterIndex > earlierIndex else { return nil }
+        return (attempts[earlierIndex], attempts[laterIndex])
+    }
+
+    private func reconcileSelection(in attempts: [PracticeAttemptSnapshot]) {
+        guard attempts.count >= 2 else {
+            earlierAttemptId = attempts.first?.id
+            laterAttemptId = nil
+            return
+        }
+        let pair = selectedPair(in: attempts) ?? (attempts[0], attempts[attempts.count - 1])
+        earlierAttemptId = pair.0.id
+        laterAttemptId = pair.1.id
+    }
+
+    private func chooseEarlier(_ id: String, in attempts: [PracticeAttemptSnapshot]) {
+        guard let index = attempts.firstIndex(where: { $0.id == id }), index < attempts.count - 1 else { return }
+        earlierAttemptId = id
+        if let laterIndex = attempts.firstIndex(where: { $0.id == laterAttemptId }), laterIndex <= index {
+            laterAttemptId = attempts[index + 1].id
+        }
+    }
+
+    private func attemptPickerLabel(_ attempt: PracticeAttemptSnapshot, index: Int) -> String {
+        let date = When.parse(attempt.createdAt)?.formatted(date: .abbreviated, time: .shortened) ?? attempt.createdAt
+        return "Attempt \(index + 1) · \(date) · \(percent(attempt.normalizedScore))"
+    }
+
+    private func attemptSummary(_ attempt: PracticeAttemptSnapshot) -> some View {
+        let summary = attempt.summary
+        return VStack(alignment: .leading, spacing: 6) {
+            LabeledContent("Normalized marks", value: percent(summary.percent))
+            LabeledContent("Answered", value: "\(summary.answered) of \(summary.questions)")
+            LabeledContent("Correct", value: "\(summary.correct)")
+            LabeledContent("Partial", value: "\(summary.partial)")
+            LabeledContent("Incorrect", value: "\(summary.incorrect)")
+            LabeledContent("Unanswered", value: "\(summary.unanswered)")
+            LabeledContent("Ungraded", value: "\(summary.ungraded)")
+            if let date = When.parse(attempt.createdAt) {
+                Text("Saved \(date.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.footnote).foregroundStyle(palette.text3)
+            }
+        }
+    }
+
+    private func attemptHistoryRow(_ attempt: PracticeAttemptSnapshot, title: String) -> some View {
+        let summary = attempt.summary
+        let savedMarks: String
+        if let score = attempt.score, let total = attempt.total {
+            savedMarks = "\(Num.text(score)) of \(Num.text(total))"
+        } else {
+            savedMarks = "Unavailable"
+        }
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.subheadline.weight(.medium))
+                if title != attemptDate(attempt) { Text(attemptDate(attempt)).font(.footnote).foregroundStyle(palette.text3) }
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(savedMarks).font(.subheadline.monospacedDigit())
+                Text("\(percent(summary.percent)) · \(summary.answered)/\(summary.questions) saved IDs answered")
+                    .font(.footnote).foregroundStyle(palette.text3)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func comparisonQuestion(_ question: PracticeQuestionComparison, currentQuestions: [String: String],
+                                    earlier: PracticeAttemptSnapshot, later: PracticeAttemptSnapshot) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Question ID · \(question.id)").font(.footnote).foregroundStyle(palette.text3)
+                    Spacer(minLength: 8)
+                    Text(question.change.title).font(.caption.weight(.semibold)).foregroundStyle(palette.text2)
+                        .accessibilityIdentifier("practiceHistory.change.\(question.id)")
+                }
+                if question.repeatedMistake && question.change != .repeatedMistake {
+                    Label("Below full marks in both", systemImage: "arrow.uturn.backward.circle")
+                        .font(.caption).foregroundStyle(palette.warn)
+                        .accessibilityIdentifier("practiceHistory.repeatedMistake.\(question.id)")
+                }
+                if let prompt = currentQuestions[question.id] {
+                    Text("Current prompt").font(.caption).foregroundStyle(palette.text3)
+                    Text(prompt)
+                }
+                if let previous = question.previous {
+                    attemptQuestionDetail(previous, title: "Earlier · \(attemptDate(earlier))",
+                                          accessibilityPrefix: "practiceHistory.earlier.\(question.id)")
+                } else {
+                    Text("Not included in earlier attempt").font(.footnote).foregroundStyle(palette.text3)
+                }
+                if let current = question.current {
+                    attemptQuestionDetail(current, title: "Later · \(attemptDate(later))",
+                                          accessibilityPrefix: "practiceHistory.later.\(question.id)")
+                } else {
+                    Text("Not included in later attempt").font(.footnote).foregroundStyle(palette.text3)
+                }
+            }
+        }
+        .centreRow(palette)
+    }
+
+    private func singleAttemptQuestion(_ question: PracticeAttemptQuestion, attempt: PracticeAttemptSnapshot,
+                                       currentQuestions: [String: String]) -> some View {
+        Section("Question ID · \(question.id)") {
+            if let prompt = currentQuestions[question.id] {
+                Text("Current prompt").font(.caption).foregroundStyle(palette.text3)
+                Text(prompt)
+            }
+            attemptQuestionDetail(question, title: attemptDate(attempt),
+                                  accessibilityPrefix: "practiceHistory.saved.\(question.id)")
+        }
+        .centreRow(palette)
+    }
+
+    private func attemptQuestionDetail(_ question: PracticeAttemptQuestion, title: String,
+                                       accessibilityPrefix: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.footnote.weight(.medium)).foregroundStyle(palette.text2)
+            LabeledContent("Outcome") {
+                Text(question.outcome.rawValue.capitalized)
+                    .accessibilityIdentifier("\(accessibilityPrefix).outcome")
+            }
+            LabeledContent("Saved answer") {
+                Text(question.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No answer" : question.answer)
+                    .accessibilityIdentifier("\(accessibilityPrefix).answer")
+            }
+            if let marking = question.marking {
+                if let score = marking.score, let maximum = marking.maxScore {
+                    LabeledContent("Saved marks", value: "\(Num.text(score)) of \(Num.text(maximum))")
+                } else {
+                    LabeledContent("Saved marks", value: "Unavailable")
+                }
+                if let feedback = marking.feedback.nonEmpty {
+                    Text(feedback).font(.footnote).foregroundStyle(palette.text2)
+                        .accessibilityIdentifier("\(accessibilityPrefix).feedback")
+                }
+                if marking.needsReview == true {
+                    Label("Marked for review", systemImage: "arrow.uturn.backward.circle")
+                        .font(.footnote).foregroundStyle(palette.warn)
+                }
+            } else {
+                Text("No unambiguous saved feedback for this question.")
+                    .font(.footnote).foregroundStyle(palette.text3)
+            }
+        }
+        .padding(10)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func overallLimit(_ comparison: PracticeAttemptComparison) -> String {
+        if !comparison.sameQuestionSet { return "Question sets differ. The normalized change is descriptive and cannot establish learning gain." }
+        if !comparison.sameMarking { return "Per-question marking maxima differ. The normalized change is descriptive, not a learning-gain measure." }
+        if comparison.differentTotal { return "Total possible marks changed. The normalized change is descriptive, not a learning-gain measure." }
+        return "Saved marks are incomplete or invalid, so a comparable score change is unavailable."
+    }
+
+    private var historyCaveat: String {
+        "Question counts and comparisons use saved question IDs only. Original prompt and grading-model history is unavailable, so saved-score changes do not prove learning gain. Any prompt shown is current resource content and may have changed."
+    }
+
+    private func attemptDate(_ attempt: PracticeAttemptSnapshot) -> String {
+        When.parse(attempt.createdAt)?.formatted(date: .abbreviated, time: .shortened) ?? attempt.createdAt
+    }
+
+    private func percent(_ value: Double?) -> String { value.map { "\(Num.text($0))%" } ?? "Unavailable" }
+    private func signed(_ value: Double) -> String { "\(value >= 0 ? "+" : "")\(Num.text(value))" }
+    private func count(_ change: PracticeQuestionChange, in comparison: PracticeAttemptComparison) -> String {
+        if change == .notShared || change == .ungraded {
+            return "\(comparison.questions.filter { $0.change == change }.count)"
+        }
+        return "\(comparison.trendCounts[change] ?? 0)"
+    }
+}
+
+@MainActor
+private func savedPracticeAttempts(_ model: AppModel) -> [PracticeAttemptSnapshot] {
+    PracticeAttemptChronology.newestFirst(
+        (model.items("practice.attempt") + model.items("attempt")).compactMap { PracticeAttemptSnapshot(record: $0) }
+    )
+}
+
+@MainActor
+private func practiceResourceRecords(_ model: AppModel) -> [String: CloudRecord] {
+    Dictionary(model.items("resource").map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+}
+
+@MainActor
+private func practiceResourceTitle(_ resourceId: String, model: AppModel) -> String {
+    if let resource = model.record(kind: "resource", id: resourceId) {
+        return model.data(resource)["title"].string.nonEmpty ?? "Untitled resource"
+    }
+    return "Unavailable resource · \(resourceId.prefix(8))"
+}
+
+private extension PracticeQuestionChange {
+    var title: String {
+        switch self {
+        case .improved: return "Improved"
+        case .lower: return "Lower mark"
+        case .repeatedMistake: return "Repeated mistake"
+        case .same: return "Same mark"
+        case .unanswered: return "Unanswered"
+        case .answeredNow: return "Answered this time"
+        case .changedMarking: return "Changed marking"
+        case .notShared: return "Not in both attempts"
+        case .ungraded: return "Not graded comparably"
+        }
+    }
+}
+
+private extension PracticeScoreTrend {
+    var savedScoreTitle: String {
+        switch self {
+        case .improved: return "Higher saved score"
+        case .declined: return "Lower saved score"
+        case .unchanged: return "Same saved score"
+        }
+    }
+}
+
 @MainActor
 private struct TimerPanel: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.centre) private var palette
     @Environment(\.dynamicTypeSize) private var textSize
     @State private var title = ""
+    @State private var targetMinutes = StudyRules.timerDefaultMinutes
     @State private var subjectId: String?
     @State private var acting = false
 
@@ -2007,22 +2569,61 @@ private struct TimerPanel: View {
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Timer").font(CentreFont.serif(.title3))
-                TextField("What are you studying?", text: $title)
+                TextField("Study session (optional)", text: $title)
                     .accessibilityIdentifier("timer.title")
                     .padding(12)
                     .background(palette.surface2, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                Text("Leave blank to use Study session.")
+                    .font(.footnote).foregroundStyle(palette.text3)
+                durationControl
                 SubjectPicker(subjects: Subjects.all(model), selection: $subjectId)
                 Button(acting ? "Starting…" : "Start timer") {
-                    run("start", id: nil, title: title.trimmingCharacters(in: .whitespaces))
+                    let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    run("start", id: nil, title: name.isEmpty ? "Study session" : name, targetMinutes: targetMinutes)
                 }
                 .buttonStyle(CentrePrimaryButtonStyle())
-                .disabled(acting || title.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(acting)
                 .accessibilityIdentifier("timer.start")
                 Text("Time counts only while Centre is open. If iOS closes it, the timer pauses at the last saved moment.")
                     .font(.footnote).foregroundStyle(palette.text3)
             }
             .padding(.vertical, 6)
         }
+    }
+
+    private var durationControl: some View {
+        let layout = textSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
+            Text("Duration")
+                .font(.subheadline)
+                .foregroundStyle(palette.text2)
+            HStack(spacing: 12) {
+                Button {
+                    targetMinutes = max(StudyRules.timerMinimumMinutes, targetMinutes - StudyRules.timerMinuteStep)
+                } label: {
+                    Image(systemName: "minus").frame(width: 44, height: 44)
+                }
+                .buttonStyle(CentreQuietButtonStyle())
+                .disabled(acting || targetMinutes <= StudyRules.timerMinimumMinutes)
+                .accessibilityLabel("Decrease timer duration by 5 minutes")
+                .accessibilityIdentifier("timer.duration.decrease")
+                Text("\(targetMinutes) minutes")
+                    .font(.headline.monospacedDigit())
+                    .accessibilityIdentifier("timer.duration.value")
+                Button {
+                    targetMinutes = min(StudyRules.timerMaximumMinutes, targetMinutes + StudyRules.timerMinuteStep)
+                } label: {
+                    Image(systemName: "plus").frame(width: 44, height: 44)
+                }
+                .buttonStyle(CentreQuietButtonStyle())
+                .disabled(acting || targetMinutes >= StudyRules.timerMaximumMinutes)
+                .accessibilityLabel("Increase timer duration by 5 minutes")
+                .accessibilityIdentifier("timer.duration.increase")
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 
     private func active(_ timer: CloudRecord) -> some View {
@@ -2034,6 +2635,7 @@ private struct TimerPanel: View {
         let confirmed = When.parse(state["confirmedAt"].string)
         let name = data["title"].string.nonEmpty ?? "Study session"
         let subject = data["subjectId"].string.flatMap { Subjects.name(model, $0) }
+        let countdownRemaining = Study.remainingSeconds(data, now: Date())
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(name).font(CentreFont.serif(.title3))
@@ -2041,18 +2643,22 @@ private struct TimerPanel: View {
             }
             if running, let since {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(Study.clock(saved + max(0, context.date.timeIntervalSince(since))))
+                    let remaining = Study.remainingSeconds(data, now: context.date)
+                    let elapsed = Study.elapsedSeconds(data, now: context.date) ?? (saved + max(0, context.date.timeIntervalSince(since)))
+                    Text(Study.clock(remaining.map { ceil($0) } ?? elapsed))
                         .font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                        .accessibilityLabel(remaining.map(Study.remainingLabel) ?? "Elapsed \(Study.duration(elapsed))")
+                        .accessibilityIdentifier("timer.clock")
                 }
-                .accessibilityLabel("Elapsed \(Study.duration(saved + max(0, Date().timeIntervalSince(since))))")
-                .accessibilityIdentifier("timer.clock")
             } else {
-                Text(Study.clock(saved)).font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                let remaining = Study.remainingSeconds(data, now: Date())
+                Text(Study.clock(remaining.map { ceil($0) } ?? saved)).font(.system(.largeTitle, design: .rounded).monospacedDigit())
                     .foregroundStyle(palette.text2)
-                    .accessibilityLabel("Saved \(Study.duration(saved))")
+                    .accessibilityLabel(remaining.map(Study.remainingLabel) ?? "Saved \(Study.duration(saved))")
                     .accessibilityIdentifier("timer.clock")
             }
-            Text(statusText(state)).font(.footnote).foregroundStyle(running ? palette.text3 : palette.warn)
+            Text(running && countdownRemaining == 0 ? "Time is up. Saving the completed timer." : statusText(state))
+                .font(.footnote).foregroundStyle(running ? palette.text3 : palette.warn)
                 .accessibilityIdentifier("timer.status")
             if running, let confirmed, Date().timeIntervalSince(confirmed) > 50 * 60 {
                 Button("I'm still studying") { run("confirm", id: timer.id, title: name, subjectId: data["subjectId"].string) }
@@ -2078,6 +2684,14 @@ private struct TimerPanel: View {
             }
             .disabled(acting)
         }
+        .task(id: running && countdownRemaining != nil ? timer.id : nil) {
+            guard running, let countdownRemaining else { return }
+            if countdownRemaining > 0 {
+                do { try await Task.sleep(for: .seconds(countdownRemaining)) }
+                catch { return }
+            }
+            await model.heartbeat()
+        }
         .padding(.vertical, 6)
     }
 
@@ -2096,14 +2710,17 @@ private struct TimerPanel: View {
         }
     }
 
-    private func run(_ action: String, id: String?, title: String, subjectId: String? = nil) {
+    private func run(_ action: String, id: String?, title: String, subjectId: String? = nil, targetMinutes: Int? = nil) {
         acting = true
         let subject = id == nil ? self.subjectId : subjectId
         model.error = nil
         Task {
-            let done = await model.timer(action: action, id: id, title: title, subjectId: subject)
+            let done = await model.timer(action: action, id: id, title: title, subjectId: subject, targetMinutes: targetMinutes)
             acting = false
-            if done, action == "start" { self.title = "" }
+            if done, action == "start" {
+                self.title = ""
+                self.targetMinutes = StudyRules.timerDefaultMinutes
+            }
         }
     }
 }
@@ -2596,7 +3213,7 @@ private enum Num {
     }
 }
 
-/// Study-log v1 helpers. Durations come only from stored UTC segments.
+/// Study-log v1 helpers. Saved and current durations use the portable StudyRules model.
 private enum Study {
     static func segments(_ data: JSONValue) -> [(Date, Date)] {
         data["segments"].array.compactMap { item in
@@ -2606,6 +3223,19 @@ private enum Study {
     }
     static func savedSeconds(_ data: JSONValue) -> Double {
         segments(data).reduce(0) { $0 + $1.1.timeIntervalSince($1.0) }
+    }
+    static func elapsedSeconds(_ data: JSONValue, now: Date) -> Double? {
+        guard let session = try? data.decode(StudySession.self) else { return nil }
+        return try? StudyRules.elapsedSeconds(session, now: now)
+    }
+    static func remainingSeconds(_ data: JSONValue, now: Date) -> Double? {
+        guard let session = try? data.decode(StudySession.self) else { return nil }
+        do { return try StudyRules.remainingSeconds(session, now: now) }
+        catch { return nil }
+    }
+    static func remainingLabel(_ seconds: Double) -> String {
+        let minutes = Int(ceil(max(0, seconds) / 60))
+        return "\(minutes) \(minutes == 1 ? "minute" : "minutes") remaining"
     }
     static func start(_ data: JSONValue) -> Date? { segments(data).first?.0 }
     static func end(_ data: JSONValue) -> Date? { segments(data).last?.1 }
