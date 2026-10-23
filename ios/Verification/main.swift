@@ -7,6 +7,26 @@ private struct VerificationFailure: Error, CustomStringConvertible {
 private func check(_ condition: @autoclosure () throws -> Bool, _ outcome: String) throws {
     guard try condition() else { throw VerificationFailure(description: outcome) }
 }
+private func practiceMark(_ questionId: String, score: Double, maxScore: Double) -> JSONValue {
+    .object(["questionId":.string(questionId),"score":.number(score),"maxScore":.number(maxScore),
+             "feedback":.string("Saved feedback"),"needsReview":.bool(false)])
+}
+private func practiceRecord(_ id: String, kind: String = "practice.attempt", resourceId: String = "r1",
+                            createdAt: String, answers: [String: String] = [:], score: Double = 0,
+                            total: Double = 1, feedback: [JSONValue] = []) -> CloudRecord {
+    CloudRecord(kind: kind, id: id, data: .object([
+        "schemaVersion":.number(1),"id":.string(id),"resourceId":.string(resourceId),
+        "createdAt":.string(createdAt),
+        "answers":.object(answers.mapValues(JSONValue.string)),
+        "result":.object(["score":.number(score),"total":.number(total),"feedback":.array(feedback)])
+    ]))
+}
+private func practiceSnapshot(_ record: CloudRecord) throws -> PracticeAttemptSnapshot {
+    guard let attempt = PracticeAttemptSnapshot(record: record) else {
+        throw VerificationFailure(description: "Could not decode practice attempt \(record.key)")
+    }
+    return attempt
+}
 
 // Network outcomes are simulated. Persistence and timer rules execute against the real core.
 private actor SimulatedTransport: CloudTransport {
@@ -168,6 +188,76 @@ struct CentreCoreVerification {
         try check(StudyRules.weekStart(at: Clock.date("2026-10-18T12:59:59.000Z"), timeZone: "Australia/Sydney") == "2026-10-12", "Sunday week boundary wrong")
         try check(StudyRules.weekStart(at: Clock.date("2026-10-18T13:00:00.000Z"), timeZone: "Australia/Sydney") == "2026-10-19", "Monday week boundary wrong")
         print("PASS Sydney DST elapsed durations and local Monday boundary")
+
+        let historyOlder = try practiceSnapshot(practiceRecord("history-older", createdAt:"2026-10-20T01:00:00.000Z",
+            answers:["q1":"Some work"],score:0.25,total:1,feedback:[practiceMark("q1",score:0.25,maxScore:1)]))
+        let historyLatest = try practiceSnapshot(practiceRecord("history-latest", createdAt:"2026-10-22T01:00:00.000Z",
+            answers:["q1":"More work"],score:0.75,total:1,feedback:[practiceMark("q1",score:0.75,maxScore:1)]))
+        let partialComparison = PracticeAttemptComparison(first:historyOlder,second:historyLatest)
+        try check(partialComparison?.percentagePointChange == 50, "Normalized practice score delta is wrong")
+        try check(partialComparison?.questions.first?.change == .improved
+                  && partialComparison?.questions.first?.repeatedMistake == true,
+                  "Partial improvement must keep its separate repeated-mistake flag")
+
+        let comparisonEarlier = try practiceSnapshot(practiceRecord("comparison-earlier", createdAt:"2026-10-19T01:00:00.000Z",
+            answers:["partial":"first response","mistake":"wrong","lower":"strong response"],score:1,total:6,
+            feedback:[practiceMark("partial",score:1,maxScore:2),practiceMark("mistake",score:0,maxScore:1),
+                      practiceMark("lower",score:1,maxScore:2)]))
+        let comparisonLater = try practiceSnapshot(practiceRecord("comparison-later", createdAt:"2026-10-23T01:00:00.000Z",
+            answers:["partial":"improved response","mistake":"still wrong","lower":"weaker response"],score:2,total:6,
+            feedback:[practiceMark("partial",score:1.5,maxScore:2),practiceMark("mistake",score:0,maxScore:1),
+                      practiceMark("lower",score:0,maxScore:2)]))
+        let lowerComparison = PracticeAttemptComparison(first:comparisonEarlier,second:comparisonLater)
+        try check(lowerComparison?.questions.first(where: { $0.id == "lower" })?.change == .lower
+                  && lowerComparison?.repeatedMistakeCount == 3,
+                  "Answered lower-mark question and repeated-mistake count must match the comparison test scenario")
+
+        let unanswered = try practiceSnapshot(practiceRecord("history-unanswered", createdAt:"2026-10-23T01:00:00.000Z",
+            answers:["q1":"  "],score:0,total:1,feedback:[practiceMark("q1",score:0,maxScore:1)]))
+        let unansweredComparison = PracticeAttemptComparison(first:historyOlder,second:unanswered)
+        try check(unansweredComparison?.questions.first?.change == .unanswered
+                  && unansweredComparison?.repeatedMistakeCount == 0,
+                  "Unanswered questions must not count as repeated mistakes")
+
+        let changedMaximum = try practiceSnapshot(practiceRecord("history-changed-maximum", createdAt:"2026-10-24T01:00:00.000Z",
+            answers:["q1":"More work"],score:1,total:2,feedback:[practiceMark("q1",score:1,maxScore:2)]))
+        let changedComparison = PracticeAttemptComparison(first:historyOlder,second:changedMaximum)
+        try check(changedComparison?.questions.first?.change == .changedMarking
+                  && changedComparison?.overallTrend == nil,
+                  "Changed per-question maxima must not claim an overall improvement")
+
+        let duplicateFeedback = try practiceSnapshot(practiceRecord("history-duplicate", createdAt:"2026-10-25T01:00:00.000Z",
+            answers:["q1":"Answer"],score:1,total:1,
+            feedback:[practiceMark("q1",score:1,maxScore:1),practiceMark("q1",score:1,maxScore:1)]))
+        let duplicateComparison = PracticeAttemptComparison(first:historyLatest,second:duplicateFeedback)
+        try check(duplicateComparison?.sameMarking == false
+                  && duplicateComparison?.questions.first?.change == .ungraded,
+                  "Duplicate feedback must remain ungraded and cannot establish same marking")
+
+        let invalidDate = try practiceSnapshot(practiceRecord("legacy-z", createdAt:"legacy-z"))
+        let otherInvalidDate = try practiceSnapshot(practiceRecord("legacy-a", createdAt:"legacy-a"))
+        try check(PracticeAttemptChronology.chronological([invalidDate,otherInvalidDate,historyOlder]).map(\.recordId)
+                  == ["history-older","legacy-a","legacy-z"],
+                  "Valid attempt dates must precede invalid legacy dates; invalid dates sort lexically")
+        let zuluTie = try practiceSnapshot(practiceRecord("z-at-01",createdAt:"2026-10-22T01:00:00Z"))
+        let offsetTie = try practiceSnapshot(practiceRecord("a-at-12",createdAt:"2026-10-22T12:00:00+11:00"))
+        let legacyTie = try practiceSnapshot(practiceRecord("duplicate",kind:"attempt",createdAt:"2026-10-22T01:00:00Z"))
+        let versionedTie = try practiceSnapshot(practiceRecord("duplicate",kind:"practice.attempt",createdAt:"2026-10-22T01:00:00Z"))
+        try check(PracticeAttemptChronology.chronological([zuluTie,offsetTie]).map(\.recordId) == ["a-at-12","z-at-01"],
+                  "Equal parsed instants must use attempt ID rather than timestamp string order")
+        try check(PracticeAttemptChronology.chronological([versionedTie,legacyTie]).map(\.id)
+                  == ["attempt/duplicate","practice.attempt/duplicate"],
+                  "Duplicate IDs across attempt kinds need a deterministic replica-key tie-breaker")
+
+        let deletedResourceAttempt = try practiceSnapshot(practiceRecord("deleted-history", kind:"attempt",
+            resourceId:"deleted-resource",createdAt:"2026-10-18T01:00:00.000Z",
+            answers:["saved-question-id":"Saved answer"],score:1,total:1,
+            feedback:[practiceMark("saved-question-id",score:1,maxScore:1)]))
+        try check(deletedResourceAttempt.questions.first?.id == "saved-question-id"
+                  && deletedResourceAttempt.questions.first?.answer == "Saved answer",
+                  "Deleted-resource history must stay readable from saved attempt IDs")
+        print("PASS attempt chronology, normalized changes, repeated-mistake and unanswered distinctions, marking validity, deleted-resource evidence")
+
         let pairingCode = String(repeating: "a", count: 64)
         for address in ["https://cloud.example/pair#code=\(pairingCode)", "centre://pair?baseUrl=https%3A%2F%2Fcloud.example&code=\(pairingCode)"] {
             guard let link = URL(string: address) else { throw VerificationFailure(description: "Invalid pairing fixture URL") }

@@ -9,6 +9,7 @@ import { Dialog } from './Dialog';
 import { Select } from './Select';
 import { DateTimeField, DurationField } from './DateTimeField';
 import { formatDurationMinutes } from '../../shared/date-time-fields';
+import { AttemptHistory } from './AttemptHistory';
 import './study-log.css';
 
 export function studyHours(ms: number): string { return formatDurationMinutes(ms / 60000); }
@@ -120,7 +121,10 @@ export function StudyTimer() {
 }
 
 export function StudyLogPage() {
-  const { state, navigate } = useApp();
+  const { state, navigate, route, navigationId } = useApp();
+  const resourceId = route.kind === 'log' ? route.resourceId : undefined;
+  const [view, setView] = useState<'time' | 'attempts'>(resourceId ? 'attempts' : 'time');
+  useEffect(() => { if (resourceId) setView('attempts'); }, [resourceId, navigationId]);
   const { log, ready, busy, error, run, command, actionRequest, acknowledgeAction } = useStudyLog();
   const now = useStudyClock();
   const timeZone = state.settings.timeZone;
@@ -134,9 +138,9 @@ export function StudyLogPage() {
   const [goalMinutes, setGoalMinutes] = useState(600);
   useEffect(() => {
     if (!actionRequest || actionRequest.mode === 'timer' || !ready) return;
-    setSelected(null);
+    setView('time'); setSelected(null);
     if (actionRequest.mode === 'manual') setDialog('manual');
-    else summary.current?.focus();
+    else requestAnimationFrame(() => summary.current?.focus());
     acknowledgeAction(actionRequest.id);
   }, [actionRequest, ready, acknowledgeAction]);
   const [goalId, setGoalId] = useState<string>(() => crypto.randomUUID());
@@ -159,7 +163,9 @@ export function StudyLogPage() {
   const entryTime = (session: StudySession) => durationMs(clipSegments(sessionSegments(session, now), studyDayBounds(week, timeZone).start, studyDayBounds(shiftStudyDate(week, 7), timeZone).start));
   const entries = log.sessions.filter(session => !session.deletedAt && inWeek(session)).sort((a, b) => (b.segments[0]?.start ?? b.createdAt).localeCompare(a.segments[0]?.start ?? a.createdAt));
   return <div className="page page--log">
-    <header className="page__header study-heading"><div><h1 className="page__title">Log</h1><p className="page__lede">The time you actually spent studying.</p></div><button type="button" className="button" disabled={!ready || busy} onClick={() => setDialog('manual')}><Plus size={14} aria-hidden />Add study time</button></header>
+    <header className="page__header study-heading"><div><h1 className="page__title">Log</h1><p className="page__lede">Your study time and saved quiz attempts.</p></div><button type="button" className="button" disabled={!ready || busy} onClick={() => { setView('time'); setDialog('manual'); }}><Plus size={14} aria-hidden />Add study time</button></header>
+    <nav className="log-views" aria-label="Log views"><button type="button" className="button button--quiet button--small" aria-pressed={view === 'time'} onClick={() => setView('time')}>Study time</button><button type="button" className="button button--quiet button--small" aria-pressed={view === 'attempts'} onClick={() => setView('attempts')}>Attempts</button></nav>
+    {view === 'attempts' ? <AttemptHistory key={`${state.settings.cloudAccount?.email ?? 'local'}:${resourceId ?? ''}`} initialResourceId={resourceId} /> : <>
     {error ? <p role="alert" className="study-error">{error}</p> : null}
     {!ready ? <div><p role="status">{error ? 'Study log could not load.' : 'Loading your study log…'}</p>{error ? <button type="button" className="button" disabled={busy} onClick={() => void run(api.studyLog)}>Retry study log</button> : null}</div> : <>
       {active ? <section className="study-active" aria-label="Current study session"><div><strong>{active.title}</strong><p role="status">{active.state.kind === 'paused' ? pauseReasons[active.state.reason] : 'Timer running'} · {studyHours(durationMs(sessionSegments(active, now)))}</p></div><div className="study-actions"><button type="button" className="button button--small" disabled={busy} onClick={() => void command(active.state.kind === 'running' ? 'pause' : 'resume')}>{active.state.kind === 'running' ? 'Pause' : 'Resume'}</button><button type="button" className="button button--small" disabled={busy} onClick={() => void command('stop')}>Stop and save</button></div></section> : null}
@@ -176,5 +182,6 @@ export function StudyLogPage() {
     {dialog ? <StudyEntryDialog mode={typeof dialog === 'string' ? dialog : 'edit'} session={typeof dialog === 'string' ? undefined : dialog} onClose={() => setDialog(null)} /> : null}
     {deleting ? <Dialog title="Delete study entry?" description={`Remove “${deleting.title}” and its time from your totals?`} onClose={() => setDeleting(null)}><div className="study-form__actions"><button type="button" className="button button--quiet" onClick={() => setDeleting(null)}>Cancel</button><button type="button" className="button" disabled={busy} onClick={async () => { if (await run(() => api.deleteStudy(deleting.id, deleting.revision))) setDeleting(null); }}>Delete study entry</button></div>{error ? <p role="alert" className="study-error">{error}</p> : null}</Dialog> : null}
     {goalOpen ? <Dialog title="Weekly study aim" description={`For ${dateLabel(week)} to ${dateLabel(shiftStudyDate(week, 6))} in ${timeZone}. Each week has its own aim.`} onClose={() => setGoalOpen(false)}><form className="study-form" onSubmit={async event => { event.preventDefault(); if (await run(() => api.saveStudyGoal({ id: goalId, weekStart: week, timeZone, targetMinutes: goalMinutes, ...(goal ? { expectedRevision: goal.revision } : {}) }))) setGoalOpen(false); }}><DurationField label="Study this week" value={goalMinutes} onChange={setGoalMinutes} /><div className="study-form__actions"><button type="button" className="button button--quiet" onClick={() => setGoalOpen(false)}>Cancel</button><button className="button button--primary" disabled={busy}>Save weekly aim</button></div>{error ? <p role="alert" className="study-error">{error}</p> : null}</form></Dialog> : null}
+    </>}
   </div>;
 }

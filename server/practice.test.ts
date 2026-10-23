@@ -5,11 +5,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { assistantMemorySchema, chatSchema, quizDraftSchema, resourceSchema, snapshotSchema, type Snapshot } from '../shared/schema';
+import { assistantMemorySchema, attemptSchema, chatSchema, quizDraftSchema, resourceSchema, snapshotSchema, type Snapshot } from '../shared/schema';
 import { createService } from './index';
 import { Store, writeStateFile } from './store';
 import { Resources } from './resources';
 import { Codex } from './codex';
+import { chronologicalAttempts, compareAttempts } from '../shared/attempt-comparison';
 
 const now = '2026-10-22T00:00:00.000Z';
 function quiz(id: string, topicId = 'algebra') {
@@ -76,7 +77,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
       assert.equal(response.status,expected,JSON.stringify(value));
       return value;
     },
-    async restart() { await service.close(); service = await createService({ dataDir:directory }); },
+    async restart(change?: () => Promise<void>) { await service.close(); await change?.(); service = await createService({ dataDir:directory }); },
     async turns() {
       return z.array(z.object({ input:z.array(z.object({ text:z.string() })), outputSchema:z.object({ properties:z.record(z.string(),z.unknown()) }).optional() })).parse((await readFile(join(directory,'turns.jsonl'),'utf8')).trim().split('\n').map(line => JSON.parse(line)));
     },
@@ -374,5 +375,44 @@ test('learning needs persist separately from 50 personal memories, guide scoped 
     assert.deepEqual(state.assistantMemories,personal);
     const improvedPractice = resourceSchema.parse(await app.request('/resources/generate','POST',{ kind:'quiz',subjectId:'math',topicId:'algebra',questionCount:1,questionTypes:['short_response'],instructions:'Practise inverse operations.' }));
     assert.deepEqual(improvedPractice.practiceFocus,[],'Resolved needs and evidence from another topic must not claim a current practice focus.');
+  } finally { await app.close(); }
+});
+
+test('attempt history and review links survive changed questions, resource archive, restore and restart', async () => {
+  const attempts = [0, 2].map((score, index) => attemptSchema.parse({ schemaVersion:1, revision:1, id:randomUUID(), sourceDraftId:null,
+    resourceId:'quiz-a', answers:{q1:score ? '4' : '3',q2:''}, result:result(score), createdAt:`2026-10-2${index + 1}T00:00:00.000Z` }));
+  const memory = {id:'retained-review',subjectId:'math',topicId:'algebra',resourceId:'quiz-a',question:'Solve 2x=8.',note:'Use inverse operations.',createdAt:now,nextReviewAt:now,resolvedAt:null,learningNeedId:null};
+  const app = await fixture(store => { store.state.attempts.push(...attempts); store.state.memories.push(memory); });
+  try {
+    let state = snapshotSchema.parse(await app.request('/state'));
+    assert.deepEqual(state.attempts, attempts);
+    const ordered = chronologicalAttempts(state.attempts);
+    assert.ok(ordered[0] && ordered[1]);
+    const comparison = compareAttempts(ordered[0], ordered[1]);
+    assert.equal(comparison?.questions[0]?.change,'improved');
+    await app.request('/resources/quiz-a/archive','POST',{});
+    state = snapshotSchema.parse(await app.request('/state'));
+    assert.ok(!state.resources.some(resource => resource.id === 'quiz-a'));
+    assert.ok(!state.memories.some(item => item.id === memory.id),'Archive still hides review items until restored.');
+    assert.deepEqual(state.attempts,attempts,'Saved answers remain readable without deleted resource content.');
+    const saved = await Store.open(app.directory);
+    assert.deepEqual(saved.state.memories.find(item => item.id === memory.id),memory);
+    await app.restart();
+    assert.deepEqual(snapshotSchema.parse(await app.request('/state')).attempts,attempts);
+    await app.request('/resources/quiz-a/restore','POST',{});
+    state = snapshotSchema.parse(await app.request('/state'));
+    assert.equal(state.memories.find(item => item.id === memory.id)?.resourceId,'quiz-a');
+    await app.restart(async () => {
+      const store = await Store.open(app.directory);
+      const resource = store.state.resources.find(item => item.id === 'quiz-a');
+      assert.ok(resource);
+      resource.questions[0].prompt = 'Different current wording';
+      resource.questions[0].marks = 4;
+      resource.questions.push({...resource.questions[0], id:'new-question'});
+      await store.save();
+    });
+    state = snapshotSchema.parse(await app.request('/state'));
+    assert.deepEqual(state.attempts,attempts);
+    assert.equal(state.resources.find(item => item.id === 'quiz-a')?.questions.length,3);
   } finally { await app.close(); }
 });
