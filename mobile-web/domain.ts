@@ -49,9 +49,9 @@ export function manualSession(input: { title: string; date: string; time: string
   const stamp = new Date(now).toISOString();
   return studySessionSchema.parse({ schemaVersion:1,id:crypto.randomUUID(),revision:1,createdAt:stamp,updatedAt:stamp,deletedAt:null,title:input.title,notes:'',subjectId:input.subjectId,taskId:null,timeZone:input.timeZone,source:'manual',segments:[{start,end}],state:{kind:'completed'} });
 }
-export function newTimer(title: string, subjectId: string | null, timeZone: string, now: number): StudySession {
+export function newTimer(title: string, subjectId: string | null, timeZone: string, now: number, targetMinutes?: number): StudySession {
   const stamp = new Date(now).toISOString();
-  return studySessionSchema.parse({schemaVersion:1,id:crypto.randomUUID(),revision:1,createdAt:stamp,updatedAt:stamp,deletedAt:null,title,notes:'',subjectId,taskId:null,timeZone,source:'timer',segments:[],state:{kind:'running',since:stamp,checkpointAt:stamp,lastActivityAt:stamp,confirmedAt:stamp}});
+  return studySessionSchema.parse({schemaVersion:1,id:crypto.randomUUID(),revision:1,createdAt:stamp,updatedAt:stamp,deletedAt:null,title,notes:'',subjectId,taskId:null,timeZone,source:'timer',...(targetMinutes===undefined?{}:{targetMinutes}),segments:[],state:{kind:'running',since:stamp,checkpointAt:stamp,lastActivityAt:stamp,confirmedAt:stamp}});
 }
 export function timerChange(session: StudySession, action: 'heartbeat'|'pause'|'resume'|'finish'|'confirm', now: number, lastActivity = now): StudySession {
   const recovered = recoverStudySession(session, now);

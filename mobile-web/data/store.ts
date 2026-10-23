@@ -773,7 +773,7 @@ export class MobileStore {
 
   constructor(options: MobileStoreOptions = {}) {
     this.origin = normalizeOrigin(options.origin);
-    this.fetcher = options.fetch ?? globalThis.fetch;
+    this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.persistence = options.persistence ?? createIdbPersistence(this.origin);
     this.now = options.now ?? Date.now;
     this.channel = typeof window === "undefined" || typeof BroadcastChannel === "undefined"

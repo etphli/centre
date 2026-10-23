@@ -16,7 +16,7 @@ export class MobileModel {
     return next;
   }
   activity() { this.activityAt = Date.now(); }
-  async startTimer(title: string, subjectId: string | null, timeZone: string, resumeId?: string) {
+  async startTimer(title: string, subjectId: string | null, timeZone: string, resumeId?: string, targetMinutes?:number) {
     if (!navigator.locks) throw new Error('This browser cannot safely own a study timer. You can still log completed study manually.');
     if (this.ownedTimer) throw new Error('Pause or finish your current timer first.');
     const session = this.store.getSnapshot().session;
@@ -30,7 +30,7 @@ export class MobileModel {
             const current=library(this.store.getSnapshot().entities).sessions;
             if (current.some(item=>item.state.kind==='running')) throw new Error('Pause the existing timer before starting another.');
             const prior=current.find(item=>item.id===resumeId);
-            const timer=prior ? timerChange(prior,'resume',Date.now()) : newTimer(title,subjectId,timeZone,Date.now());
+            const timer=prior ? timerChange(prior,'resume',Date.now()) : newTimer(title,subjectId,timeZone,Date.now(),targetMinutes);
             await this.store.save('studySession',timer.id,timer);
             this.ownedTimer=timer.id;this.activityAt=Date.now();
           });

@@ -13,10 +13,12 @@ const svgAttrs=new Map([['viewBox','viewBox'],['viewbox','viewBox'],['d','d'],['
 export function SafeDocument({resource,state,model}:{resource:Resource;state:MobileState;model:MobileModel}) {
   const prepared=useMemo(()=>prepareChecklistContent(resource.content),[resource.content]);
   const tree=useMemo(()=>parseFragment(prepared.content),[prepared.content]);
+  const [optimistic,setOptimistic]=useState<Record<string,boolean>>({});
   const [identity,setIdentity]=useState<{id:string;revision:string}|null>(null),action=useAction();
   useEffect(()=>{let live=true;void crypto.subtle.digest('SHA-256',new TextEncoder().encode(resource.content)).then(async digest=>{const revision=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');const id=await interactiveResourceProgressId(resource.id,revision);if(live)setIdentity({id,revision});});return()=>{live=false;};},[resource.content,resource.id]);
   const progress=records(state.entities,'interactiveProgress',interactiveResourceProgressSchema).find(item=>item.id===identity?.id&&!item.deletedAt);
   const checked=new Set(progress?.checkedItemIds??prepared.checkedItemIds);
+  for(const [id,value]of Object.entries(optimistic)){if(value)checked.add(id);else checked.delete(id);}
   const allowed=new Set(prepared.itemIds);
   let budget=5000;
   function render(node:DefaultTreeAdapterTypes.Node,key:string):ReactNode {
@@ -29,7 +31,7 @@ export function SafeDocument({resource,state,model}:{resource:Resource;state:Mob
     if(tag==='input'&&attr('type')?.toLowerCase()==='checkbox'){
       const id=attr('data-centre-checklist-id');
       if(!id||!allowed.has(id))return null;
-      return <input key={key} type="checkbox" checked={checked.has(id)} aria-label={attr('aria-label')??`Checklist item ${prepared.itemIds.indexOf(id)+1}`} disabled={!identity||action.busy} onChange={event=>{const value=event.target.checked;void action.run(()=>model.serial(async()=>{if(!identity)return;const existing=records(model.store.getSnapshot().entities,'interactiveProgress',interactiveResourceProgressSchema).find(item=>item.id===identity.id);const next=new Set(existing?.checkedItemIds??prepared.checkedItemIds);if(value)next.add(id);else next.delete(id);const stamp=new Date().toISOString();await model.store.save('interactiveProgress',identity.id,interactiveResourceProgressSchema.parse({schemaVersion:1,id:identity.id,revision:(existing?.revision??0)+1,resourceId:resource.id,documentRevision:identity.revision,checkedItemIds:[...next].sort(),createdAt:existing?.createdAt??stamp,updatedAt:stamp,deletedAt:null}));}));}}/>;
+      return <input key={key} type="checkbox" checked={checked.has(id)} aria-label={attr('aria-label')??`Checklist item ${prepared.itemIds.indexOf(id)+1}`} disabled={!identity||action.busy} onChange={event=>{const value=event.target.checked;setOptimistic(current=>({...current,[id]:value}));void action.run(()=>model.serial(async()=>{if(!identity)return;const existing=records(model.store.getSnapshot().entities,'interactiveProgress',interactiveResourceProgressSchema).find(item=>item.id===identity.id);const next=new Set(existing?.checkedItemIds??prepared.checkedItemIds);if(value)next.add(id);else next.delete(id);const stamp=new Date().toISOString();await model.store.save('interactiveProgress',identity.id,interactiveResourceProgressSchema.parse({schemaVersion:1,id:identity.id,revision:(existing?.revision??0)+1,resourceId:resource.id,documentRevision:identity.revision,checkedItemIds:[...next].sort(),createdAt:existing?.createdAt??stamp,updatedAt:stamp,deletedAt:null}));})).finally(()=>setOptimistic(current=>{const next={...current};delete next[id];return next;}));}}/>;
     }
     const children=node.childNodes.map((child,index)=>render(child,`${key}.${index}`));
     if(tag==='a'){
@@ -42,5 +44,5 @@ export function SafeDocument({resource,state,model}:{resource:Resource;state:Mob
     }
     return htmlTags.has(tag)?createElement(tag,{key},children):<span key={key}>{children}</span>;
   }
-  return <><p className="detail">Reading view. Checklists save across your devices. Animations and custom interactions open on your Mac.</p><div className="safe-document prose">{tree.childNodes.map((node,index)=>render(node,String(index)))}</div><ErrorLine error={action.error}/>{action.busy?<p className="detail" role="status">Saving checklist…</p>:null}</>;
+  return <><p className="detail">Reading view. Checklists save across your devices. Animations and custom interactions open on your Mac.</p><div className="safe-document prose">{tree.childNodes.map((node,index)=>render(node,String(index)))}</div><ErrorLine error={action.error}/>{action.busy||progress?<p className="detail" role="status">{action.busy?'Saving checklist…':'Checklist saved on this device'}</p>:null}</>;
 }

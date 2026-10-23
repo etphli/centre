@@ -32,7 +32,7 @@ export function App({store}:{store:MobileStore}) {
     return()=>{clearInterval(heartbeat);clearInterval(sync);document.removeEventListener('visibilitychange',update);window.removeEventListener('online',update);window.removeEventListener('centre-offline-unavailable',unavailable);document.removeEventListener('pointerdown',activity);document.removeEventListener('keydown',activity);};
   },[model,store]);
   // Background queue sends are paced; timer checkpoints remain durable between syncs.
-  useEffect(()=>{if(!opened||!state.session||!state.pending||state.phase==='syncing')return;const timer=setTimeout(()=>void store.sync().catch(()=>undefined),5000);return()=>clearTimeout(timer);},[opened,state.session?.workspaceId,state.pending,state.phase,store]);
+  useEffect(()=>{if(!opened||!state.session||!state.pending||state.phase==='syncing')return;const timer=setTimeout(()=>void store.sync().catch(()=>undefined),5000);return()=>clearTimeout(timer);},[opened,state.session?.workspaceId,state.pending,store]);
   useEffect(()=>{let live=true;setSubjects([]);if(state.phase==='unpaired')return;void store.getLocal('organato-snapshot').then(value=>{const parsed=organatoSnapshotSchema.safeParse(value);if(live&&parsed.success)setSubjects(parsed.data.subjects);}).catch(()=>undefined);return()=>{live=false;};},[state.session?.workspaceId,state.phase==='unpaired',store]);
   async function refreshSubjects(){const value=organatoSnapshotSchema.parse(await store.request('/v1/organato/snapshot'));await store.saveLocal('organato-snapshot',value);setSubjects(value.subjects);}
   const guest=state.phase==='unpaired';
