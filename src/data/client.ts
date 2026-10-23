@@ -14,6 +14,7 @@ export interface AttachmentUploadInput { name:string; mimeType:string; data:stri
 export interface UpdateStatus { state: string; message: string; version?: string; downloaded?: boolean; configured?: boolean }
 type Method = 'GET' | 'POST' | 'PATCH';
 export interface DesktopBridge {
+  copyText: (text: string) => Promise<void>;
   actions: {
     subscribe: (listener: (request: DesktopActionRequest) => void) => () => void;
     ready: () => Promise<void>;
@@ -32,6 +33,11 @@ export interface DesktopBridge {
   updates: { check: () => Promise<UpdateStatus>; install: () => Promise<UpdateStatus>; status: () => Promise<UpdateStatus>; configure: (input: { token: string }) => Promise<UpdateStatus> };
 }
 declare global { interface Window { centre?: DesktopBridge } }
+
+export async function copyText(text: string): Promise<void> {
+  if (window.centre) await window.centre.copyText(text);
+  else await navigator.clipboard.writeText(text);
+}
 
 let stateEtag: string | null = null;
 

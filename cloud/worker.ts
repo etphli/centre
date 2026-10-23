@@ -27,6 +27,7 @@ import {
   type Chat,
 } from "../shared/schema";
 import { applyReviewEvidence, learningNeedSchema } from "../shared/practice";
+import { mobilePairingPage } from "./mobile-pairing-page";
 export interface Statement {
   bind(...values: unknown[]): Statement;
   first<T = Record<string, unknown>>(): Promise<T | null>;
@@ -45,6 +46,7 @@ export interface Env {
   ORGANATO_ENCRYPTION_KEYS_JSON?: string;
   ORGANATO_KEY_VERSION?: string;
   ORGANATO_ALLOWED_ORIGINS?: string;
+  CENTRE_IOS_DISTRIBUTION_URL?: string;
 }
 export interface Auth {
   workspaceId: string;
@@ -770,6 +772,9 @@ export function createWorker(options: WorkerOptions = {}) {
           path = url.pathname,
           db = env.DB;
         await dailyRate(db, "requests:global", now(), 5000);
+        if (path === "/pair" && request.method === "GET") {
+          return mobilePairingPage(env.CENTRE_IOS_DISTRIBUTION_URL);
+        }
         if (path.startsWith("/v1/auth/")) {
           await rate(db, "auth:global", now(), 300);
           await rate(
