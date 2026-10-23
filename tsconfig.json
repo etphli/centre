@@ -27,6 +27,8 @@
     "electron",
     "App.tsx",
     "vite.config.ts",
+    "vite.iphone.config.ts",
+    "mobile-web",
     "cloud-ai",
     "cloud",
     "cloud-organato"

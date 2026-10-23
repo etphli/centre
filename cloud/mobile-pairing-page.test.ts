@@ -12,7 +12,7 @@ test('public camera handoff is anonymous HTML and never redeems a code', async (
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type') ?? '', /text\/html/);
   const html = await response.text();
-  assert.match(html, /The iPhone app isn’t available to install yet/);
+  assert.match(html, /Install Centre for iPhone/);
   assert.match(html, /history.replaceState/);
   assert.equal(html.includes(String(invitation.value.code)), false);
   assert.equal(html.includes('fetch('), false);
@@ -34,6 +34,6 @@ test('handoff has private no-network headers and only validated Apple install li
   for (const value of ['https://evil.example/<script>', 'https://testflight.apple.com.evil.example/join/Ab123456', 'javascript:alert(1)']) {
     const html = await mobilePairingPage(value).text();
     assert.equal(html.includes(value), false);
-    assert.match(html, /isn’t available to install yet/);
+    assert.match(html, /A native iPhone release isn’t available yet/);
   }
 });

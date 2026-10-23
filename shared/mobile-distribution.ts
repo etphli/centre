@@ -14,3 +14,6 @@ export function mobileDistribution(value: string | undefined): MobileDistributio
   }
   return null;
 }
+
+/** Public Home Screen installation guide; carries no account authority. */
+export const mobileWebInstallationUrl = 'https://centre-cloud.etphli.workers.dev/iphone/';
