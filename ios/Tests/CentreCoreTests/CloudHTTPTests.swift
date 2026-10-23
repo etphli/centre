@@ -141,6 +141,32 @@ final class CloudHTTPTests: XCTestCase {
         catch let error as CentreError { XCTAssertEqual(error, .authentication) }
     }
 
+    func testGoogleExchangeAndBootstrapStayOnSelectedFormOrigin() async throws {
+        let configuration=URLSessionConfiguration.ephemeral
+        configuration.protocolClasses=[CloudURLProtocol.self]
+        let selected=URL(string:"https://selected.example")!
+        let service=try CloudHTTP(baseURL:selected,session:URLSession(configuration:configuration))
+        let fixture=CloudSession(token:"ctr_"+String(repeating:"a",count:43),deviceId:"fixture",workspaceId:"workspace",expiresAt:"2099-01-01T00:00:00Z")
+        let bytes=try JSONEncoder().encode(fixture)
+        CloudURLProtocol.install { request in
+            XCTAssertEqual(request.url?.host,"selected.example")
+            XCTAssertEqual(request.url?.path,"/v1/auth/google")
+            XCTAssertNil(request.value(forHTTPHeaderField:"Authorization"))
+            return (200,bytes)
+        }
+        let session=try await service.signIn(idToken:"fixture-token",deviceName:"Fixture phone")
+        CloudURLProtocol.install { request in
+            XCTAssertEqual(request.url?.host,"selected.example")
+            XCTAssertEqual(request.url?.path,"/v1/bootstrap")
+            XCTAssertEqual(request.value(forHTTPHeaderField:"Authorization"),"Bearer " + fixture.token)
+            return (200,Data(#"{"schemaVersion":1,"workspaceId":"workspace"}"#.utf8))
+        }
+        let authenticated=try CloudHTTP(baseURL:selected,token:session.token,session:URLSession(configuration:configuration))
+        try await authenticated.bootstrap(workspaceId:session.workspaceId)
+        XCTAssertNotEqual(try WorkspaceKey(baseURL:selected,workspaceId:session.workspaceId).fileKey,
+                          try WorkspaceKey(baseURL:URL(string:"https://previous.example")!,workspaceId:session.workspaceId).fileKey)
+    }
+
     func testPairRejectsInvalidOrExpiredSession() async throws {
         let service = try client(token: nil)
         for session in [

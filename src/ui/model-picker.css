@@ -32,5 +32,5 @@
 .model-picker__reasoning input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#8ea6e8;border:0;margin-top:-4px;box-shadow:0 0 0 2px var(--surface-2)}
 .model-picker__reasoning input[type=range]:focus-visible{outline:1px solid #8ea6e8;outline-offset:3px}
 .model-picker__reasoning .model-picker__stops{position:relative;margin:0 -4px 1px;justify-content:space-between}
-.model-picker__reasoning .model-picker__stops button{position:relative;font-size:0.59375rem;padding:4px;min-width:23px;text-align:center}
+.model-picker__reasoning .model-picker__stops button{position:relative;font-size:0.6875rem;padding:4px;min-width:23px;text-align:center}
 .model-picker__reasoning .model-picker__stops button::before{content:'';position:absolute;left:50%;top:-9px;width:2px;height:3px;border-radius:1px;background:var(--text-3);opacity:.45;pointer-events:none}

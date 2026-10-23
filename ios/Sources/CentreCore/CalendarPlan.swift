@@ -40,10 +40,37 @@ public enum CalendarPlan {
         return first.addingTimeInterval(fraction)
     }
 
-    public static func create(title: String, start: Date, timeZone: String, durationMinutes: Int = 60, subjectId: String? = nil, now: Date = Date()) throws -> JSONValue {
-        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    public static func validateMetadata(title: String, durationMinutes: Int) throws {
+        let title=title.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !title.isEmpty, title.utf16.count <= 200 else { throw CentreError.invalid("Use a planned session title between 1 and 200 characters.") }
         guard (5...720).contains(durationMinutes) else { throw CentreError.invalid("Choose a planned duration between 5 and 720 minutes.") }
+    }
+
+    // Check only fields whose rejection is provable locally. Existing journal files
+    // remain readable, including invalid commands saved by older app versions.
+    public static func validateCommandMetadata(_ command: ConnectorCommand) throws {
+        let value=command.method == "PATCH" ? command.body["patch"] : command.body["data"]
+        guard case .object(let fields) = value else { return }
+        if let raw=fields["title"] {
+            guard let title=raw.string else { throw CentreError.invalid("Use a text session title.") }
+            try validateMetadata(title:title,durationMinutes:60)
+        }
+        if let raw=fields["subjectId"], raw != .null {
+            guard let subject=raw.string, subject.utf16.count <= 200 else { throw CentreError.invalid("Use a valid calendar subject identifier.") }
+        }
+        if let raw=fields["notes"] {
+            guard let notes=raw.string, notes.utf16.count <= 20000 else { throw CentreError.invalid("Use calendar notes up to 20000 characters.") }
+        }
+        if let raw=fields["plannedDurationMinutes"] {
+            guard let duration=raw.int else { throw CentreError.invalid("Choose a whole number of planned minutes.") }
+            try validateMetadata(title:"Session",durationMinutes:duration)
+        }
+    }
+
+    public static func create(title: String, start: Date, timeZone: String, durationMinutes: Int = 60, subjectId: String? = nil, now: Date = Date()) throws -> JSONValue {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        try validateMetadata(title:title,durationMinutes:durationMinutes)
+        guard subjectId.map({$0.utf16.count <= 200}) != false else { throw CentreError.invalid("Use a valid calendar subject identifier.") }
         guard start.timeIntervalSince1970.isFinite, now.timeIntervalSince1970.isFinite else { throw CentreError.invalid("Choose a valid start time.") }
         let calendar = try calendar(timeZone: timeZone)
         let startAt = Clock.iso(start), stamp = Clock.iso(now)

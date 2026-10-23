@@ -224,6 +224,24 @@ async function withArchiveFixture(run:(fixture:{
 
 const archiveSessionInput = {title:'Archive this session',date:'2026-10-21',time:'16:00'};
 
+test('sync imports confirmed remote session durations and retains legacy missing durations',async () => withArchiveFixture(async ({request,records,directory}) => {
+  const created = eventSchema.parse((await request('/api/events','POST',archiveSessionInput)).body);
+  assert.ok(created.organatoId);
+  for (const duration of [90,5,720,null]) {
+    const remote = records.get(created.organatoId); assert.ok(remote);
+    assert.equal(typeof remote.version,'number');
+    records.set(created.organatoId,{...remote,version:Number(remote.version)+1,estimatedMinutes:duration});
+    assert.equal((await request('/api/organato/sync','POST',{})).status,200);
+    const synced = snapshotSchema.parse((await request('/api/state')).body).events.find(event => event.id === created.id); assert.ok(synced);
+    assert.equal(synced.plannedDurationMinutes,duration ?? 720);
+    assert.equal(synced.organatoVersion,Number(remote.version)+1);
+    assert.equal((await Store.open(directory)).state.events.find(event => event.id === created.id)?.plannedDurationMinutes,duration ?? 720);
+  }
+  const updated = await request(`/api/events/${created.id}`,'PATCH',{notes:'Keep the synced duration'});
+  assert.equal(updated.status,200);
+  assert.equal(eventSchema.parse(updated.body).plannedDurationMinutes,720);
+}));
+
 test('editing notes or duration preserves a precise existing instant in a repeated DST hour',async () => withArchiveFixture(async ({request,records}) => {
   const created = eventSchema.parse((await request('/api/events','POST',archiveSessionInput)).body);
   assert.ok(created.organatoId);

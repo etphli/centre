@@ -123,7 +123,7 @@ export class Organato {
   private calendarEvent(remote:z.infer<typeof item>,fallback:Partial<StudyEvent> & Pick<StudyEvent,'id'|'title'>,timeZone:string):StudyEvent {
     const deadline = calendarDate(remote.dueAt,remote.dueDateLocal,timeZone);
     const planned = fallback.origin === 'centre' && Boolean(deadline?.time);
-    const event = eventSchema.parse({...fallback,...deadline,kind:planned ? 'session' : 'deadline',plannedDurationMinutes:planned ? fallback.plannedDurationMinutes ?? 45 : null,title:remote.displayName,subjectId:remote.subjectId,notes:remote.notesMarkdown,completedAt:remote.workingStatus === 'completed' ? remote.completedAt ?? fallback.completedAt ?? new Date().toISOString() : null,organatoId:remote.id,organatoVersion:remote.version,timeZone});
+    const event = eventSchema.parse({...fallback,...deadline,kind:planned ? 'session' : 'deadline',plannedDurationMinutes:planned ? remote.estimatedMinutes ?? fallback.plannedDurationMinutes ?? 45 : null,title:remote.displayName,subjectId:remote.subjectId,notes:remote.notesMarkdown,completedAt:remote.workingStatus === 'completed' ? remote.completedAt ?? fallback.completedAt ?? new Date().toISOString() : null,organatoId:remote.id,organatoVersion:remote.version,timeZone});
     return event.origin === 'centre' ? projectCalendarEvent(calendarEventSchema.parse(event)) : event;
   }
   private requireCalendar(remote:z.infer<typeof item>) {

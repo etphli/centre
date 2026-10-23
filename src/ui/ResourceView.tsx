@@ -398,9 +398,9 @@ function Flashcards({ resource, questionId }: { resource: Resource; questionId?:
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (document.querySelector('dialog[open]')) return;
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || document.querySelector('dialog[open]')) return;
       const target = event.target;
-      if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select, button, a, summary, [role=button], [role=combobox], [contenteditable]'))) return;
       if (event.key === 'ArrowRight') move(1);
       else if (event.key === 'ArrowLeft') move(-1);
       else if (event.key === ' ') {
@@ -465,8 +465,8 @@ export function ResourceView({ resourceId, questionId }: { resourceId: string; q
     setExporting(true);
     try {
       const file = await api.exportResource(resource.id);
-      await downloadFile(file);
-      notify({ tone: 'success', message: `Exported ${file.filename}` });
+      const result = await downloadFile(file);
+      if (result.saved) notify({ tone: 'success', message: `Exported ${result.filename}` });
     } catch (failure) {
       notify({ tone: 'error', message: errorMessage(failure) });
     } finally {

@@ -225,4 +225,45 @@ final class ConnectorJournalTests: XCTestCase {
         }
     }
 
+    func testInvalidMetadataIsRejectedBeforeStageAndLegacyMissingCommandCanClose() async throws {
+        let workspace=try WorkspaceKey(baseURL:URL(string:"https://cloud.example")!,workspaceId:"account-a")
+        let store=try journal(), id=UUID()
+        var invalid=ConnectorCommand(id:id,path:"/v1/organato/sessions/\(UUID())",method:"PATCH",body:.object(["operationId":.string(id.uuidString),"patch":.object(["title":.string(String(repeating:"x",count:201))])]))
+        do { try await store.stage(invalid); XCTFail("Invalid metadata staged") } catch is CentreError {}
+        let before=await store.snapshot(); XCTAssertTrue(before.isEmpty)
+        invalid.sent=true
+        let legacy:JSONValue = .object(["schemaVersion":.number(1),"workspace":try JSONValue.encode(workspace),"commands":.array([try JSONValue.encode(invalid)])])
+        try JSONEncoder().encode(legacy).write(to:directory.appendingPathComponent(workspace.fileKey+"-organato.json"))
+        let reopened=try journal(), network=JournalTransport()
+        await network.configure(missing:true,missingCode:"operation_not_found")
+        try await reopened.process(using:network)
+        let rejected=await reopened.snapshot()
+        XCTAssertEqual(rejected[0].status,"failed")
+        XCTAssertNil(rejected[0].receipt,"Local rejection must not impersonate a server receipt")
+        XCTAssertEqual(rejected[0].body,invalid.body)
+        let persisted=try journal()
+        try await persisted.acknowledge(id)
+        let closed=await persisted.snapshot(), counts=await network.counts()
+        XCTAssertTrue(closed.isEmpty); XCTAssertEqual(counts,[0,1])
+    }
+
+    func testInvalidMetadataWithPriorUnknownReceiptStillNeedsReconciliation() async throws {
+        let workspace=try WorkspaceKey(baseURL:URL(string:"https://cloud.example")!,workspaceId:"account-a")
+        _ = try journal()
+        let id=UUID()
+        var invalid=ConnectorCommand(id:id,path:"/v1/organato/sessions/\(UUID())",method:"PATCH",body:.object(["operationId":.string(id.uuidString),"patch":.object(["title":.string(String(repeating:"x",count:201))])]))
+        invalid.sent=true; invalid.receipt=receipt(id,"unknown")
+        let legacy:JSONValue = .object(["schemaVersion":.number(1),"workspace":try JSONValue.encode(workspace),"commands":.array([try JSONValue.encode(invalid)])])
+        try JSONEncoder().encode(legacy).write(to:directory.appendingPathComponent(workspace.fileKey+"-organato.json"))
+        let reopened=try journal(), network=JournalTransport()
+        await network.configure(missing:true,missingCode:"operation_not_found")
+        try await reopened.process(using:network)
+        do { try await reopened.acknowledge(id); XCTFail("Closed a prior uncertain receipt") } catch is CentreError {}
+        do { try await reopened.retryMissing(id:id,using:network); XCTFail("Retried a prior uncertain receipt") } catch is CentreError {}
+        let state=await reopened.snapshot()
+        XCTAssertEqual(state[0].status,"unknown")
+        XCTAssertNil(state[0].localRejection)
+        XCTAssertEqual(state[0].receipt?["status"],.string("unknown"))
+    }
+
 }

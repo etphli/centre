@@ -597,7 +597,7 @@ async function canonical(
       schemaVersion: 1,
       expectedVersion: plan.expectedVersion,
       deleted: plan.action === "archive",
-      data: event,
+      data: plan.action === "archive" ? null : event,
     }),
   );
   return saveReceipt(ctx, {
@@ -1217,11 +1217,21 @@ async function snapshot(ctx: OrganatoContext, c: Connection) {
   const blocked = new Set(unresolved.results.map((row) => row.event_id));
   const events: StudyEvent[] = [];
   const linked = new Set<string>();
+  const deletedLinked = new Set<string>();
   const remotes = new Map(items.map((item) => [item.id, item]));
   // Read sequentially to avoid exhausting D1 subrequest limits with a burst of reads.
   for (const link of links.results) {
     const record = await ctx.entities.get("calendarEvent", link.event_id);
     if (!record) continue;
+    if (record.deleted) {
+      // The current credential's verified link still owns this remote ID.
+      // Tombstones have no event payload and must not be imported again.
+      if (record.kind === "calendarEvent" && record.id === link.event_id) {
+        linked.add(link.organato_id);
+        deletedLinked.add(link.organato_id);
+      }
+      continue;
+    }
     const event = calendarEventSchema.parse(record.data);
     if (
       record.kind !== "calendarEvent" ||
@@ -1241,7 +1251,10 @@ async function snapshot(ctx: OrganatoContext, c: Connection) {
       continue;
     }
     linked.add(link.organato_id);
-    if (record.deleted || event.deletedAt) continue;
+    if (event.deletedAt) {
+      deletedLinked.add(link.organato_id);
+      continue;
+    }
     const upstream = remotes.get(link.organato_id);
     let projection =
       upstream && upstream.version > (event.organatoVersion ?? 0) && !blocked.has(event.id)
@@ -1301,7 +1314,7 @@ async function snapshot(ctx: OrganatoContext, c: Connection) {
         }),
       ),
     assignments: items
-      .filter((r) => !r.archivedAt)
+      .filter((r) => !r.archivedAt && !deletedLinked.has(r.id))
       .map((r) =>
         assignmentSchema.parse({
           id: r.id,

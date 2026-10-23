@@ -80,7 +80,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             }
         } catch { self.error=error.localizedDescription }
     }
-    var preferences:JSONValue { record(kind:"preferences",id:"preferences")?.data ?? .object(["theme":.string("dark"),"textSize":.string("standard"),"timeZone":.string("Australia/Sydney")]) }
+    var preferences:JSONValue { StudyPreferences.defaults.merging(record(kind:"preferences",id:"preferences")?.data ?? .object([:])) }
     var timeZone:String { preferences["timeZone"].string ?? "Australia/Sydney" }
     func items(_ kind:String) -> [CloudRecord] { records.filter{$0.kind == kind && !$0.deleted && $0.schemaVersion == 1 && $0.data?["deletedAt"].string == nil} }
     func record(kind:String,id:String) -> CloudRecord? { items(kind).first{$0.id == id} }
@@ -165,21 +165,34 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         catch { self.error=error.localizedDescription;return false }
     }
     @discardableResult
-    func save(kind:String,id:String,data:JSONValue,deleted:Bool=false) async -> Bool {
+    func save(kind:String,id:String,data:JSONValue,deleted:Bool=false,baseline:EditingBaseline?=nil) async -> Bool {
         let saved = await perform {
             guard let replica else { return }
             guard data["id"].string == id || kind == "preferences" else { throw CentreError.invalid("Invalid record identity.") }
             if kind == "preferences" {
-                let allowed:Set<String>=["nickname","theme","density","textSize","studentYearLevel","timeZone","responseStyle","defaultQuizQuestions","defaultTestLengthMode","defaultTestMinutes","defaultTestQuestions","defaultQuizQuestionTypes","defaultTestQuestionTypes","defaultDifficulty"]
-                guard case .object(let fields)=data,fields.keys.allSatisfy(allowed.contains) else { throw CentreError.invalid("Only study preferences can be synchronized.") }
+                _ = try StudyPreferences.validatedPatch(data)
             }
             if kind == "studySession" {
                 let value=try data.decode(StudySession.self)
                 try StudyRules.validate(value,others:sessions.filter{$0.id != id},now:Date())
             }
-            try await replica.stage([LocalChange(kind:kind,id:id,data:data,deleted:deleted)])
+            if kind == "resource", !deleted { try RecordProjections.validateLocation(data,topics:records.filter{$0.kind == "topic"}) }
+            try await replica.stage([LocalChange(kind:kind,id:id,data:data,deleted:deleted)],baseline:baseline)
         }
         return saved
+    }
+    @discardableResult
+    func savePreferences(_ patch: JSONValue) async -> Bool {
+        await perform {
+            guard let replica else { return }
+            try await replica.updatePreferences(patch)
+        }
+    }
+    func setResponseType(key: String, type: String, enabled: Bool) async {
+        _ = await perform {
+            guard let replica else { return }
+            try await replica.updateResponseType(key: key, type: type, enabled: enabled)
+        }
     }
     func send(workspace:WorkspaceKey,chatId:String,text:String) async -> String? {
         guard !signingOut,workspaceKey == workspace,let originatingReplica=replica else { return nil }
@@ -209,7 +222,8 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         return nil
     }
     @discardableResult
-    func saveDraft(resource:CloudRecord,answers:[String:String],currentQuestion:Int) async -> Bool {
+    func saveDraft(resource:CloudRecord,answers:[String:String],currentQuestion:Int,baseline:EditingBaseline) async -> EditingBaseline? {
+        var updated:EditingBaseline?
         let saved = await perform {
             guard let replica else { return }
             let existing=items("practice.draft").first{$0.data?["resourceId"].string == resource.id}
@@ -219,18 +233,18 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             guard !questions.isEmpty,currentQuestion >= 0,currentQuestion < questions.count,currentQuestion < 30,answers.keys.allSatisfy(ids.contains),answers.values.allSatisfy({$0.utf16.count <= 4000}) else { throw CentreError.invalid("The quiz answers do not match its questions.") }
             let id=existing?.id ?? UUID().uuidString.lowercased(),now=Clock.iso(Date())
             let body:JSONValue = .object(["schemaVersion":.number(1),"id":.string(id),"revision":.number(Double((existing?.data?["revision"].int ?? 0)+1)),"resourceId":.string(resource.id),"answers":.object(answers.mapValues(JSONValue.string)),"currentQuestion":.number(Double(currentQuestion)),"createdAt":existing?.data?["createdAt"] ?? .string(now),"updatedAt":.string(now),"deletedAt":.null])
-            try await replica.stage([LocalChange(kind:"practice.draft",id:id,data:body)])
+            updated=try await replica.stage([LocalChange(kind:"practice.draft",id:id,data:body)],baseline:baseline)
         }
-        return saved
+        return saved ? updated : nil
     }
     @discardableResult
-    func submitQuiz(resource:CloudRecord) async -> Bool {
+    func submitQuiz(resource:CloudRecord,baseline:EditingBaseline) async -> Bool {
         guard cloudAIAllowed else { error="Allow Cloudflare AI before submitting for marking.";return false }
         let saved = await perform {
             guard let replica,let draft=items("practice.draft").first(where:{$0.data?["resourceId"].string == resource.id}),let revision=draft.data?["revision"].int else { throw CentreError.invalid("Save your answers before submitting.") }
             guard !aiJobs.contains(where:{if case .grade(let request,_)=$0{return request.draftId == draft.id};return false}) else { throw CentreError.unavailable("This quiz is already waiting for marking.") }
             let request=GradeRequest(id:UUID().uuidString.lowercased(),draftId:draft.id,resourceId:resource.id,expectedDraftRevision:revision)
-            try await replica.stage([],ai:.grade(request,nil))
+            try await replica.stage([],ai:.grade(request,nil),baseline:baseline)
         }
         return saved
     }
@@ -245,15 +259,17 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             if case .grade(let request,let run)=job,request.resourceId == resourceId,run?.status == "unavailable" { return run?.error?["message"].string };return nil
         }.last
     }
-    @discardableResult func startOverQuiz(resource:CloudRecord) async -> Bool {
+    @discardableResult func startOverQuiz(resource:CloudRecord,baseline:EditingBaseline) async -> Bool {
         guard !isQuizSubmitted(resourceId:resource.id) else { error="This quiz is waiting for marking. Synchronize before starting over.";return false }
         return await perform {
             guard let replica else { return }
-            for job in aiJobs { if case .grade(let request,_)=job,request.resourceId == resource.id { try await replica.dismissAI(id:job.id) } }
+            var changes:[LocalChange]=[]
             if let draft=items("practice.draft").first(where:{$0.data?["resourceId"].string == resource.id}),var data=draft.data {
                 data["revision"] = .number(Double((data["revision"].int ?? 0)+1));data["updatedAt"] = .string(Clock.iso(Date()));data["deletedAt"] = data["updatedAt"]
-                try await replica.stage([LocalChange(kind:"practice.draft",id:draft.id,data:data)])
+                changes.append(LocalChange(kind:"practice.draft",id:draft.id,data:data))
             }
+            try await replica.stage(changes,baseline:baseline)
+            for job in aiJobs { if case .grade(let request,_)=job,request.resourceId == resource.id { try await replica.dismissAI(id:job.id) } }
         }
     }
     @discardableResult func timer(action:String,id:String?,title:String,subjectId:String?,targetMinutes:Int?=nil) async -> Bool {
@@ -300,11 +316,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     func recoverTimers(excludingLocal:Bool=false) async throws {
         guard let replica else { return }
         let snapshot=await replica.snapshot()
-        let changes=try snapshot.records.filter{$0.kind == "studySession" && !$0.deleted && (!excludingLocal || !ownedTimers.contains($0.id))}.compactMap { record -> LocalChange? in
-            guard let data=record.data else { return nil }
-            let value=try data.decode(StudySession.self),recovered=try StudyRules.recover(value,now:Date(),restart:true)
-            return recovered == value ? nil : LocalChange(kind:"studySession",id:record.id,data:try JSONValue.encode(recovered))
-        }
+        let changes=try RecordProjections.recoverTimers(snapshot.records,excluding:excludingLocal ? ownedTimers:[],now:Date())
         if !changes.isEmpty { try await replica.stage(changes) }
     }
     func background() async {
@@ -357,7 +369,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             pairingInvitation=nil;await sync()
         } catch { self.error=error.localizedDescription }
     }
-    func googleSignIn() async {
+    func googleSignIn(baseURL:String) async {
         guard !busy else { return };busy=true;defer{busy=false}
         do {
             guard let url=URL(string:baseURL) else { throw CentreError.invalid("Enter your Centre Cloud HTTPS address.") }
@@ -469,6 +481,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     }
     @discardableResult func calendarEdit(event:JSONValue,title:String,start:Date,durationMinutes:Int) async -> Bool {
         do {
+            try CalendarPlan.validateMetadata(title:title,durationMinutes:durationMinutes)
             var patch:JSONValue = .object(["title":.string(title.trimmingCharacters(in:.whitespacesAndNewlines)),"plannedDurationMinutes":.number(Double(durationMinutes))])
             // Metadata-only edits preserve an existing repeated-hour instant and exact fractional seconds.
             if let saved=event["startAt"].string,abs(try Clock.date(saved).timeIntervalSince(start)) > 0.001 {

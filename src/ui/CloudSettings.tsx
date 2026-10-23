@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { RefreshCw, CheckCircle2, PauseCircle, CircleAlert } from 'lucide-react';
 import { AccountPairing } from './MobileSettings';
-import { cloudApi } from '../data/client';
+import { api, cloudApi } from '../data/client';
 import type { CloudStatus } from '../../shared/cloud-status';
 import { useApp } from './context';
 import { errorMessage, plural, timeAgo } from './format';
@@ -49,10 +49,11 @@ export function CloudSettings() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [address, setAddress] = useState('');
   const [addressError, setAddressError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'configure' | 'sign-in' | 'import' | 'sync' | 'disconnect' | 'resolve' | null>(null);
+  const [busy, setBusy] = useState<'configure' | 'sign-in' | 'cancel' | 'import' | 'sync' | 'disconnect' | 'resolve' | null>(null);
   const [signingInSince, setSigningInSince] = useState<number | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const live = useRef(true);
+  const cancelling = useRef(false);
 
   function apply(next: CloudStatus | undefined) {
     if (!next || !live.current) return next;
@@ -75,13 +76,15 @@ export function CloudSettings() {
   const syncing = status?.phase === 'syncing' || status?.phase === 'pending';
   useEffect(() => {
     if (signingInSince === null && !syncing) return;
+    let active = true;
     const timer = setInterval(() => {
+      if (cancelling.current) return;
       if (signingInSince !== null && Date.now() - signingInSince > SIGN_IN_LIMIT_MS) {
         setSigningInSince(null);
         return;
       }
       cloudApi.status().then((next) => {
-        if (!live.current) return;
+        if (!live.current || !active || cancelling.current) return;
         setStatus(next);
         if (signingInSince !== null && next.authenticated) {
           setSigningInSince(null);
@@ -89,7 +92,7 @@ export function CloudSettings() {
         }
       }).catch(() => undefined);
     }, POLL_MS);
-    return () => clearInterval(timer);
+    return () => { active = false; clearInterval(timer); };
   }, [signingInSince, syncing, notify]);
 
   async function run<T>(kind: NonNullable<typeof busy>, work: () => Promise<T>, success?: string) {
@@ -114,6 +117,15 @@ export function CloudSettings() {
   async function signIn() {
     const result = await run('sign-in', () => cloudApi.signIn());
     if (result) setSigningInSince(Date.now());
+  }
+
+  async function cancelSignIn() {
+    if (cancelling.current) return;
+    cancelling.current = true;
+    try {
+      const cancelled = await run('cancel', () => api.cancelConnector());
+      if (cancelled) setSigningInSince(null);
+    } finally { cancelling.current = false; }
   }
 
   async function disconnect() {
@@ -149,7 +161,7 @@ export function CloudSettings() {
         : !configured ? <Status tone="off">Not set up</Status>
         : <Status tone={summary.tone}>{summary.text}</Status>}
       <div className="settings-row__actions">
-        {signingInSince !== null ? <button type="button" className="button button--quiet button--small" onClick={() => setSigningInSince(null)}>Cancel</button> : null}
+        {signingInSince !== null ? <button type="button" className="button button--quiet button--small" disabled={Boolean(busy)} onClick={() => void cancelSignIn()}>Cancel</button> : null}
         {configured && !status.authenticated ? (
           <button type="button" className="button button--small" onClick={() => void signIn()} disabled={Boolean(busy)}>
             {signingInSince !== null ? 'Open Google again' : 'Sign in with Google'}

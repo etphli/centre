@@ -335,9 +335,19 @@ function entitiesFor(env: Env, auth: Auth, now: () => number) {
         } else {
           if (m.data === null)
             fail(400, "validation", "Live records require data.");
-          const parsed = parseCloudEntity(m.kind, m.data);
-          rejectExtraFields(m.data, parsed);
+          const supplied = m.data;
+          const parsed = parseCloudEntity(m.kind, supplied);
+          rejectExtraFields(supplied, parsed);
           m.data = parsed;
+          if (m.kind === "preferences") {
+            const current = await get(m.kind, m.id);
+            if ((current?.version ?? 0) !== m.expectedVersion)
+              throw new HttpError(409, "conflict", "Cloud record changed.", current);
+            // Preserve omitted known fields before defaults normalize an older payload.
+            // The batch's expected-version guard still rejects a race after this read.
+            if (current && !current.deleted && current.data)
+              m.data = parseCloudEntity(m.kind, { ...current.data, ...supplied });
+          }
           if (parsed.id !== undefined && parsed.id !== m.id)
             fail(400, "validation", "Record ID differs from payload.");
           if (m.kind === "preferences" && m.id !== "preferences")
@@ -771,11 +781,20 @@ export function createWorker(options: WorkerOptions = {}) {
         const url = new URL(request.url),
           path = url.pathname,
           db = env.DB;
-        await dailyRate(db, "requests:global", now(), 5000);
+        // Public/auth admission has no access to signed-in service capacity.
+        // Failed bearer verification uses this same bounded anonymous budget.
+        const anonymous = async () => {
+          await rate(db, "anonymous:" + (await sha256(
+            request.headers.get("CF-Connecting-IP") ?? "unknown",
+          )), now(), 120);
+          await dailyRate(db, "requests:anonymous:global", now(), 5000);
+        };
         if (path === "/pair" && request.method === "GET") {
+          await anonymous();
           return mobilePairingPage(env.CENTRE_IOS_DISTRIBUTION_URL);
         }
         if (path.startsWith("/v1/auth/")) {
+          await anonymous();
           await rate(db, "auth:global", now(), 300);
           await rate(
             db,
@@ -866,21 +885,33 @@ export function createWorker(options: WorkerOptions = {}) {
         const bearer = request.headers
           .get("Authorization")
           ?.match(/^Bearer (ctr_[a-f0-9]{64})$/)?.[1];
-        if (!bearer) fail(401, "unauthorized", "Sign in required.");
+        if (!bearer) {
+          await anonymous();
+          fail(401, "unauthorized", "Sign in required.");
+        }
         const device = await db
           .prepare(
             "SELECT id,workspace FROM centre_device WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?",
           )
           .bind(await sha256(bearer), new Date(now()).toISOString())
           .first();
-        if (!device)
+        if (!device) {
+          await anonymous();
           fail(401, "unauthorized", "Session expired or was revoked.");
+        }
         const d = z
             .object({ id: z.string(), workspace: z.string() })
             .parse(device),
           auth = { workspaceId: d.workspace, deviceId: d.id };
         await rate(db, "workspace:" + d.workspace, now(), 600);
-        await dailyRate(db, "requests:" + d.workspace, now(), 1000);
+        const polling = request.method === "GET" &&
+          (path === "/v1/bootstrap" || path === "/v1/changes");
+        // Two devices can poll every 30 seconds for a full day (5,760 reads).
+        // Polling exhaustion cannot spend the separate foreground reservation.
+        await dailyRate(db, (polling ? "requests:polling:" : "requests:") + d.workspace,
+          now(), polling ? 6000 : 1000);
+        await dailyRate(db, polling ? "requests:polling:global" : "requests:admitted:global",
+          now(), polling ? 12000 : 5000);
         const entities = entitiesFor(env, auth, now);
         if (path === "/v1/bootstrap" && request.method === "GET")
           return json({

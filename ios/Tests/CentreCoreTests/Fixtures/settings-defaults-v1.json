@@ -1,0 +1,34 @@
+{
+  "activityVisibility" : "collapsed",
+  "contrast" : "standard",
+  "defaultDifficulty" : "standard",
+  "defaultFlashcardCount" : 8,
+  "defaultFlashcardCountMode" : "auto",
+  "defaultQuizQuestionTypes" : [
+    "multiple_choice",
+    "short_response",
+    "long_response"
+  ],
+  "defaultQuizQuestions" : 8,
+  "defaultTestLengthMode" : "time",
+  "defaultTestMinutes" : 45,
+  "defaultTestQuestionTypes" : [
+    "multiple_choice",
+    "short_response",
+    "long_response"
+  ],
+  "defaultTestQuestions" : 10,
+  "density" : "compact",
+  "greetingStyle" : "rotating",
+  "lineSpacing" : "standard",
+  "nickname" : "",
+  "readingFont" : "default",
+  "readingWidth" : "standard",
+  "reducedMotion" : "system",
+  "responseStyle" : "balanced",
+  "sendKey" : "enter",
+  "studentYearLevel" : 9,
+  "textSize" : "standard",
+  "theme" : "dark",
+  "timeZone" : "Australia\/Sydney"
+}

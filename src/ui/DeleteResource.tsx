@@ -23,6 +23,6 @@ export function DeleteResource({ resource,compact = false,onDeleted }: {resource
   }
   return <>
     <button type="button" className={compact ? 'resource-card__peek' : 'button button--quiet button--small'} aria-label={`Delete ${resource.title}`} title="Delete resource" onClick={() => setOpen(true)}><Trash2 size={14} />{!compact ? 'Delete' : null}</button>
-    {open ? <Dialog title="Delete resource?" description={resource.title} onClose={() => setOpen(false)} dismissible={!busy} size="sm" footer={<><button type="button" className="button button--quiet" disabled={busy} onClick={() => setOpen(false)}>Keep resource</button><button type="button" className="button button--primary" disabled={busy} onClick={() => void remove()}>{busy ? 'Deleting…' : 'Delete resource'}</button></>}><p>This removes the resource and its review items from your library. You can undo after deleting.</p></Dialog> : null}
+    {open ? <Dialog title="Delete resource?" description={resource.title} onClose={() => setOpen(false)} dismissible={!busy} size="sm" footer={<><button type="button" className="button button--quiet" disabled={busy} onClick={() => setOpen(false)}>Keep resource</button><button type="button" className="button button--danger" disabled={busy} onClick={() => void remove()}>{busy ? 'Deleting…' : 'Delete resource'}</button></>}><p>This removes the resource and its review items from your library. You can undo after deleting.</p></Dialog> : null}
   </>;
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CentreCore
 
 /// Centre's quiet palette, mirrored from src/ui/centre.css and preferences.css.
 struct CentrePalette: Equatable {
@@ -33,6 +34,15 @@ struct CentrePalette: Equatable {
         line: Color(hex: 0xE4E4E1), text: Color(hex: 0x131313), text2: Color(hex: 0x383835), text3: Color(hex: 0x6B6964),
         accent: Color(hex: 0x131313), accentInk: Color(hex: 0xF9F9F7), warn: Color(hex: 0x987431), danger: Color(hex: 0xB35449),
         scheme: .light)
+
+    func withContrast(_ increased: Bool) -> CentrePalette {
+        guard increased else { return self }
+        var result = self
+        result.text2 = text
+        result.text3 = text
+        result.line = text.opacity(scheme == .light ? 0.4 : 0.5)
+        return result
+    }
 
     /// `theme` is the synced preferences value: dark, light, midnight or system.
     static func resolve(theme: String?, system: ColorScheme) -> CentrePalette {
@@ -208,5 +218,24 @@ extension View {
 
     func centreRow(_ palette: CentrePalette) -> some View {
         listRowBackground(palette.surface)
+    }
+}
+
+struct ReadingStyle: ViewModifier {
+    let preferences: JSONValue
+    var standardSpacing: CGFloat = 4
+    var standardFont: Font = .body
+    @ScaledMetric(relativeTo: .body) private var bodySize = 17
+
+    private var font: Font {
+        switch preferences["readingFont"].string {
+        case "sans": return .system(.body, design: .default)
+        case "serif": return .system(.body, design: .serif)
+        default: return standardFont
+        }
+    }
+    func body(content: Content) -> some View {
+        content.font(font)
+            .lineSpacing(preferences["lineSpacing"].string == "relaxed" ? bodySize * 0.7 : standardSpacing)
     }
 }

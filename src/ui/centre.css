@@ -13,7 +13,7 @@
   --line-strong: #3b3b38;
   --text: #ecebe7;
   --text-2: #a8a7a1;
-  --text-3: #74736e;
+  --text-3: #999890;
   --action-ink: var(--text-2);
   --data-ink: var(--text-2);
   --selected-bg: var(--surface-2);
@@ -167,7 +167,8 @@ kbd {
 }
 
 .button--primary:hover:not(:disabled) {
-  background: #ffffff;
+  background: color-mix(in oklab, var(--text) 86%, var(--bg));
+  border-color: color-mix(in oklab, var(--text) 86%, var(--bg));
 }
 
 .button--quiet {
@@ -419,7 +420,7 @@ kbd {
   padding: 0 5px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--accent) 22%, transparent);
-  color: var(--accent);
+  color: var(--text);
   font-size: 0.65625rem;
   font-weight: 600;
   line-height: 16px;
@@ -2025,7 +2026,9 @@ kbd {
 }
 
 .composer__box:focus-within {
-  border-color: #4c4c48;
+  border-color: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .composer--hero .composer__box {
@@ -3217,3 +3220,6 @@ textarea:disabled {
 .message.search-target + .message-files .message-file { background: var(--surface-2); }
 @keyframes search-target-arrival { from { background: var(--surface-2); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .search-target { animation: none; background: var(--surface-2); } }
+
+.button--danger { color: var(--danger); border-color: var(--danger); }
+.button--danger:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 10%, var(--surface)); }

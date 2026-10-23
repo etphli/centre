@@ -65,6 +65,7 @@ export function createChatBranch(parent: Chat, value: BranchInput): ChatBranch {
     const copied = structuredClone(message);
     copied.id = randomUUID();
     copied.codexTurns = [];
+    delete copied.guidedGeneration;
     if (message === prompt) promptMessageId = copied.id;
     return copied;
   });

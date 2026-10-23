@@ -919,3 +919,55 @@ test('read-only comparison survives independent D1 sync, offline restart, resour
   const persisted = await Store.open(alice.directory);
   assert.deepEqual(persisted.state.attempts,records,'No content was overwritten by comparing or deleting the resource.');
 });
+
+test('a simulated 24-hour mounted idle desktop and second device retain sync and foreground capacity', async t => {
+  const cloud = await backend(t), start = Date.parse(instant);
+  let time = start, bootstraps = 0, desktopPulls = 0;
+  t.mock.method(Date,'now',()=>time);
+  const a = await device(t,cloud,async (input,init) => {
+    const path = new URL(input).pathname;
+    if (path==='/v1/bootstrap') bootstraps++;
+    if (path==='/v1/changes') desktopPulls++;
+    return cloud.fetch(input,init);
+  });
+  const b = await device(t,cloud);
+  assert.equal((await a.sync.enableImport()).error,null);
+  assert.equal((await b.sync.enableImport()).error,null);
+  for (let tick=1; tick<2880; tick++) {
+    time = start+tick*30000; cloud.setTime(time);
+    // Another device explicitly syncs every 30s, and makes useful hourly edits.
+    if (tick%120===0) await b.store.update(state=>{state.resources.push(resource(`hour-${tick/120}`));});
+    assert.equal((await b.sync.sync()).error,null,`second device tick ${tick}`);
+    assert.equal((await a.sync.poll()).error,null,`desktop tick ${tick}`);
+    if (tick%10===0) assert.equal((await cloud.call('/v1/devices','GET',undefined,await b.credentials.get('cloudSession'))).status,200);
+  }
+  assert.equal((await a.sync.sync()).error,null);
+  assert.equal(a.store.state.resources.length,23);
+  assert.equal(bootstraps,1,'session binding is verified once per process and token');
+  assert.ok(desktopPulls<500,`idle desktop made ${desktopPulls} pulls`);
+  // A local edit bypasses the current idle deadline on the next timer tick.
+  await a.store.update(state=>{state.resources.push(resource('local-after-idle'));});
+  assert.equal((await a.sync.poll()).pending,0);
+  assert.ok((await changes(cloud,a)).some(record=>record.id==='local-after-idle'));
+  // Revocation still fails immediately despite the cached binding.
+  const token = await a.credentials.get('cloudSession');
+  const account = await cloud.call('/v1/bootstrap','GET',undefined,token);
+  assert.equal((await cloud.call('/v1/devices/revoke','POST',{deviceId:account.value.deviceId},token)).status,200);
+  assert.match((await a.sync.sync()).error ?? '',/expired|revoked/);
+});
+
+test('background idle backoff preserves immediate explicit recovery after an offline failure', async t => {
+  const cloud = await backend(t); let offline = false, requests = 0;
+  let time = Date.parse(instant); t.mock.method(Date,'now',()=>time);
+  const a = await device(t,cloud,async(input,init)=>{
+    requests++; if (offline) throw new Error('Fixture offline'); return cloud.fetch(input,init);
+  });
+  await a.sync.enableImport();
+  offline = true; time+=60000; cloud.setTime(time);
+  assert.match((await a.sync.poll()).error ?? '',/Fixture offline/);
+  const failedRequests = requests;
+  time+=30000; cloud.setTime(time); await a.sync.poll();
+  assert.equal(requests,failedRequests,'offline timer also backs off');
+  offline = false;
+  assert.equal((await a.sync.sync()).error,null,'explicit recovery does not wait for the timer');
+});

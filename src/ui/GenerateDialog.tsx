@@ -1,7 +1,7 @@
 import { Select } from './Select';
 import { QuestionTypes, responseTypes } from './QuestionTypes';
 import { ChevronRight } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { api } from '../data/client';
 import type { CreateResource, ResponseType } from '../../shared/schema';
 import { useApp } from './context';
@@ -36,7 +36,26 @@ interface GenerateDialogProps {
 
 export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
   const { state, route, askHere, navigate } = useApp();
-  const dismiss = () => { if (request.attachmentIds?.length) window.dispatchEvent(new CustomEvent('centre:restore-attachments',{detail:request.attachmentIds})); onClose(); };
+  const mounted = useRef(true);
+  const settled = useRef(false);
+  function restoreAttachments() {
+    if (settled.current) return;
+    settled.current = true;
+    if (request.attachmentIds?.length) window.dispatchEvent(new CustomEvent('centre:restore-attachments',{detail:request.attachmentIds}));
+  }
+  function dismiss() {
+    if (settled.current) return;
+    restoreAttachments();
+    onClose();
+  }
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      // Strict Mode reconnects effects immediately. A real unmount returns the files.
+      queueMicrotask(() => { if (!mounted.current) restoreAttachments(); });
+    };
+  }, []);
   const kind = request.kind;
   const isPlan = kind === 'plan';
   const countable = kind === 'quiz' || kind === 'flashcards';
@@ -51,8 +70,8 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
   const [topicId, setTopicId] = useState(initialTopic);
   const [newTopic, setNewTopic] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>(state.settings.defaultDifficulty);
-  const [count, setCount] = useState(kind === 'test' ? state.settings.defaultTestQuestions : isPlan ? 4 : state.settings.defaultQuizQuestions);
-  const [automaticCards, setAutomaticCards] = useState(true);
+  const [count, setCount] = useState(kind === 'test' ? state.settings.defaultTestQuestions : isPlan ? 4 : kind === 'flashcards' ? state.settings.defaultFlashcardCount : state.settings.defaultQuizQuestions);
+  const [automaticCards, setAutomaticCards] = useState(state.settings.defaultFlashcardCountMode === 'auto');
   const autoCount = kind === 'flashcards' && automaticCards;
   const [testMode,setTestMode] = useState<'time'|'questions'>(state.settings.defaultTestLengthMode);
   const [duration,setDuration] = useState(state.settings.defaultTestMinutes);
@@ -99,13 +118,14 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
       return null;
     }
     const topic = await api.createTopic(subjectId, name);
+    if (!mounted.current || settled.current) return null;
     setTopicId(topic.id);
     return topic.id;
   }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || !mounted.current || settled.current) return;
     setError(null);
     if (!subjectId) {
       setError('Pick a subject.');
@@ -123,12 +143,12 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
     try {
       resolvedTopic = await resolveTopic();
     } catch (failure) {
-      setError(errorMessage(failure));
+      if (mounted.current && !settled.current) setError(errorMessage(failure));
       return;
     } finally {
-      setBusy(false);
+      if (mounted.current && !settled.current) setBusy(false);
     }
-    if (resolvedTopic === null && !personal) return;
+    if (!mounted.current || settled.current || (resolvedTopic === null && !personal)) return;
     const topic = state.topics.find((item) => item.id === resolvedTopic);
     const topicName = topic?.name ?? (topicId === NEW_TOPIC ? newTopic.trim() : undefined);
     const subjectName = subject?.name ?? 'this subject';
@@ -159,6 +179,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
       : kind === 'test' ? {...base,kind,testLength:testMode === 'time' ? {mode:'time',minutes:duration} : {mode:'questions',questionCount:count},questionTypes}
       : kind === 'flashcards' ? {...base,kind,questionCount:autoCount ? 'auto' : count}
       : {...base,kind};
+    settled.current = true;
     onClose();
     // Stays on the current page: the request goes to the open chat, the side chat, or a new chat from home.
     askHere(message, chatContext,request.attachmentIds,resourceRequest);
@@ -170,7 +191,7 @@ export function GenerateDialog({ request, onClose }: GenerateDialogProps) {
         <p className="muted">Centre makes resources inside your subjects, and your subjects come from Organato. Connect Organato to bring them in.</p>
         <div className="dialog__footer dialog__footer--inline">
           <button type="button" className="button button--quiet button--small" onClick={dismiss}>Not now</button>
-          <button type="button" className="button button--primary button--small" onClick={() => { onClose(); navigate({ kind: 'settings' }); }}>Connect Organato</button>
+          <button type="button" className="button button--primary button--small" onClick={() => { dismiss(); navigate({ kind: 'settings' }); }}>Connect Organato</button>
         </div>
       </Dialog>
     );

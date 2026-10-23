@@ -223,6 +223,30 @@ final class CentreUITests: XCTestCase {
         capture("11-accessibility-large-settings")
     }
 
+    func testReadingSettingsPersistAndStandardResets() {
+        tap("settings.open")
+        let size = app.descendants(matching: .any).matching(identifier: "settings.textSize").firstMatch
+        reveal(size); size.tap()
+        XCTAssertTrue(app.buttons["Extra large"].waitForExistence(timeout: 5)); app.buttons["Extra large"].tap()
+        let larger = expectation(for: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "Extra large", "Extra large"), evaluatedWith: size)
+        wait(for: [larger], timeout: 5)
+        capture("settings-extra-large")
+        size.tap(); app.buttons["Standard"].tap()
+        let standard = expectation(for: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", "Standard", "Standard"), evaluatedWith: size)
+        wait(for: [standard], timeout: 5)
+        let reading = app.buttons["Reading and accessibility"]
+        reveal(reading); reading.tap()
+        let sample = app.staticTexts["settings.readingSample"]
+        XCTAssertTrue(sample.waitForExistence(timeout: 5))
+        let spacing = app.descendants(matching: .any).matching(identifier: "settings.lineSpacing").firstMatch
+        spacing.tap(); app.buttons["Relaxed"].tap()
+        capture("settings-reading-relaxed-preview")
+        restart(); tap("settings.open")
+        let restored = app.descendants(matching: .any).matching(identifier: "settings.textSize").firstMatch
+        reveal(restored)
+        XCTAssertTrue((restored.label + " " + String(describing: restored.value ?? "")).contains("Standard"))
+    }
+
     func testReviewResolutionAndLightThemeSurviveRestart() {
         tab("Review")
         let mark = app.buttons["review.markReviewed.28a04f7b-70e9-44f2-925a-5c7559791aa4"]

@@ -28,7 +28,7 @@ export function FeedbackDialog({ resource, initialQuestionIds = [], onClose }: {
     setError(null);
     const result = await act(
       () => (confident ? api.saveFeedback(resource.id, '', [], true) : api.saveFeedback(resource.id, notes.trim(), [...selected])),
-      'Marked done',
+      resource.completedAt ? 'Reflection saved' : 'Marked done',
     );
     setBusy(false);
     if (result) onClose();
@@ -44,7 +44,7 @@ export function FeedbackDialog({ resource, initialQuestionIds = [], onClose }: {
       footer={
         <>
           <button type="button" className="button button--quiet" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="submit" form="feedback-form" className="button button--primary" disabled={busy}>{busy ? 'Saving' : 'Save and mark done'}</button>
+          <button type="submit" form="feedback-form" className="button button--primary" disabled={busy}>{busy ? 'Saving' : resource.completedAt ? 'Save reflection' : 'Save and mark done'}</button>
         </>
       }
     >

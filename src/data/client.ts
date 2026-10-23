@@ -2,6 +2,7 @@ import { studyLogSchema, timerStartSchema, type StudyTags, type StudySegment, ty
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { searchQuerySchema, searchResultsSchema } from '../../shared/search';
 import { z } from 'zod';
+import { nativeSaveResultSchema, type NativeSaveResult } from '../../electron/save-result';
 import { checklistProgressUpdateSchema, diagramPreviewSchema } from '../../shared/checklist-progress';
 import { cloudStatusSchema } from '../../shared/cloud-status';
 import { assistantMemorySchema, rememberInputSchema } from '../../shared/schema';
@@ -28,8 +29,8 @@ export interface DesktopBridge {
   chooseFiles: () => Promise<AttachmentUploadInput[]>;
   openDiagram: (input:{id:string;theme:string}) => Promise<unknown>;
   openExternal: (url: string) => Promise<unknown>;
-  saveFile: (file: ExportedFile) => Promise<unknown>;
-  printPaper: (paper: { title: string; latex: string; html?: string }) => Promise<unknown>;
+  saveFile: (file: ExportedFile) => Promise<NativeSaveResult>;
+  printPaper: (paper: { title: string; latex: string; html?: string }) => Promise<NativeSaveResult>;
   updates: { check: () => Promise<UpdateStatus>; install: () => Promise<UpdateStatus>; status: () => Promise<UpdateStatus>; configure: (input: { token: string }) => Promise<UpdateStatus> };
 }
 declare global { interface Window { centre?: DesktopBridge } }
@@ -147,16 +148,17 @@ export async function openExternal(url: string): Promise<void> {
   if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && parsed.hostname === '127.0.0.1')) throw new Error('This link cannot be opened.');
   window.open(url, '_blank', 'noopener,noreferrer');
 }
-export async function downloadFile(file: ExportedFile): Promise<void> {
-  if (window.centre) { await window.centre.saveFile(file); return; }
+export async function downloadFile(file: ExportedFile): Promise<NativeSaveResult> {
+  if (window.centre) return nativeSaveResultSchema.parse(await window.centre.saveFile(file));
   const url = URL.createObjectURL(new Blob([file.content], { type: file.mimeType }));
   const link = document.createElement('a'); link.href = url; link.download = file.filename; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { saved: true, filename: file.filename };
 }
-export async function printPaper(resource: Resource): Promise<void> {
+export async function printPaper(resource: Resource): Promise<NativeSaveResult> {
   const file = await api.exportResource(resource.id);
-  if (window.centre) { await window.centre.printPaper({ title: resource.title, latex: file.content }); return; }
-  await downloadFile({ filename: `${resource.title.replace(/[^a-z0-9 -]/gi, '')}.tex`, content: file.content, mimeType: 'application/x-latex' });
+  if (window.centre) return nativeSaveResultSchema.parse(await window.centre.printPaper({ title: resource.title, latex: file.content }));
+  return downloadFile({ filename: `${resource.title.replace(/[^a-z0-9 -]/gi, '')}.tex`, content: file.content, mimeType: 'application/x-latex' });
 }
 const desktopOnly = async (): Promise<UpdateStatus> => ({ state: 'unavailable', message: 'Updates are available in the Centre desktop app.' });
 export const updates = {

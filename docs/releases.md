@@ -39,7 +39,7 @@ Add all five Apple credentials as repository secrets:
 
 The workflow automatically signs and notarizes when all five exist. Partial configuration fails rather than silently publishing an unsigned build. Without Apple credentials it publishes unsigned DMGs. Signed releases also include ZIPs and update metadata. Keep the signing identity consistent between releases.
 
-Automatic updates require a signed app. In Settings, save a GitHub token with read access to the private repository, then click **Check for updates**. Centre stores the token in macOS Keychain. Each user supplies their own token; Centre does not bundle one. After downloading, click **Restart and install**.
+Automatic updates require a signed app. In Settings, save a GitHub token with read access to the private repository, then click **Check for updates**. Centre stores the token in macOS Keychain. Each user supplies their own token; Centre does not bundle one. After downloading, click **Install and restart**.
 
 Signing, notarization, and automatic installation need Apple credentials and a signed release before they can be verified.
 
@@ -47,4 +47,4 @@ Signing, notarization, and automatic installation need Apple credentials and a s
 
 Run `npm run package:mac` on macOS. Provide both Google OAuth environment variables or save Google's installed-app OAuth JSON as `.runtime/google-oauth-source.json`. The app, DMG, and ZIP appear in `release/`. Local builds do not publish releases.
 
-To verify text sizing after building the renderer and Electron process, run `node scripts/verify-text-size.mjs`. It clicks each size, checks computed font sizes in settings, navigation, messages, Markdown and the composer, restores Default, then verifies Large persists after reload. Screenshots appear in `.runtime/text-size-*.png`.
+To verify text sizing after building the renderer and Electron process, run `node scripts/verify-text-size.mjs`. It opens Appearance and clicks all four sizes, checks computed font sizes in settings, navigation, messages, Markdown and the composer, restores Standard, then verifies Large persists after reload. Screenshots appear in `.runtime/text-size-*.png`.

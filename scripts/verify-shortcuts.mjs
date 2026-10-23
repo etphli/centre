@@ -10,6 +10,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Run after build + build:electron. CENTRE_VERIFY_ROOT selects a combined Log
 // build. --integration requires its real Study Log provider and UI.
+// --isolated uses a fake Codex catalog and blocks remote traffic.
+// --output-dir keeps reports, screenshots and the wrapper outside the checkout.
 const args = process.argv.slice(2);
 function option(name) {
   const index = args.indexOf(name);
@@ -20,8 +22,9 @@ function option(name) {
 const root = option('--root') ?? (process.env.CENTRE_VERIFY_ROOT ? resolve(process.env.CENTRE_VERIFY_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..'));
 assert.ok(!args.includes('--packaged'), 'Packaged OS verification is separate from this native wrapper suite.');
 const integration = args.includes('--integration');
+const isolated = args.includes('--isolated');
 const require = createRequire(join(root, 'package.json'));
-const runtime = join(root, '.runtime');
+const runtime = option('--output-dir') ?? join(root, '.runtime');
 const scratch = await mkdtemp(join(tmpdir(), 'centre-shortcuts-'));
 const desktop = join(scratch, 'Desktop');
 const profile = join(scratch, 'profile');
@@ -29,7 +32,7 @@ const data = join(scratch, 'data');
 const wrapper = join(runtime, `verify-shortcuts-${process.pid}.cjs`);
 const controlFile = join(scratch, 'control.json');
 const reportPath = join(runtime, 'shortcuts-report.json');
-const report = { passed: false, mode: 'real main wrapper + CDP', integration, checks: [], limitations: [], screenshots: {} };
+const report = { passed: false, mode: 'real main wrapper + CDP', integration, isolated, checks: [], limitations: [], screenshots: {} };
 const pause = ms => new Promise(resolvePause => setTimeout(resolvePause, ms));
 let child;
 let socket;
@@ -114,6 +117,7 @@ async function screenshot(name) {
 }
 const state = () => evaluate("window.centre.request('GET', '/state')");
 const list = () => evaluate('window.centre.launchers.list()');
+const searchInput = 'dialog[open] input[role="combobox"][aria-label="Search"]';
 const row = action => `.desktop-settings__row[data-action="${action}"]`;
 async function status(action, expected) {
   await wait(`document.querySelector(${JSON.stringify(`${row(action)} .desktop-settings__status--${expected}`)})`, `${action} UI ${expected}`);
@@ -162,7 +166,7 @@ async function dispatch(action) {
 async function expectAction(action) {
   const expressions = {
     'chat.new': "document.querySelector('.home textarea') && !document.querySelector('dialog[open]')",
-    'app.search': "document.querySelector('dialog[open] input[placeholder=\"Search chats, subjects, resources and events\"]') === document.activeElement",
+    'app.search': `document.querySelector(${JSON.stringify(searchInput)}) === document.activeElement`,
     'app.resources': "document.querySelector('.library-header')",
     'app.calendar': "document.querySelector('.calendar-head')",
     'app.settings': "document.querySelector('.settings-layout__nav')",
@@ -182,6 +186,22 @@ try {
   const port = await freePort();
   environment = { ...process.env, CENTRE_USER_DATA_DIR: profile, CENTRE_DATA_DIR: data, CENTRE_DESKTOP_DIR: desktop, CENTRE_RENDERER_URL: pathToFileURL(join(root, 'dist/index.html')).href };
   delete environment.ELECTRON_RUN_AS_NODE;
+  if (isolated) {
+    const binary = join(scratch, 'codex-fixture');
+    await writeFile(binary, `#!/usr/bin/env node
+const readline=require('node:readline');
+readline.createInterface({input:process.stdin}).on('line',line=>{
+ const message=JSON.parse(line);if(!message.id)return;
+ if(message.method==='turn/start'){process.stdout.write(JSON.stringify({id:message.id,error:{message:'Inference disabled in isolated shortcut verification'}})+String.fromCharCode(10));return}
+ const result=message.method==='account/read'?{account:{id:'shortcut-fixture'}}:message.method==='model/list'?{data:[{model:'gpt-6.1-sol',displayName:'Fixture',supportedReasoningEfforts:[{reasoningEffort:'medium'}],defaultReasoningEffort:'medium'}],nextCursor:null}:{};
+ process.stdout.write(JSON.stringify({id:message.id,result})+String.fromCharCode(10));
+});
+`, { mode: 0o700 });
+    environment.CENTRE_CODEX_BIN = binary;
+    environment.CODEX_HOME = join(scratch, 'codex-home');
+    environment.ORGANATO_API_KEY = '';
+    report.limitations.push('Isolated mode uses a fake Codex catalog, disables inference and blocks non-loopback fetches in main and remote renderer requests. Organato is disconnected.');
+  }
   await Promise.all(['dist/index.html', 'dist-electron/main.cjs', 'dist-electron/preload.cjs'].map(path => readFile(join(root, path))));
   executable = require('electron');
   launchArgs = [wrapper];
@@ -191,6 +211,16 @@ const {createServer}=require('node:http');
 const {writeFileSync}=require('node:fs');
 dialog.showErrorBox=()=>{console.error('Centre startup failed. Check the local build and OAuth configuration.');app.exit(1)};
 const trace=[];
+if(${isolated}){
+ const fetchLocal=global.fetch;
+ global.fetch=(input,options)=>{
+  const url=new URL(typeof input==='string'||input instanceof URL?input:input.url);
+  if(url.hostname!=='127.0.0.1'&&url.hostname!=='localhost')throw Error('Isolated verifier blocked remote request: '+url.origin);
+  return fetchLocal(input,options);
+ };
+ app.on('web-contents-created',(_,contents)=>contents.session.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*']},(details,callback)=>callback({cancel:!['127.0.0.1','localhost'].includes(new URL(details.url).hostname)})));
+}
+
 // Observe the actual handlers, forwarding the same event/arguments/return value.
 // No preload bridge, action, ready, or acknowledgement is manufactured here.
 const handle=ipcMain.handle.bind(ipcMain);
@@ -243,6 +273,10 @@ if(app.hasSingleInstanceLock()){
   await evaluate("window.__shortcutRequests=[];window.__shortcutUnsubscribe=window.centre.actions.subscribe(value=>window.__shortcutRequests.push(value.action))");
   check('Cold startup argv reaches production renderer', true);
   check('Renderer uses isolated preload', await evaluate("typeof require === 'undefined' && typeof window.centre.actions.subscribe === 'function'"));
+  if (isolated) {
+    await until(async () => (await state()).codex.authenticated, 'isolated Codex fixture handshake');
+    check('Isolated Codex fixture completes the real service handshake', (await state()).codex.available);
+  }
   const initial = await state();
   check('Fresh isolated profile has no chats', initial.chats.length === 0);
   if (integration) check('--integration requires actual Study Log in service snapshot', 'studyLog' in initial);
@@ -317,7 +351,7 @@ if(app.hasSingleInstanceLock()){
   await dispatch('app.search'); await expectAction('app.search');
   await dispatch('app.resources'); await dispatch('app.calendar');
   await pause(400);
-  check('Queued links preserve open dialog and current route', await evaluate("Boolean(document.querySelector('dialog[open] .palette__input, dialog[open] input[placeholder=\"Search chats, subjects, resources and events\"]')) && Boolean(document.querySelector('.settings-layout__nav'))"));
+  check('Queued links preserve open dialog and current route', await evaluate(`Boolean(document.querySelector(${JSON.stringify(searchInput)})) && Boolean(document.querySelector('.settings-layout__nav'))`));
   await dismiss();
   await expectAction('app.calendar');
   const received = await evaluate('window.__shortcutRequests');

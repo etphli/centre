@@ -38,9 +38,11 @@ async function verify(config) {
       try {
         await waitFor("Boolean(document.querySelector('button[aria-label=\"Settings\"]'))");
         await evaluate("document.querySelector('button[aria-label=\"Settings\"]').click()");
+        await waitFor("Boolean(document.querySelector('.settings-layout__nav'))");
+        await evaluate("Array.from(document.querySelectorAll('.settings-layout__nav button')).find(button => button.textContent === 'Appearance').click()");
         await waitFor("Boolean(document.querySelector('[aria-label=\"Text size\"]'))");
         const sizes = {};
-        for (const [value, label] of [['standard', 'Default'], ['small', 'Small'], ['large', 'Large'], ['standard', 'Default']]) {
+        for (const [value, label] of [['standard', 'Standard'], ['small', 'Small'], ['large', 'Large'], ['extra-large', 'Extra large'], ['standard', 'Standard']]) {
           await evaluate(`Array.from(document.querySelectorAll('[aria-label="Text size"] button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`);
           await waitFor(`document.documentElement.dataset.textSize === ${JSON.stringify(value)}`);
           const result = await evaluate(`(async () => ({
@@ -60,10 +62,13 @@ async function verify(config) {
           sizes[value] = result;
           await writeFile(config.screenshotPrefix + value + '.png', (await window.webContents.capturePage()).toPNG());
           await evaluate("document.querySelector('button[aria-label=\"Settings\"]').click()");
-          await waitFor("Boolean(document.querySelector('[aria-label=\"Text size\"]'))");
+          await waitFor("Boolean(document.querySelector('.settings-layout__nav'))");
+        await evaluate("Array.from(document.querySelectorAll('.settings-layout__nav button')).find(button => button.textContent === 'Appearance').click()");
+        await waitFor("Boolean(document.querySelector('[aria-label=\"Text size\"]'))");
         }
         for (const target of ['title', 'button', 'sidebar', 'message', 'body', 'heading', 'table', 'code', 'composer']) {
           assert.ok(sizes.small[target] < sizes.standard[target], `Small must shrink ${target}: ${JSON.stringify(sizes)}`);
+          assert.ok(sizes['extra-large'][target] > sizes.large[target], `Extra large must enlarge ${target}`);
           assert.ok(sizes.large[target] > sizes.standard[target], `Large must enlarge ${target}: ${JSON.stringify(sizes)}`);
         }
         await evaluate("Array.from(document.querySelectorAll('[aria-label=\"Text size\"] button')).find(button => button.textContent === 'Large').click()");

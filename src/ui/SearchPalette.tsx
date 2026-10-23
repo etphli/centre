@@ -1,4 +1,4 @@
-import { CalendarDays, FileQuestion, FileText, Library, MessageSquare, Paperclip, Plus, Search, Settings, Target, type LucideIcon } from 'lucide-react';
+import { CalendarDays, Clock3, FileQuestion, FileText, Library, MessageSquare, Paperclip, Plus, Search, Settings, Target, type LucideIcon } from 'lucide-react';
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { MAX_SEARCH_QUERY_LENGTH, type SearchResult } from '../../shared/search';
 import { api } from '../data/client';
@@ -59,7 +59,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
       });
     }, 120);
     return () => { current = false; clearTimeout(timer); };
-  }, [trimmedQuery, state]);
+  }, [trimmedQuery]);
 
   const results = useMemo<Result[]>(() => {
     const q = trimmedQuery.toLocaleLowerCase();
@@ -70,6 +70,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
       ['New chat', Plus, () => navigate({ kind: 'home' })],
       ['Resources', Library, () => navigate({ kind: 'resources' })],
       ['Calendar', CalendarDays, () => navigate({ kind: 'calendar' })],
+      ['Log', Clock3, () => navigate({ kind: 'log' })],
       ['Review', Target, () => navigate({ kind: 'review' })],
       ['Settings', Settings, () => navigate({ kind: 'settings' })],
     ];

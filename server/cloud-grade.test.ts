@@ -106,6 +106,31 @@ test('prepared grade replays its exact stable mutations after unknown entity wri
   assert.equal(f.stats().providerCalls,1);
 });
 
+test('a committed preparation with a lost acknowledgement recovers without repeating inference',async t=>{
+  const f=fixture(true); t.after(()=>f.sqlite.close());
+  const db=f.context.env.DB; assert.ok(db);
+  const prepare=db.prepare.bind(db);
+  let interrupted=false;
+  db.prepare=sql=>{
+    const statement=prepare(sql);
+    if (!sql.includes("SET status='prepared'")) return statement;
+    const run=statement.run.bind(statement);
+    statement.run=async()=>{
+      const result=await run();
+      if (!interrupted) { interrupted=true; throw new Error('Fixture lost preparation acknowledgement after commit'); }
+      return result;
+    };
+    return statement;
+  };
+  assert.equal((await f.post()).status,200);
+  const prepared=f.sqlite.prepare('SELECT status,grade_json,mutations_json FROM centre_ai_grade_runs').get();
+  assert.equal(prepared?.status,'completed');
+  assert.ok(prepared?.grade_json); assert.ok(prepared?.mutations_json);
+  assert.equal((await f.read()).status,200);
+  assert.equal((await f.post({...f.input,id:crypto.randomUUID()})).status,200);
+  assert.deepEqual(f.stats(),{providerCalls:1,commitCalls:1});
+});
+
 test('strict input, workspace isolation, stale revisions, wrong resources and unknown answers fail before inference',async()=>{
   const f=fixture(true);
   assert.equal((await f.post({...f.input,model:'client-model'})).status,400);

@@ -42,7 +42,7 @@ export function QuestionDialog({ request }: { request:PendingQuestion }) {
     catch (failure) { setError(errorMessage(failure)); }
     finally { submitting.current = false; setBusy(false); }
   }
-  return <Dialog title="A quick question" description={title} onClose={() => void stop()} dismissible={!busy} className="question-dialog">
+  return <Dialog title="A quick question" description={title} onClose={() => void stop()} dismissible={false} className="question-dialog">
     <form ref={form} onSubmit={event => void submit(event)}>
       <div className="question-dialog__progress" aria-label={`Question ${index + 1} of ${request.questions.length}`}>
         <span>{question.header}</span><span>{index + 1} of {request.questions.length}</span>

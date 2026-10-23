@@ -11,6 +11,12 @@ public struct ConnectorCommand: Codable, Equatable, Identifiable, Sendable {
     public init(id: UUID = UUID(), path: String, method: String, body: JSONValue) {
         self.id=id; self.path=path; self.method=method; self.body=body; self.sent=false; self.receipt=nil
     }
+    public internal(set) var localRejection: String?=nil
+    public var status: String {
+        if localRejection != nil { return "failed" }
+        if let status=receipt?["status"].string { return status }
+        return missingOnServer == true ? "missing" : (sent ? "unknown" : "queued")
+    }
     public var pending: Bool { receipt?["status"].string != "succeeded" }
 }
 
@@ -54,13 +60,14 @@ public actor ConnectorJournal {
     public func stage(_ command: ConnectorCommand) throws {
         if erased { throw CentreError.authentication }
         try Self.validate(command)
+        try CalendarPlan.validateCommandMetadata(command)
         if let existing=state.commands.first(where: { $0.id == command.id }) {
             guard existing.path == command.path, existing.method == command.method, existing.body == command.body else {
                 throw CentreError.invalid("This operation ID already belongs to a different calendar change.")
             }
             return
         }
-        guard !command.sent, command.receipt == nil else { throw CentreError.invalid("Stage a new unsent calendar operation.") }
+        guard !command.sent, command.receipt == nil, command.localRejection == nil else { throw CentreError.invalid("Stage a new unsent calendar operation.") }
         var next=state; next.commands.append(command); try persist(next)
     }
     public func updateReceipt(_ receipt: JSONValue) throws {
@@ -72,7 +79,7 @@ public actor ConnectorJournal {
         if state.commands[index].receipt?["status"].string == "succeeded", receipt["status"].string != "succeeded" {
             throw CentreError.invalid("A successful calendar operation cannot return to pending.")
         }
-        var next=state; next.commands[index].receipt=receipt;next.commands[index].missingOnServer=nil
+        var next=state; next.commands[index].receipt=receipt;next.commands[index].missingOnServer=nil;next.commands[index].localRejection=nil
         let succeeded=next.commands.filter { $0.receipt?["status"].string == "succeeded" }
         let expired=Set(succeeded.prefix(max(0, succeeded.count - 100)).map(\.id))
         next.commands.removeAll { expired.contains($0.id) }
@@ -85,18 +92,24 @@ public actor ConnectorJournal {
         for id in state.commands.map(\.id) {
             guard let index=state.commands.firstIndex(where: { $0.id == id }) else { continue }
             let command=state.commands[index]
-            if let status=command.receipt?["status"].string, ["succeeded", "failed", "conflict"].contains(status) { continue }
+            if ["succeeded", "failed", "conflict"].contains(command.status) { continue }
             let receipt: JSONValue
             if command.sent {
                 do { receipt=try await transport.receipt(id: command.id.uuidString.lowercased()) }
                 catch let missing as CloudFailure where missing.status == 404 && missing.body["error"]["code"].string == "operation_not_found" {
-                    var next=state;next.commands[index].missingOnServer=true;try persist(next)
+                    var next=state;next.commands[index].missingOnServer=command.receipt == nil ? true:nil;try persist(next)
+                    _ = try rejectInvalidMetadata(at:index)
                     continue
                 }
             } else {
                 try Self.validate(command)
+                if try rejectInvalidMetadata(at:index) { continue }
                 var next=state; next.commands[index].sent=true; try persist(next)
                 do { receipt=try await transport.send(state.commands[index]) }
+                catch let rejection as CloudFailure where rejection.status == 400 && rejection.body["error"]["code"].string == "invalid_request" {
+                    _ = try rejectInvalidMetadata(at:index)
+                    throw rejection
+                }
                 catch let rejection as CloudFailure where rejection.status == 503 && rejection.body["error"]["code"].string == "organato_unconfigured" {
                     // This explicit pre-operation rejection proves no upstream write began.
                     var rejected=state;rejected.commands[index].sent=false;try persist(rejected);throw rejection
@@ -109,10 +122,11 @@ public actor ConnectorJournal {
     public func retryMissing(id:UUID,using transport:any ConnectorTransport) async throws {
         guard !erased else { throw CentreError.authentication }
         guard !processing else { throw CentreError.unavailable("Wait for calendar synchronization to finish.") }
-        guard let index=state.commands.firstIndex(where:{$0.id == id}),state.commands[index].sent,state.commands[index].missingOnServer == true else {
+        guard let index=state.commands.firstIndex(where:{$0.id == id}),state.commands[index].sent,state.commands[index].missingOnServer == true,state.commands[index].receipt == nil,state.commands[index].localRejection == nil else {
             throw CentreError.unavailable("Check this change's receipt before trying it again.")
         }
         processing=true;defer { processing=false }
+        if try rejectInvalidMetadata(at:index) { return }
         let command=state.commands[index]
         var next=state;next.commands[index].missingOnServer=nil;try persist(next)
         let receipt=try await transport.send(command)
@@ -120,7 +134,7 @@ public actor ConnectorJournal {
     }
     public func acknowledge(_ id:UUID) throws {
         guard !processing else { throw CentreError.unavailable("Wait for calendar synchronization to finish.") }
-        guard let command=state.commands.first(where:{$0.id == id}),["failed","conflict"].contains(command.receipt?["status"].string ?? "") else {
+        guard let command=state.commands.first(where:{$0.id == id}),["failed","conflict"].contains(command.status) else {
             throw CentreError.unavailable("An uncertain calendar change must be reconciled before it can be closed.")
         }
         var next=state;next.commands.removeAll{$0.id == id};try persist(next)
@@ -129,6 +143,18 @@ public actor ConnectorJournal {
         guard !processing else { throw CentreError.unavailable("Wait for calendar synchronization to finish before signing out.") }
         if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
         state.commands=[];erased=true
+    }
+    /// A valid-body 400 can describe an upstream response after a write. Never
+    /// release that operation. Invalid original metadata cannot pass gateway validation.
+    private func rejectInvalidMetadata(at index:Int) throws -> Bool {
+        guard state.commands[index].receipt == nil else { return false }
+        do { try CalendarPlan.validateCommandMetadata(state.commands[index]); return false }
+        catch {
+            var next=state
+            next.commands[index].localRejection="This saved calendar change has invalid metadata and cannot be applied. Close it, then edit the session again. " + error.localizedDescription
+            try persist(next)
+            return true
+        }
     }
     private static func validate(_ command: ConnectorCommand) throws {
         guard case .object = command.body, let operation=command.body["operationId"].string,

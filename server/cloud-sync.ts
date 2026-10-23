@@ -37,6 +37,9 @@ export class CloudSync {
   private writing:Promise<void> = Promise.resolve();
   private running:Promise<CloudStatus>|null = null;
   private importing = 0;
+  private verifiedSession:{token:string;workspaceId:string;deviceId:string}|null = null;
+  private nextPollAt = 0;
+  private idlePollDelay = 30000;
   private needsImportedRefresh = false;
   private unsubscribe = ()=>{};
   private async importAtomic<T>(prepare:(current:Snapshot)=>StoreMutation<T>):Promise<T> {
@@ -54,6 +57,8 @@ export class CloudSync {
     sync.unsubscribe = store.onCommitted(()=>{
       if (sync.importing) { sync.needsImportedRefresh = true; sync.onImportedCommit?.(); return; }
       if (!sync.journal.enabled) return;
+      sync.nextPollAt = 0;
+      sync.idlePollDelay = 30000;
       try {
         sync.capture();
         void sync.persist().catch(error=>{sync.journal.error=errorMessage(error);});
@@ -81,6 +86,7 @@ export class CloudSync {
     });
     const value:unknown = await response.json();
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) this.verifiedSession = null;
       const failure = z.object({error:z.object({code:z.string(),message:z.string()}),current:cloudRecordSchema.nullable().optional()}).safeParse(value);
       throw new CloudFailure(response.status,failure.success ? failure.data.error.code : 'http',failure.success ? failure.data.error.message : `Centre cloud returned ${response.status}.`,failure.success ? failure.data.current ?? null : null);
     }
@@ -128,6 +134,7 @@ export class CloudSync {
     if (this.running) throw new HttpError(409,'Wait for sync to finish.');
     const session = cloudAuthSchema.parse(await this.request('/v1/auth/google','POST',{idToken,deviceName:'Centre desktop'},false));
     if (this.journal.workspaceId && this.journal.workspaceId !== session.workspaceId) throw new HttpError(409,'This local library belongs to another Centre cloud account. Its data has not been uploaded. Use that account or a separate local library.');
+    this.verifiedSession = null;
     await this.credentials.set('cloudSession',session.token);
     // Display claims only after the configured backend has verified this exact token.
     const claims = z.object({email:z.email(),name:z.string().optional()}).safeParse(JSON.parse(Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString('utf8')));
@@ -149,9 +156,18 @@ export class CloudSync {
     return this.sync();
   }
   private async checkWorkspace() {
+    const token = await this.credentials.get('cloudSession');
+    if (this.verifiedSession?.token === token &&
+      this.verifiedSession.workspaceId === this.journal.workspaceId &&
+      this.verifiedSession.deviceId === this.journal.deviceId) return;
     const remote = z.object({schemaVersion:z.literal(1),workspaceId:z.string(),deviceId:z.string(),kinds:z.array(z.string())}).parse(await this.request('/v1/bootstrap'));
     if (remote.workspaceId !== this.journal.workspaceId || remote.deviceId !== this.journal.deviceId) throw new HttpError(409,'Cloud account changed. Sync stopped before uploading data.');
-    return remote;
+    this.verifiedSession = {token,workspaceId:remote.workspaceId,deviceId:remote.deviceId};
+  }
+  // Only the service timer uses poll; explicit sync remains immediate.
+  poll():Promise<CloudStatus> {
+    if (Date.now() < this.nextPollAt) return this.status();
+    return this.sync();
   }
   sync():Promise<CloudStatus> {
     if (this.running) return this.running;
@@ -161,8 +177,11 @@ export class CloudSync {
     return operation.then(()=>this.status());
   }
   private async performSync():Promise<CloudStatus> {
+    const previousCursor = this.journal.cursor;
+    let hadPending = false;
     try {
       this.capture(); await this.persist();
+      hadPending = this.journal.outbox.length > 0 || Object.keys(this.journal.uploads).length > 0 || this.journal.downloads.length > 0;
       await this.checkWorkspace();
       await this.pull();
       for (const mutation of [...this.journal.outbox].slice(0,100)) {
@@ -198,6 +217,9 @@ export class CloudSync {
     } catch (error) {
       this.journal.error = errorMessage(error); await this.persist();
     }
+    const active = hadPending || this.journal.cursor !== previousCursor;
+    this.idlePollDelay = active ? 30000 : Math.min(this.idlePollDelay * 2,300000);
+    this.nextPollAt = Date.now() + this.idlePollDelay;
     return this.status();
   }
   private async pull() {

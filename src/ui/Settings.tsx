@@ -3,7 +3,7 @@ import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu,
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, openExternal, updates, type UpdateStatus } from '../data/client';
 import { useApp } from './context';
-import { GeneralPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
+import { GeneralPreferences, AppearancePreferences, ChatPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
 import { errorMessage, initials, timeAgo } from './format';
 import { MemorySettings } from './MemorySettings';
 import { MobileDownloadSummary, MobileSettings } from './MobileSettings';
@@ -78,6 +78,13 @@ function GoogleSection() {
     if (result) poll.start('google');
   }
 
+  async function cancelSignIn() {
+    setBusy(true);
+    const cancelled = await act(() => api.cancelConnector());
+    if (cancelled) poll.stop();
+    setBusy(false);
+  }
+
   return (
     <Section id="settings-account" title="Account" description="Sign in with Google so Centre knows who you are on this computer. Centre cloud sync is configured separately above.">
       {account ? (
@@ -95,7 +102,7 @@ function GoogleSection() {
         <div className="settings-row">
           {poll.polling ? <Status tone="busy">Finish signing in with Google in your browser.</Status> : <Status tone="off">Not signed in</Status>}
           <div className="settings-row__actions">
-            {poll.polling ? <button type="button" className="button button--quiet button--small" onClick={poll.stop}>Cancel</button> : null}
+            {poll.polling ? <button type="button" className="button button--quiet button--small" disabled={busy} onClick={() => void cancelSignIn()}>Cancel</button> : null}
             <button type="button" className="button button--small" onClick={() => void signIn()} disabled={busy}>
               {poll.polling ? 'Open Google again' : 'Sign in with Google'}
             </button>
@@ -112,6 +119,12 @@ function OrganatoSection() {
   const settings = state.settings;
   const [baseUrl, setBaseUrl] = useState(settings.organatoBaseUrl);
   const [apiKey, setApiKey] = useState('');
+  const savedBaseUrl = useRef(settings.organatoBaseUrl);
+  useEffect(() => {
+    const previous = savedBaseUrl.current;
+    savedBaseUrl.current = settings.organatoBaseUrl;
+    setBaseUrl(draft => draft === previous ? settings.organatoBaseUrl : draft);
+  }, [settings.organatoBaseUrl]);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +145,7 @@ function OrganatoSection() {
     setSaving(true);
     const patch = { organatoBaseUrl: baseUrl.trim(), ...(apiKey ? { organatoApiKey: apiKey } : {}) };
     const saved = await act(() => api.saveSettings(patch), 'Organato settings saved');
-    setApiKey('');
+    if (saved) { setApiKey(''); setBaseUrl(saved.organatoBaseUrl); }
     setSaving(false);
     if (saved && patch.organatoApiKey) {
       setSyncing(true);
@@ -160,7 +173,7 @@ function OrganatoSection() {
           <Status tone="off">Not connected</Status>
         )}
         <div className="settings-row__actions">
-          <button type="button" className="button button--small" onClick={() => void sync()} disabled={syncing || !settings.organatoConnected}>
+          <button type="button" className="button button--small" onClick={() => void sync()} disabled={saving || syncing || !settings.organatoConnected}>
             <RefreshCw size={14} className={syncing ? 'spin' : undefined} /> Sync now
           </button>
         </div>
@@ -171,6 +184,7 @@ function OrganatoSection() {
           <input
             type="password"
             value={apiKey}
+            disabled={saving || syncing}
             onChange={(event) => setApiKey(event.target.value)}
             spellCheck={false}
             autoComplete="off"
@@ -179,11 +193,11 @@ function OrganatoSection() {
         </label>
         <label className="field">
           <span className="field__label">API address</span>
-          <input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} spellCheck={false} autoComplete="off" inputMode="url" />
+          <input value={baseUrl} disabled={saving || syncing} onChange={(event) => setBaseUrl(event.target.value)} spellCheck={false} autoComplete="off" inputMode="url" />
         </label>
         {error ? <p className="form__error" role="alert">{error}</p> : null}
         <div className="form__actions">
-          <button type="submit" className="button button--primary button--small" disabled={saving || (!apiKey && baseUrl.trim() === settings.organatoBaseUrl)}>
+          <button type="submit" className="button button--primary button--small" disabled={saving || syncing || (!apiKey && baseUrl.trim() === settings.organatoBaseUrl)}>
             {saving ? 'Saving' : apiKey ? 'Save and sync' : 'Save'}
           </button>
         </div>
@@ -271,11 +285,11 @@ function UpdatesSection() {
     setBusy('configure');
     try {
       setStatus(await updates.configure({ token }));
+      setToken('');
       notify({ tone: 'success', message: 'Update access saved' });
     } catch (failure) {
-      setStatus({ state: 'error', message: errorMessage(failure) });
+      setStatus(current => ({ ...current, state: 'error', message: errorMessage(failure) }));
     } finally {
-      setToken('');
       setBusy(null);
     }
   }
@@ -300,7 +314,7 @@ function UpdatesSection() {
         <form className="form form--settings" onSubmit={(event) => void configure(event)}>
           <label className="field">
             <span className="field__label">GitHub access token for releases</span>
-            <input type="password" value={token} onChange={(event) => setToken(event.target.value)} spellCheck={false} autoComplete="off" placeholder="Read-only token, stored in your Keychain" />
+            <input type="password" disabled={Boolean(busy)} value={token} onChange={(event) => setToken(event.target.value)} spellCheck={false} autoComplete="off" placeholder="Read-only token, stored in your Keychain" />
           </label>
           <div className="form__actions">
             <button type="submit" className="button button--small" disabled={!token || Boolean(busy)}>Save token</button>
@@ -313,6 +327,8 @@ function UpdatesSection() {
 
 const categories = [
   { id:'general',label:'General',icon:SlidersHorizontal },
+  { id:'appearance',label:'Appearance',icon:Monitor },
+  { id:'chat',label:'Chat',icon:SlidersHorizontal },
   { id:'study',label:'Study',icon:GraduationCap },
   { id:'memory',label:'Memory',icon:Brain },
   { id:'models',label:'Models',icon:Cpu },
@@ -327,8 +343,10 @@ export function SettingsPage() {
   const [category,setCategory] = useState('general');
   return <div className="settings-layout">
     <nav className="settings-layout__nav" aria-label="Settings categories"><h1>Settings</h1>{categories.map(item => <button type="button" key={item.id} aria-current={category === item.id ? 'page' : undefined} onClick={() => setCategory(item.id)}><item.icon size={14} />{item.label}</button>)}</nav>
-    <div className="settings-layout__content"><h1>{categories.find(item => item.id === category)?.label}</h1>
+    <div className="settings-layout__content"><h2>{categories.find(item => item.id === category)?.label}</h2>
       {category === 'general' ? <><MobileDownloadSummary onOpen={() => setCategory('mobile')} /><GeneralPreferences /></> : null}
+      {category === 'appearance' ? <AppearancePreferences /> : null}
+      {category === 'chat' ? <ChatPreferences /> : null}
       {category === 'study' ? <StudyPreferences /> : null}
       {category === 'memory' ? <MemorySettings /> : null}
       {category === 'models' ? <><ModelPreferences /><CodexSection /></> : null}

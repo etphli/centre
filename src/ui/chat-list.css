@@ -503,4 +503,4 @@
 .chat-nav__text { flex:1; min-width:0; display:grid; }
 .chat-nav__item--branch { height:44px; }
 .chat-nav__branch-glyph { flex-shrink:0; color:var(--text-2); }
-.chat-nav__origin { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; line-height:15px; color:var(--text-2); }
+.chat-nav__origin { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.6875rem; line-height:1.36; color:var(--text-2); }

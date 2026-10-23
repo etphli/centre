@@ -9,15 +9,17 @@ import CentreCore
 struct CentreRootView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.colorSchemeContrast) private var systemContrast
     @Environment(\.dynamicTypeSize) private var systemTextSize
     @State private var showSettings = false
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     init() { CentreFont.configureTitleFonts() }
 
     private var theme: String? { model.preferences["theme"].string }
 
     var body: some View {
-        let palette = CentrePalette.resolve(theme: theme, system: systemScheme)
+        let palette = CentrePalette.resolve(theme: theme, system: systemScheme).withContrast(systemContrast == .increased || model.preferences["contrast"].string == "more")
         Group {
             if model.session == nil {
                 NavigationStack { ConnectScreen() }
@@ -36,6 +38,12 @@ struct CentreRootView: View {
                 }
             }
         }
+        .transaction { transaction in
+            if systemReduceMotion || model.preferences["reducedMotion"].string == "reduce" {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
         .tint(palette.accent)
         .centreWindowTint(palette.accent)
         .environment(\.centre, palette)
@@ -44,6 +52,13 @@ struct CentreRootView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(model)
+                .dynamicTypeSize(adjustedTextSize)
+                .transaction { transaction in
+                    if systemReduceMotion || model.preferences["reducedMotion"].string == "reduce" {
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
+                }
                 .environment(\.centre, palette)
                 .tint(palette.accent)
                 .preferredColorScheme(CentrePalette.preferredScheme(theme: theme))
@@ -54,8 +69,7 @@ struct CentreRootView: View {
         guard !systemTextSize.isAccessibilitySize else { return systemTextSize }
         let sizes:[DynamicTypeSize]=[.xSmall,.small,.medium,.large,.xLarge,.xxLarge,.xxxLarge]
         let index=sizes.firstIndex(of:systemTextSize) ?? 3
-        let offset=model.preferences["textSize"].string == "large" ? 1 : model.preferences["textSize"].string == "small" ? -1 : 0
-        return sizes[min(sizes.count-1,max(0,index+offset))]
+        return sizes[StudyPreferences.textSizeIndex(system:index, preference:model.preferences["textSize"].string ?? "standard")]
     }
 }
 
@@ -329,9 +343,11 @@ private struct ChatThreadView: View {
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            TextField("Message Centre", text: composerBinding, axis: .vertical)
-                .lineLimit(1...6)
+            MessageComposer(text: composerBinding, sendKey: model.preferences["sendKey"].string ?? "enter", color: UIColor(palette.text), canSend: canSend, send: send)
                 .accessibilityIdentifier("chat.composer")
+                .overlay(alignment: .topLeading) {
+                    if draft.isEmpty { Text("Message Centre").foregroundStyle(palette.text3).allowsHitTesting(false).accessibilityHidden(true) }
+                }
                 .padding(.horizontal, 12).padding(.vertical, 11)
                 .background(palette.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(palette.line))
@@ -382,13 +398,14 @@ private struct MessageRow: View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
             if isUser {
                 Text(content)
+                    .modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 0))
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(palette.surface2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.leading, 44)
             } else {
                 Text(Markdown.inline(content))
-                    .lineSpacing(3)
+                    .modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 3))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if !resources.isEmpty {
@@ -594,7 +611,7 @@ private struct ResourceDetailView: View {
                                 .font(.footnote).foregroundStyle(palette.text3)
                         }
                         Text(Markdown.inline(data["content"].string ?? ""))
-                            .lineSpacing(4)
+                            .modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 4))
                             .textSelection(.enabled)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -629,6 +646,8 @@ private struct NoteEditorView: View {
     @State private var subjectId: String?
     @State private var topicId: String?
     @State private var loaded = false
+    @State private var baseline: EditingBaseline?
+    @State private var newNoteId = UUID().uuidString.lowercased()
     @State private var saving = false
     @State private var confirmDelete = false
     @State private var failure: String?
@@ -639,6 +658,9 @@ private struct NoteEditorView: View {
             Section { TextField("Title", text: $title).accessibilityIdentifier("note.title") }
             Section {
                 SubjectPicker(subjects: Subjects.all(model), selection: $subjectId)
+                if subjectId != nil && topics.isEmpty {
+                    Text("This subject has no saved topics. Choose no subject to save a personal note.").font(.footnote)
+                }
                 if !topics.isEmpty {
                     Picker("Topic", selection: $topicId) {
                         Text("None").tag(String?.none)
@@ -687,6 +709,7 @@ private struct NoteEditorView: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
+        baseline = EditingBaseline(kind:"resource",id:resourceId ?? newNoteId,records:model.records)
         guard let id = resourceId, let record = model.record(kind: "resource", id: id) else { return }
         let data = model.data(record)
         title = data["title"].string ?? ""
@@ -698,9 +721,14 @@ private struct NoteEditorView: View {
     private func save() async {
         saving = true
         defer { saving = false }
+        guard let baseline else { return }
+        if resourceId != nil, baseline.records.first.map(RecordProjections.visible) != true {
+            failure = "This note is no longer available. Reopen Resources to load the latest copy."
+            return
+        }
         let now = When.iso(Date())
-        let id = resourceId ?? UUID().uuidString.lowercased()
-        let base: JSONValue = model.record(kind: "resource", id: id).map { model.data($0) } ?? .object([
+        let id = resourceId ?? newNoteId
+        let base: JSONValue = baseline.records.first?.data ?? .object([
             "id": .string(id), "kind": .string("notes"), "createdAt": .string(now), "completedAt": .null, "deletedAt": .null,
             "questions": .array([]), "testLength": .null, "durationMinutes": .null,
             "questionTypes": .array(["multiple_choice", "short_response", "long_response"].map(JSONValue.string)),
@@ -711,7 +739,7 @@ private struct NoteEditorView: View {
         ])
         failure = nil
         model.error = nil
-        guard await model.save(kind: "resource", id: id, data: base.merging(patch)) else {
+        guard await model.save(kind: "resource", id: id, data: base.merging(patch), baseline: baseline) else {
             failure = model.error ?? "The note couldn't be saved on this iPhone."
             return
         }
@@ -725,7 +753,7 @@ private struct NoteEditorView: View {
         model.error = nil
         guard await model.save(kind: "resource", id: id,
                                data: model.data(record).merging(.object(["deletedAt": .string(now), "updatedAt": .string(now)])),
-                               deleted: true) else {
+                               deleted: true, baseline: baseline) else {
             failure = model.error ?? "The note couldn't be deleted."
             return
         }
@@ -749,7 +777,7 @@ private struct FlashcardsView: View {
                     .listRowBackground(Color.clear)
             }
             if cards.isEmpty, let content = data["content"].string.nonEmpty {
-                Section { Text(Markdown.inline(content)) }.centreRow(palette)
+                Section { Text(Markdown.inline(content)).modifier(ReadingStyle(preferences: model.preferences)) }.centreRow(palette)
             }
             ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
                 Section {
@@ -757,9 +785,9 @@ private struct FlashcardsView: View {
                         if revealed.contains(index) { revealed.remove(index) } else { revealed.insert(index) }
                     } label: {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text(card["prompt"].string ?? "").font(CentreFont.serif(.title3))
+                            Text(card["prompt"].string ?? "").modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 0, standardFont: CentreFont.serif(.title3)))
                             if revealed.contains(index) {
-                                Text(card["answer"].string ?? "").foregroundStyle(palette.text2)
+                                Text(card["answer"].string ?? "").modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 0)).foregroundStyle(palette.text2)
                             } else {
                                 Text("Show answer").font(.footnote).foregroundStyle(palette.accent)
                             }
@@ -878,6 +906,7 @@ private enum DiagramDocument {
 /// user scripts, every request other than the document itself blocked, no navigation, windows or downloads.
 @MainActor
 private struct StaticHTMLView: UIViewRepresentable {
+    @ScaledMetric(relativeTo: .body) private var readingBodySize = 17
     let html: String
     @Binding var failure: String?
     @Binding var blockedNavigations:Int
@@ -908,6 +937,8 @@ private struct StaticHTMLView: UIViewRepresentable {
     func updateUIView(_ view: WKWebView, context: Context) {
         context.coordinator.failure = $failure
         context.coordinator.blockedNavigations = $blockedNavigations
+        // WebKit follows the system text category; add only Centre's relative reading-size adjustment.
+        view.pageZoom = readingBodySize / UIFont.preferredFont(forTextStyle: .body).pointSize
         context.coordinator.show(html)
     }
 
@@ -1017,6 +1048,9 @@ private struct QuizView: View {
     let resource: CloudRecord
     @State private var answers: [String: String] = [:]
     @State private var current = 0
+    @State private var baseline: EditingBaseline?
+    @State private var draftFailure: String?
+    @State private var confirmReload = false
     @State private var loadedDraftId: String?
     @State private var dirty = false
     @State private var lastSaved: Date?
@@ -1068,6 +1102,10 @@ private struct QuizView: View {
                         }
                         if !frozen {
                             footer(questions: questions)
+                            if let draftFailure {
+                                Text(draftFailure).foregroundStyle(palette.danger)
+                                Button("Reload saved answers") { confirmReload = true }
+                            }
                             if loadedDraftId != nil || !answers.isEmpty {
                                 Button("Start over", role: .destructive) { confirmStartOver = true }
                                     .buttonStyle(.borderless)
@@ -1085,11 +1123,18 @@ private struct QuizView: View {
         }
         .background(palette.bg)
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Reload saved answers?",isPresented:$confirmReload,titleVisibility:.visible) {
+            Button("Discard unsaved answers and reload",role:.destructive) {
+                answers = [:]; current = 0; loadedDraftId = nil; baseline = nil
+                dirty = false; draftFailure = nil; loadDraft()
+            }
+        } message: { Text("Your unsaved answers in this editor will be replaced by the latest saved draft.") }
         .onAppear(perform: loadDraft)
         .onChange(of: currentDraftId()) { _, id in
             // A successful grade tombstones the draft; start fresh for the next attempt.
             if id == nil, loadedDraftId != nil, !dirty {
                 answers = [:]; current = 0; lastSaved = nil; loadedDraftId = nil
+                baseline = EditingBaseline(kind:"practice.draft",resourceId:resource.id,records:model.records)
             }
         }
         .onChange(of: attempts.first?.id) { _, id in
@@ -1099,17 +1144,20 @@ private struct QuizView: View {
             guard dirty, !frozen else { return }
             guard !Task.isCancelled, dirty, markingState() == .none, !submitting else { return }
             dirty = false
-            if await model.saveDraft(resource: resource, answers: answers, currentQuestion: current) {
+            if let baseline, let updated = await model.saveDraft(resource: resource, answers: answers, currentQuestion: current, baseline:baseline) {
+                self.baseline = updated; draftFailure = nil
                 lastSaved = Date()
                 loadedDraftId = currentDraftId()
             } else {
                 dirty = true
+                draftFailure = model.error ?? "The draft could not be saved."
             }
         }
         .onDisappear {
             guard dirty,!frozen else { return }
+            guard let baseline else { return }
             let savedAnswers=answers,savedPosition=current
-            Task { _ = await model.saveDraft(resource:resource,answers:savedAnswers,currentQuestion:savedPosition) }
+            Task { _ = await model.saveDraft(resource:resource,answers:savedAnswers,currentQuestion:savedPosition,baseline:baseline) }
         }
         // While marking runs, check for the stored result for up to two minutes.
         .task(id: marking == .submitted) {
@@ -1244,8 +1292,9 @@ private struct QuizView: View {
     }
 
     private func loadDraft() {
-        guard loadedDraftId == nil, !dirty,
-              let draft = model.items("practice.draft").first(where: { model.data($0)["resourceId"].string == resource.id }) else { return }
+        guard baseline == nil, !dirty else { return }
+        baseline = EditingBaseline(kind:"practice.draft",resourceId:resource.id,records:model.records)
+        guard let draft = model.items("practice.draft").first(where: { model.data($0)["resourceId"].string == resource.id }) else { return }
         let data = model.data(draft)
         if case .object(let saved) = data["answers"] { answers = saved.compactMapValues { $0.string } }
         current = max(0, data["currentQuestion"].int ?? 0)
@@ -1258,24 +1307,31 @@ private struct QuizView: View {
         defer { submitting = false }
         dirty = false
         model.error = nil
-        guard await model.saveDraft(resource: resource, answers: answers, currentQuestion: current) else {
+        guard let baseline, let updated = await model.saveDraft(resource: resource, answers: answers, currentQuestion: current,baseline:baseline) else {
+            draftFailure = model.error ?? "The draft could not be saved."
             dirty = true
             return
         }
+        self.baseline = updated; draftFailure = nil
         lastSaved = Date()
         loadedDraftId = currentDraftId()
-        if await model.submitQuiz(resource: resource) { awaitingResult = true }
+        if await model.submitQuiz(resource: resource,baseline:updated) { awaitingResult = true }
     }
 
     private func startOver() async {
         startingOver = true
         defer { startingOver = false }
         model.error = nil
-        guard await model.startOverQuiz(resource: resource) else { return }
+        guard let baseline, await model.startOverQuiz(resource: resource,baseline:baseline) else {
+            draftFailure = model.error ?? "The draft could not be reset."
+            return
+        }
         answers = [:]
         current = 0
         lastSaved = nil
         loadedDraftId = nil
+        self.baseline = EditingBaseline(kind:"practice.draft",resourceId:resource.id,records:model.records)
+        draftFailure = nil
         dirty = false
         awaitingResult = false
     }
@@ -1290,7 +1346,7 @@ private struct QuestionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(question["prompt"].string ?? "").font(CentreFont.serif(.title3))
+            Text(question["prompt"].string ?? "").modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 0, standardFont: CentreFont.serif(.title3)))
                 .accessibilityIdentifier("quiz.prompt")
             if let marks = question["marks"].int, marks > 1 {
                 Text("\(marks) marks").font(.footnote).foregroundStyle(palette.text3)
@@ -1395,7 +1451,7 @@ private struct AttemptResultView: View {
                         LabeledContent("Model answer") { Text(answer).multilineTextAlignment(.trailing) }
                     }
                     if let explanation = question["explanation"].string.nonEmpty {
-                        Text(explanation).font(.footnote).foregroundStyle(palette.text2)
+                        Text(explanation).modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 0, standardFont: .footnote)).foregroundStyle(palette.text2)
                     }
                 }
                 .centreRow(palette)
@@ -1417,9 +1473,7 @@ private struct ReviewTab: View {
     @State private var resolving: Set<String> = []
 
     var body: some View {
-        let memories = model.items("reviewMemory")
-            .filter { model.data($0)["resolvedAt"].uiIsNull }
-            .sorted { (model.data($0)["nextReviewAt"].string ?? "") < (model.data($1)["nextReviewAt"].string ?? "") }
+        let memories = RecordProjections.reviewMemories(model.records)
         let needs = model.items("practice.learningNeed")
             .filter { model.data($0)["deletedAt"].uiIsNull && (model.data($0)["needScore"].int ?? 0) > 0 }
             .sorted { (model.data($0)["needScore"].int ?? 0) > (model.data($1)["needScore"].int ?? 0) }
@@ -1825,11 +1879,12 @@ private struct NewEventView: View {
     let command:ConnectorCommand
     @State private var organatoId=""
     @State private var confirmNotApplied=false
-    private var state:String { command.missingOnServer == true ? "missing":command.receipt?["status"].string ?? (command.sent ? "unknown":"queued") }
+    private var state:String { command.status }
     var body:some View {
         VStack(alignment:.leading,spacing:10) {
             Label(label,systemImage:state == "queued" ? "clock":"exclamationmark.triangle")
                 .font(.subheadline).foregroundStyle(state == "queued" ? palette.text2:palette.warn)
+            if let rejection=command.localRejection { Text(rejection).font(.footnote).foregroundStyle(palette.text2) }
             if let error=command.receipt?["error"]["message"].string { Text(error).font(.footnote).foregroundStyle(palette.text2) }
             if state == "missing" {
                 Text("Centre Cloud has no receipt yet. Try the original saved change again; a late request will be recognized as the same change.").font(.footnote)
@@ -2934,22 +2989,29 @@ private struct SettingsView: View {
                     }
                     .accessibilityIdentifier("settings.theme")
                     Picker("Reading size",selection:preferenceBinding("textSize",fallback:"standard")) {
-                        Text("Small").tag("small");Text("Standard").tag("standard");Text("Large").tag("large")
+                        Text("Small").tag("small");Text("Standard").tag("standard");Text("Large").tag("large");Text("Extra large").tag("extra-large")
                     }.accessibilityIdentifier("settings.textSize")
                     Text("Your iPhone's accessibility text size is always respected.").font(.footnote).foregroundStyle(palette.text3)
+                    NavigationLink("Reading and accessibility") { ReadingSettings() }
                     NavigationLink("Time zone: \(When.zone(model.preferences).identifier)") {
                         TimeZoneSettings()
                     }
                 }
                 .centreRow(palette)
                 Section("Study") {
+                    NicknameSetting()
+                    NavigationLink("Resource defaults") { StudyDefaultSettings() }
                     Picker("Response style",selection:preferenceBinding("responseStyle",fallback:"balanced")) {
                         Text("Concise").tag("concise");Text("Balanced").tag("balanced");Text("Detailed").tag("detailed")
                     }
                     Picker("Year level",selection:Binding(get:{model.preferences["studentYearLevel"].int ?? 9},set:{savePreference("studentYearLevel",.number(Double($0)))})) {
                         ForEach(7...12,id:\.self) { Text("Year \($0)").tag($0) }
                     }
-                }.centreRow(palette)
+                }.centreRow(palette).disabled(model.session == nil)
+                Section {
+                    PreferenceChoice(title: "Hardware keyboard send", key: "sendKey", options: [("Enter", "enter"), ("Command or Control + Enter", "modifier-enter")])
+                } header: { Text("Chat") } footer: { Text("The iPhone keyboard always uses Return for a new line. The Send button always sends.") }
+                .centreRow(palette).disabled(model.session == nil)
 
                 if model.session != nil {
                     Section {
@@ -2987,12 +3049,11 @@ private struct SettingsView: View {
 
     private var themeBinding: Binding<String> {
         Binding(get: { model.preferences["theme"].string ?? "dark" }, set: { value in
-            let next = model.preferences.merging(.object(["theme": .string(value)]))
-            Task { _ = await model.save(kind: "preferences", id: "preferences", data: next) }
+            savePreference("theme", .string(value))
         })
     }
     private func savePreference(_ key:String,_ value:JSONValue) {
-        Task { _ = await model.save(kind:"preferences",id:"preferences",data:model.preferences.merging(.object([key:value]))) }
+        Task { _ = await model.savePreferences(.object([key:value])) }
     }
     private func preferenceBinding(_ key:String,fallback:String) -> Binding<String> {
         Binding(get:{model.preferences[key].string ?? fallback},set:{savePreference(key,.string($0))})
@@ -3005,8 +3066,9 @@ private struct SettingsView: View {
     @State private var query=""
     var body:some View {
         List {
+            PreferenceSaveStatus()
             ForEach(TimeZone.knownTimeZoneIdentifiers.filter{query.isEmpty || $0.localizedCaseInsensitiveContains(query)},id:\.self) { zone in
-                Button { Task { _ = await model.save(kind:"preferences",id:"preferences",data:model.preferences.merging(.object(["timeZone":.string(zone)]))) } } label: {
+                Button { Task { _ = await model.savePreferences(.object(["timeZone":.string(zone)])) } } label: {
                     HStack { Text(zone).foregroundStyle(palette.text);Spacer();if model.timeZone == zone { Image(systemName:"checkmark").foregroundStyle(palette.text) } }
                 }.centreRow(palette)
             }
@@ -3145,7 +3207,7 @@ private struct ConnectForm: View {
             }
             .centreRow(palette)
             Section {
-                Button { run { await model.googleSignIn() } } label: {
+                Button { run { await model.googleSignIn(baseURL:url) } } label: {
                     Label("Continue with Google", systemImage: "person.crop.circle")
                 }
                 .disabled(working)

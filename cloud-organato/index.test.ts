@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { calendarEventSchema, eventSchema, type CalendarEvent } from '../shared/schema';
+import { assignmentSchema, calendarEventSchema, eventSchema, type CalendarEvent } from '../shared/schema';
 import { handleOrganatoRequest } from './index';
+import { createCloudTestHarness } from '../cloud/test-support';
+import { handleCloudExtension } from '../cloud/extensions';
+import { cloudRecordSchema } from '../shared/cloud';
 import { Fixture, object, remoteItem, session, type RemoteItem } from './test-support';
 
 const receiptSchema=z.object({operationId:z.string().uuid(),expectedVersion:z.number().int().nonnegative(),expectedRevision:z.number().int().positive().nullable(),status:z.enum(['succeeded','unknown','conflict','failed','pending']),event:eventSchema.nullable(),record:z.object({kind:z.string(),id:z.string(),version:z.number(),cursor:z.string().regex(/^\d+$/),data:z.unknown()}).nullable(),error:z.object({code:z.string(),message:z.string()}).nullable(),reconciliationRequired:z.boolean()}).strict();
@@ -469,4 +472,52 @@ test('cloud Organato contract against actual migration and isolated SQLite',asyn
     const completed=await f.request(`/sessions/${data.id}/complete`,'POST',{...command(changed.body),completed:true});assert.equal(completed.status,200);assert.equal(eventOf(completed.body).time,time);assert.equal(eventOf(completed.body).startAt,startAt);
     assert.ok(f.writes.every(write => write.kind === 'calendarEvent'));assert.ok(f.externalWrites().every(call => /\/items(?:\/[^/]+)?$/.test(new URL(call.url).pathname)));assert.equal(f.items.get(imported.id)?.dueAt,startAt);
   });
+});
+
+
+test('mounted archive saves a null tombstone, replays and reconciles without another upstream write', async t => {
+  const h = await createCloudTestHarness({extension:handleCloudExtension}), f = new Fixture();
+  t.after(() => {h.db.sqlite.close(); f.db.close();});
+  t.mock.method(globalThis, 'fetch', f.fetch);
+  h.env.ORGANATO_ENCRYPTION_KEYS_JSON = JSON.stringify(f.keys);
+  h.env.ORGANATO_KEY_VERSION = 'v1'; h.env.ORGANATO_ALLOWED_ORIGINS = 'https://organato.test';
+  const token = String((await h.login('alice')).token);
+  assert.equal((await h.call('/v1/organato/connection','POST',{apiKey:f.token,baseUrl:'https://organato.test/api/v1'},token)).status,200);
+  const data = session();
+  const created = await h.call('/v1/organato/sessions','POST',{operationId:randomUUID(),id:data.id,data},token);
+  assert.equal(created.status,200);
+  const input = command(created.value), path = `/v1/organato/sessions/${data.id}/archive`;
+  const archived = await h.call(path,'POST',input,token);
+  assert.equal(archived.status,200,JSON.stringify(archived));
+  assert.equal(receipt(archived.value).status,'succeeded');
+  assert.ok(eventOf(archived.value).deletedAt);
+  const tombstone = cloudRecordSchema.parse(archived.value.record);
+  assert.equal(tombstone.deleted,true); assert.equal(tombstone.data,null); assert.equal(tombstone.version,2);
+  assert.deepEqual(await h.call(path,'POST',input,token),archived);
+  assert.deepEqual(await h.call(`/v1/organato/operations/${input.operationId}/reconcile`,'POST',{resolution:'applied'},token),archived);
+  assert.equal(f.externalWrites().length,2);
+  const snapshot = await h.call('/v1/organato/snapshot','GET',undefined,token);
+  assert.equal(snapshot.status,200,JSON.stringify(snapshot));
+  assert.deepEqual(snapshot.value.events,[]);
+});
+
+test('mounted snapshot suppresses a linked tombstone before parsing and retains unrelated work', async t => {
+  const h = await createCloudTestHarness({extension:handleCloudExtension}), f = new Fixture();
+  t.after(() => {h.db.sqlite.close(); f.db.close();});
+  t.mock.method(globalThis, 'fetch', f.fetch);
+  h.env.ORGANATO_ENCRYPTION_KEYS_JSON = JSON.stringify(f.keys);
+  h.env.ORGANATO_KEY_VERSION = 'v1'; h.env.ORGANATO_ALLOWED_ORIGINS = 'https://organato.test';
+  const token = String((await h.login('alice')).token);
+  assert.equal((await h.call('/v1/organato/connection','POST',{apiKey:f.token,baseUrl:'https://organato.test/api/v1'},token)).status,200);
+  const data = session();
+  assert.equal((await h.call('/v1/organato/sessions','POST',{operationId:randomUUID(),id:data.id,data},token)).status,200);
+  f.items.set('assignment',remoteItem({id:'assignment',kind:'work',calendarEnabled:false}));
+  f.items.set('other',remoteItem({id:'other'}));
+  assert.equal((await h.call('/v1/records','POST',{mutationId:randomUUID(),kind:'calendarEvent',id:data.id,schemaVersion:1,expectedVersion:1,deleted:true,data:null},token)).status,200);
+  const snapshot = await h.call('/v1/organato/snapshot','GET',undefined,token);
+  assert.equal(snapshot.status,200,JSON.stringify(snapshot));
+  assert.deepEqual(z.array(eventSchema).parse(snapshot.value.events).map(event=>event.id),['other']);
+  assert.deepEqual(z.array(assignmentSchema).parse(snapshot.value.assignments).map(item=>item.id),['assignment','other']);
+  assert.equal(z.array(object).parse(snapshot.value.subjects)[0]?.id,'math');
+  assert.equal(f.externalWrites().length,1);
 });

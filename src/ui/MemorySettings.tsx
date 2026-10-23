@@ -57,7 +57,7 @@ export function MemorySettings() {
   const [action,setAction] = useState<MemoryAction | null>(null);
   const memories = state.assistantMemories;
   return <>
-    <p className="preferences-description memory-settings__intro">Centre remembers facts, learning preferences and goals you share in chat. These are saved on this computer and used across chats, even after you restart the app.</p>
+    <p className="preferences-description memory-settings__intro">Centre remembers facts, learning preferences and goals you share in chat. These are saved across chats and app restarts, and sync to your other devices when Centre cloud sync is enabled.</p>
     <div className="memory-settings__heading"><h2 className="preferences-title">What Centre knows about you</h2><span className="preference-note">{memories.length} / 50 memories</span></div>
     {memories.length ? <ul className="memory-settings__list">{memories.map(memory => <li key={memory.id} className="memory-settings__item">
       <div className="memory-settings__text"><p className="memory-settings__fact">{memory.content}</p><p className="preference-note"><time dateTime={memory.updatedAt} title={new Date(memory.updatedAt).toLocaleString()}>Updated {timeAgo(memory.updatedAt)}</time></p></div>

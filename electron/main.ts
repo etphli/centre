@@ -16,6 +16,7 @@ import { DesktopLauncherManager } from './desktop-launchers';
 import { desktopActionSchema } from '../shared/desktop-actions';
 import { launcherOperationSchema } from '../shared/desktop-launchers';
 import { useSystemCertificateAuthorities } from './system-trust';
+import type { NativeSaveResult } from './save-result';
 
 useSystemCertificateAuthorities();
 app.setName('Centre');
@@ -207,7 +208,7 @@ async function start() {
     if (failure) throw new Error(`The diagram file could not open: ${failure}`);
     return {opened:true};
   });
-  ipcMain.handle('centre:save-file', async (event, value: unknown) => {
+  ipcMain.handle('centre:save-file', async (event, value: unknown): Promise<NativeSaveResult> => {
     authorize(event);
     const file = saveFileSchema.parse(value);
     const result = await dialog.showSaveDialog({ title: 'Export from Centre', defaultPath: join(app.getPath('downloads'), file.filename) });
@@ -215,7 +216,7 @@ async function start() {
     await writeFile(result.filePath, file.content, { encoding: 'utf8', mode: 0o600 });
     return { saved: true, filename: basename(result.filePath) };
   });
-  ipcMain.handle('centre:print-paper', async (event, value: unknown) => {
+  ipcMain.handle('centre:print-paper', async (event, value: unknown): Promise<NativeSaveResult> => {
     authorize(event);
     const paper = printPaperSchema.parse(value);
     const result = await dialog.showSaveDialog({ title: 'Save PDF for printing', defaultPath: join(app.getPath('downloads'), `${paper.title.replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 120) || 'Centre paper'}.pdf`), filters: [{ name: 'PDF document', extensions: ['pdf'] }] });

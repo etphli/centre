@@ -102,6 +102,12 @@ export async function createService(options: { port?:number; token?:string; data
   const connectors = new Connectors(store,credentials);
   const connectedFiles = new ConnectedFiles(store,connectors,searchIndex);
   const questions = new Questions();
+  let settingsQueue: Promise<unknown> = Promise.resolve();
+  function serializeSettings<T>(work: () => Promise<T>): Promise<T> {
+    const pending = settingsQueue.then(work);
+    settingsQueue = pending.catch(() => undefined);
+    return pending;
+  }
   const busy = new Map<string,number>(); const cancelled = new Set<string>();
   const reservedAttachmentIds = new Set<string>();
   const guidedCreation = new Set<string>();
@@ -144,7 +150,7 @@ export async function createService(options: { port?:number; token?:string; data
           : { mode:'questions',questionCount:store.state.settings.defaultTestQuestions };
         return { testLength,questionTypes:store.state.settings.defaultTestQuestionTypes,...common };
       }
-      case 'flashcards': return { questionCount:'auto',...common };
+      case 'flashcards': return { questionCount:store.state.settings.defaultFlashcardCountMode === 'fixed' ? store.state.settings.defaultFlashcardCount : 'auto',...common };
       default: return common;
     }
   }
@@ -227,7 +233,7 @@ export async function createService(options: { port?:number; token?:string; data
   }
   const cloud = await CloudSync.open(store,credentials,attachmentStore,undefined,()=>searchIndex.refreshVisibility(store.state),()=>searchIndex.rebuild(store.state));
   const resources: Resources = new Resources(store,codex,searchIndex); const google = new GoogleLogin(store,credentials,idToken=>cloud.authenticate(idToken));
-  const cloudTimer = setInterval(()=>{void cloud.sync().catch(()=>undefined);},30000); cloudTimer.unref();
+  const cloudTimer = setInterval(()=>{void cloud.poll().catch(()=>undefined);},30000); cloudTimer.unref();
   void codex.ready().catch(() => undefined);
   const reconnect = setInterval(() => { void codex.ready().catch(() => undefined); }, 15000); reconnect.unref();
   stopBackground = async () => { clearInterval(reconnect); clearInterval(cloudTimer); google.close(); questions.close(); await cloud.close(); await codex.close(); };
@@ -260,11 +266,22 @@ export async function createService(options: { port?:number; token?:string; data
       const now = new Date().toISOString(); chat.activity = [];
       const requestIndex = options.existingMessageId ? chat.messages.findIndex(message => message.id === options.existingMessageId && message.role === 'user') : chat.messages.length;
       if (requestIndex < 0) throw new HttpError(404,'Prompt not found in this conversation.');
-      if (!options.existingMessageId) chat.messages.push(messageSchema.parse({ id:input.messageId ?? randomUUID(), role:'user', content, createdAt:now, attachmentIds:input.attachmentIds,requestContext:input.context }));
+      if (!options.existingMessageId) chat.messages.push(messageSchema.parse({ id:input.messageId ?? randomUUID(), role:'user', content, createdAt:now, attachmentIds:input.attachmentIds,requestContext:input.context,...(input.resourceRequest ? {guidedGeneration:{resourceId:randomUUID(),request:input.resourceRequest}} : {}) }));
       chat.responseError = null; chat.updatedAt = now;
       if (chat.messages.length === 1 && chat.title === 'New chat') chat.title = (content || `Review ${attachedFiles[0]?.attachment.name ?? 'attached file'}`).slice(0,60);
       await store.save();
       await searchIndex.rebuild(store.state);
+      const guidedResourceId = input.resourceRequest ? chat.messages[requestIndex]?.guidedGeneration?.resourceId : undefined;
+      const recoveredResource = guidedResourceId ? store.state.resources.find(resource => resource.id === guidedResourceId) : undefined;
+      if (recoveredResource) {
+        if (recoveredResource.deletedAt) throw new HttpError(409,'The generated resource was archived. Restore it before retrying.');
+        if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.');
+        const request = chat.messages[requestIndex];
+        if (request && !request.resourceIds.includes(recoveredResource.id)) request.resourceIds.push(recoveredResource.id);
+        chat.messages.push(messageSchema.parse({id:randomUUID(),role:'assistant',content:`Saved **${recoveredResource.title}**. Open it below or find it again in Resources.`,responseDurationMs:0,createdAt:new Date().toISOString()}));
+        chat.updatedAt = new Date().toISOString();
+        return chat;
+      }
       const { model,effort } = chat.modelSelection ?? {model:store.state.settings.chatModel,effort:store.state.settings.reasoningEffort};
       await codex.validateSelection(model,effort);
       const needsHistory = !chat.codexThreadId || options.forceHistory;
@@ -301,11 +318,11 @@ export async function createService(options: { port?:number; token?:string; data
       if (input.resourceRequest) {
         guidedCreation.add(id);
         const resource = await resources.generate(input.resourceRequest,{
-          threadId:chat.codexThreadId,selection:{model,effort},context:prompt,imagePaths,
+          threadId:chat.codexThreadId,selection:{model,effort},context:prompt,imagePaths,resourceId:chat.messages[requestIndex]?.guidedGeneration?.resourceId,
           checkActive:() => { if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.'); },
         });
         const request = chat.messages.at(-1);
-        if (request?.role === 'user') request.resourceIds.push(resource.id);
+        if (request?.role === 'user' && !request.resourceIds.includes(resource.id)) request.resourceIds.push(resource.id);
         response = `Saved **${resource.title}**. Open it below or find it again in Resources.`;
       } else while (true) {
         if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.');
@@ -490,7 +507,7 @@ export async function createService(options: { port?:number; token?:string; data
       if (!prompt || prompt.id !== input.messageId || prompt.role !== 'user') throw new HttpError(409,'Only the latest unanswered prompt can be retried.');
       // A failed or interrupted provider thread may contain uncommitted later work.
       chat.codexThreadId = null;
-      void track(() => sendMessage(chat.id,{content:prompt.content,context:prompt.requestContext ?? {page:'chat'},attachmentIds:prompt.attachmentIds},{existingMessageId:prompt.id,allowTools:false,forceHistory:true})).catch(() => undefined);
+      void track(() => sendMessage(chat.id,{content:prompt.content,context:prompt.requestContext ?? {page:'chat'},attachmentIds:prompt.attachmentIds,resourceRequest:prompt.guidedGeneration?.request},{existingMessageId:prompt.id,allowTools:false,forceHistory:true})).catch(() => undefined);
       return chat;
     }
     const archive = /^\/api\/chats\/([^/]+)\/(archive|restore)$/.exec(path);
@@ -555,21 +572,28 @@ export async function createService(options: { port?:number; token?:string; data
     if (method === 'PATCH' && path === '/api/settings') {
       const requested = z.record(z.string(),z.unknown()).parse(value);
       const patch = settingsInput.parse(requested);
-      const preferences = preferencesSchema.parse({ ...store.state.settings,...requested });
-      if (patch.chatModel !== undefined || patch.reasoningEffort !== undefined) await codex.validateSelection(patch.chatModel ?? store.state.settings.chatModel,patch.reasoningEffort ?? store.state.settings.reasoningEffort);
-      if (patch.gradingModel !== undefined || patch.gradingReasoningEffort !== undefined) await codex.validateSelection(patch.gradingModel ?? store.state.settings.gradingModel,patch.gradingReasoningEffort ?? store.state.settings.gradingReasoningEffort);
+      // Zod partial() still supplies defaults. Keep only explicitly requested keys.
+      const selected = Object.fromEntries(Object.entries(patch).filter(([key]) => Object.hasOwn(requested,key)));
       if (patch.organatoBaseUrl !== undefined) validOrganatoBase(patch.organatoBaseUrl);
-      if (patch.organatoApiKey !== undefined) await credentials.set('organatoApiKey',patch.organatoApiKey);
-      if (patch.googleClientSecret !== undefined) await credentials.set('googleClientSecret',patch.googleClientSecret);
-      if (patch.organatoBaseUrl !== undefined) store.state.settings.organatoBaseUrl = patch.organatoBaseUrl.replace(/\/$/,'');
-      if (patch.googleClientId !== undefined) store.state.settings.googleClientId = patch.googleClientId.trim();
-      if (patch.chatModel !== undefined) store.state.settings.chatModel = patch.chatModel;
-      if (patch.reasoningEffort !== undefined) store.state.settings.reasoningEffort = patch.reasoningEffort;
-      if (patch.gradingModel !== undefined) store.state.settings.gradingModel = patch.gradingModel;
-      if (patch.gradingReasoningEffort !== undefined) store.state.settings.gradingReasoningEffort = patch.gradingReasoningEffort;
-      Object.assign(store.state.settings,preferences);
-      if (patch.organatoApiKey !== undefined || patch.organatoBaseUrl !== undefined) { store.state.settings.organatoConnected = false; store.state.syncError = null; }
-      await store.save(); return store.state.settings;
+      // Validate model pairs in request order; commit preferences against the latest state.
+      return serializeSettings(async () => {
+        const next = { ...store.state.settings,...selected };
+        if (patch.chatModel !== undefined || patch.reasoningEffort !== undefined) await codex.validateSelection(next.chatModel,next.reasoningEffort);
+        if (patch.gradingModel !== undefined || patch.gradingReasoningEffort !== undefined) await codex.validateSelection(next.gradingModel,next.gradingReasoningEffort);
+        if (patch.organatoApiKey !== undefined) await credentials.set('organatoApiKey',patch.organatoApiKey);
+        if (patch.googleClientSecret !== undefined) await credentials.set('googleClientSecret',patch.googleClientSecret);
+        await store.update(state => {
+          const preferences = preferencesSchema.parse({ ...state.settings,...selected });
+          Object.assign(state.settings,preferences);
+          if (patch.organatoBaseUrl !== undefined) state.settings.organatoBaseUrl = patch.organatoBaseUrl.replace(/\/$/,'');
+          if (patch.googleClientId !== undefined) state.settings.googleClientId = patch.googleClientId.trim();
+          for (const field of ['chatModel','reasoningEffort','gradingModel','gradingReasoningEffort'] as const) {
+            if (Object.hasOwn(requested,field)) Object.assign(state.settings,{[field]:patch[field]});
+          }
+          if (patch.organatoApiKey !== undefined || patch.organatoBaseUrl !== undefined) { state.settings.organatoConnected = false; state.syncError = null; }
+        });
+        return store.state.settings;
+      });
     }
     if (method === 'POST' && path === '/api/auth/google/start') return google.start();
     if (method === 'POST' && path === '/api/auth/google/logout') return google.logout();

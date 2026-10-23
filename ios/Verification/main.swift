@@ -54,6 +54,8 @@ private actor SimulatedTransport: CloudTransport {
 @main
 struct CentreCoreVerification {
     static func main() async throws {
+        try await AuditRegressions.run()
+        try await SettingsRegressions.run()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("centre-core-verification-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let workspace = try WorkspaceKey(baseURL: URL(string: "https://verification.invalid")!, workspaceId: "account-workspace")
@@ -117,7 +119,10 @@ struct CentreCoreVerification {
         do {
             try await reopened.synchronize(using: network)
             throw VerificationFailure(description: "Simulated lost ACK did not fail")
-        } catch let error as URLError { try check(error.code == .timedOut, "Unexpected simulated network failure") }
+        } catch {
+            let failure=error as NSError
+            try check(failure.domain == NSURLErrorDomain && failure.code == NSURLErrorTimedOut, "Unexpected simulated network failure")
+        }
         let retry = try reopen()
         let timedOut = await retry.snapshot()
         try check(timedOut.outbox[0].sent, "Sent marker did not survive timeout and reopen")

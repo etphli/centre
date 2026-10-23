@@ -83,7 +83,7 @@ export function SubjectsPage() {
           <Select label="Filter resources by subject" value={location} onChange={setLocation} options={[{value:'all',label:'All subjects'},{value:'personal',label:'Personal learning'},...state.subjects.map(subject => ({value:subject.id,label:subject.name}))]} />
         </div>
         <div className="filter-row" role="group" aria-label="Filter saved resources by kind">
-          {(['all',...resourceKinds] as const).map(value => <button type="button" key={value} className={`chip${kind === value ? ' is-selected' : ''}`} aria-pressed={kind === value} onClick={() => setKind(value)}>{value === 'all' ? 'All' : value === 'quiz' ? 'Quizzes' : value === 'test' ? 'Tests' : kindLabels[value]}</button>)}
+          {(['all',...resourceKinds] as const).map(value => <button type="button" key={value} className={`chip${kind === value ? ' is-selected' : ''}`} aria-pressed={kind === value} onClick={() => setKind(value)}>{value === 'all' ? 'All' : value === 'quiz' ? 'Quizzes' : value === 'test' ? 'Tests' : value === 'diagram' ? 'Diagrams' : kindLabels[value]}</button>)}
         </div>
         <p className="library-count" role="status">{plural(shown.length,'saved resource')}{filtered ? ` of ${state.resources.length}` : ''}{shown.length ? ', newest first' : ''}</p>
         {shown.length ? <ul className="resource-grid">{shown.map(resource => <li key={resource.id}>

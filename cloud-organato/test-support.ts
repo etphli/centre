@@ -68,6 +68,7 @@ export class Fixture {
     };
     const put = async (mutation:Mutation) => {
       this.writes.push(structuredClone(mutation));
+      if (mutation.deleted && mutation.data !== null) throw new Error('Tombstones must have null data');
       if (this.failPut) throw new Error('Injected entities.put failure');
       const old = await get(mutation.kind,mutation.id);
       if ((old?.version ?? 0) !== mutation.expectedVersion) throw new Error('Cloud CAS conflict');

@@ -110,11 +110,11 @@ function Page({ route }: { route: Route }) {
     case 'resources':
       return <SubjectsPage />;
     case 'subject':
-      return <SubjectPage subjectId={route.subjectId} />;
+      return <SubjectPage key={route.subjectId} subjectId={route.subjectId} />;
     case 'topic':
-      return <TopicPage subjectId={route.subjectId} topicId={route.topicId} />;
+      return <TopicPage key={route.topicId} subjectId={route.subjectId} topicId={route.topicId} />;
     case 'resource':
-      return <ResourceView resourceId={route.resourceId} questionId={route.questionId} />;
+      return <ResourceView key={route.resourceId} resourceId={route.resourceId} questionId={route.questionId} />;
     case 'calendar':
       return <CalendarPage />;
     case 'log':
@@ -317,7 +317,8 @@ export default function CentreApp() {
       const key = event.key.toLowerCase();
       if (key === 'k') {
         event.preventDefault();
-        setModal((current) => (current?.kind === 'search' ? null : { kind: 'search' }));
+        if (document.querySelector('dialog[open]:not(.palette)')) return;
+        setModal((current) => (current?.kind === 'search' ? null : current ?? { kind: 'search' }));
       } else if (key === 'n' && !event.shiftKey && !document.querySelector('dialog[open]')) {
         event.preventDefault();
         navigate({ kind: 'home' });

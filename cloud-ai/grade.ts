@@ -194,6 +194,8 @@ export async function handleGradeRequest(request: Request, context: GradeContext
       const mutations = [mutation('practice.attempt',attempt.id,0,attempt), mutation('practice.draft',draft.id,draftRecord.version,{...draft,revision:draft.revision+1,updatedAt:now,deletedAt:now}), ...[...changed.values()].map(need => mutation('practice.learningNeed',need.id,records.find(record => record.id === need.id)?.version || 0,need))];
       await db.prepare("UPDATE centre_ai_grade_runs SET status='prepared',grade_json=?,provider_json=?,mutations_json=? WHERE workspace_id=? AND id=? AND status='processing'").bind(JSON.stringify(attempt),JSON.stringify(provider),JSON.stringify(mutations),workspace,input.id).run();
     } catch (error) {
+      const saved = await load(input.id);
+      if (saved && saved.status !== 'processing') return resume(saved);
       const interrupted=error instanceof ProviderTimeout;
       const code=interrupted ? 'grade_interrupted':'grading_failed';
       await setState(input.id,interrupted ? 'interrupted':'failed',code);

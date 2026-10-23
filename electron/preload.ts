@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { desktopActionRequestSchema, type DesktopActionRequest } from '../shared/desktop-actions';
 import { unwrapDesktopResponse } from '../shared/desktop-response';
+import { nativeSaveResultSchema, type NativeSaveResult } from './save-result';
 
 let nativeTitlebar = process.platform === 'darwin';
 function syncWindowChrome() {
@@ -35,8 +36,8 @@ contextBridge.exposeInMainWorld('centre', {
   chooseFiles: () => ipcRenderer.invoke('centre:choose-files'),
   openDiagram: (input:{id:string;theme:string}) => ipcRenderer.invoke('centre:open-diagram',input),
   openExternal: (url: string) => ipcRenderer.invoke('centre:open-external', url),
-  saveFile: (file: { filename: string; content: string; mimeType: string }) => ipcRenderer.invoke('centre:save-file', file),
-  printPaper: (paper: { title: string; latex: string; html?: string }) => ipcRenderer.invoke('centre:print-paper', paper),
+  saveFile: async (file: { filename: string; content: string; mimeType: string }): Promise<NativeSaveResult> => nativeSaveResultSchema.parse(await ipcRenderer.invoke('centre:save-file', file)),
+  printPaper: async (paper: { title: string; latex: string; html?: string }): Promise<NativeSaveResult> => nativeSaveResultSchema.parse(await ipcRenderer.invoke('centre:print-paper', paper)),
   updates: {
     check: () => ipcRenderer.invoke('centre:updates:check'),
     install: () => ipcRenderer.invoke('centre:updates:install'),

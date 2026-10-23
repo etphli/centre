@@ -35,6 +35,7 @@ export function Composer(props: ComposerProps) {
 function DraftComposer({ chatId = null, variant, placeholder, contextLabel, busy, onSend, onCancel, onCommand, autoFocus, notice, draft }: ComposerProps & { draft: PromptDraft }) {
   const { text: value, error: draftError } = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
   const setValue = draft.setText;
+  const { state: { settings } } = useApp();
   const attachments = useComposerAttachments();
   const [dragging,setDragging] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -104,6 +105,7 @@ function DraftComposer({ chatId = null, variant, placeholder, contextLabel, busy
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return;
     if (menuOpen) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -127,7 +129,7 @@ function DraftComposer({ chatId = null, variant, placeholder, contextLabel, busy
         return;
       }
     }
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+    if (event.key === 'Enter' && !event.shiftKey && (settings.sendKey === 'enter' || event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       submit();
     }
@@ -167,19 +169,6 @@ function DraftComposer({ chatId = null, variant, placeholder, contextLabel, busy
             })}
           </ul>
         ) : null}
-        <div className="composer__tools">        <button
-          type="button"
-          className="icon-button composer__plus"
-          aria-label="Create a resource"
-          title="Create a quiz, test, flashcards, diagram or plan"
-          onClick={() => {
-            setValue('/');
-            setMenuDismissed(false);
-            textarea.current?.focus();
-          }}
-        >
-          <Plus size={18} />
-        </button><AttachmentButton onClick={() => void attachments.pick()} disabled={busy || attachments.uploading} /></div>
         <textarea
           ref={textarea}
           className="composer__input"
@@ -198,12 +187,28 @@ function DraftComposer({ chatId = null, variant, placeholder, contextLabel, busy
           }}
           onKeyDown={onKeyDown}
         />
+        <div className="composer__tools">
+          <AttachmentButton onClick={() => void attachments.pick()} disabled={busy || attachments.uploading} />
+          <button
+            type="button"
+            className="icon-button composer__plus"
+            aria-label="Create a resource"
+            title="Create a quiz, test, flashcards, diagram or plan"
+            onClick={() => {
+              setValue('/');
+              setMenuDismissed(false);
+              textarea.current?.focus();
+            }}
+          >
+            <Plus size={18} />
+          </button>
+        </div>
         {busy && onCancel ? (
           <button type="button" className="send-button send-button--stop" aria-label="Stop" title="Stop" onClick={onCancel}>
             <Square size={12} fill="currentColor" />
           </button>
         ) : (
-          <button type="button" className="send-button" aria-label="Send" title="Send (Enter)" disabled={(!value.trim() && !attachments.files.length) || busy || attachments.uploading} onClick={submit}>
+          <button type="button" className="send-button" aria-label="Send" title={settings.sendKey === 'enter' ? 'Send (Enter)' : 'Send (⌘ / Ctrl + Enter)'} disabled={(!value.trim() && !attachments.files.length) || busy || attachments.uploading} onClick={submit}>
             <ArrowUp size={16} strokeWidth={2.4} />
           </button>
         )}

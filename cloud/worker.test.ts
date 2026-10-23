@@ -816,14 +816,14 @@ test("daily ceilings apply globally and by workspace while receipt replay remain
     .prepare("UPDATE centre_daily SET count=1000 WHERE key=?")
     .run("requests:" + String(a.workspaceId));
   assert.equal(
-    (await h.call("/v1/bootstrap", "GET", undefined, token)).status,
+    (await h.call("/v1/devices", "GET", undefined, token)).status,
     429,
   );
   h.db.sqlite
-    .prepare("UPDATE centre_daily SET count=5000 WHERE key='requests:global'")
+    .prepare("INSERT INTO centre_daily(day,key,count) VALUES('2026-10-22','requests:admitted:global',5000) ON CONFLICT(day,key) DO UPDATE SET count=5000")
     .run();
   assert.equal(
-    (await h.call("/v1/bootstrap", "GET", undefined, String(b.token))).status,
+    (await h.call("/v1/devices", "GET", undefined, String(b.token))).status,
     429,
   );
 });
@@ -2294,4 +2294,33 @@ test("checklist canonical domain merge rejects stale/divergent revisions indepen
   assert.equal(raced.status, 409);
   assert.equal(object(object(raced.value.current).data).revision, 6);
   assert.equal(object(raced.value.current).version, 4);
+});
+
+
+test('anonymous floods and invalid bearers cannot consume admitted service budgets', async t => {
+  const h = await harness(); t.after(()=>h.db.sqlite.close());
+  const account = await h.login('alice'), token = String(account.token);
+  for (let index=0; index<5100; index++) {
+    h.setTime(Date.parse('2026-10-22T00:00:00Z')+index*1000);
+    const response = await h.call('/v1/bootstrap','GET',undefined,index%2 ? 'ctr_'+'0'.repeat(64) : undefined);
+    assert.ok(response.status===401 || response.status===429);
+  }
+  assert.equal((await h.call('/v1/bootstrap','GET',undefined,token)).status,200);
+  assert.equal((await h.call('/v1/devices','GET',undefined,token)).status,200);
+  const anonymous = h.db.sqlite.prepare("SELECT count FROM centre_daily WHERE key='requests:anonymous:global'").get();
+  assert.ok(anonymous && Number(anonymous.count)>=5000);
+  assert.equal((await h.call('/v1/auth/google','POST',{idToken:await h.identity('bob'),deviceName:'blocked anonymous admission'})).status,429);
+});
+
+test('polling has finite workspace and aggregate ceilings with reserved foreground capacity', async t => {
+  const h = await harness(); t.after(()=>h.db.sqlite.close());
+  const token = String((await h.login('alice')).token);
+  await h.call('/v1/changes','GET',undefined,token);
+  h.db.sqlite.prepare("UPDATE centre_daily SET count=6000 WHERE key LIKE 'requests:polling:cw_%'").run();
+  assert.equal((await h.call('/v1/changes','GET',undefined,token)).status,429);
+  assert.equal((await h.call('/v1/devices','GET',undefined,token)).status,200);
+  h.db.sqlite.prepare("UPDATE centre_daily SET count=12000 WHERE key='requests:polling:global'").run();
+  const other = String((await h.login('bob')).token);
+  assert.equal((await h.call('/v1/bootstrap','GET',undefined,other)).status,429);
+  assert.equal((await h.call('/v1/devices','GET',undefined,other)).status,200);
 });

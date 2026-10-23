@@ -70,14 +70,16 @@ function SkillUsage({ steps }: {steps:Chat['activity']}) {
 }
 
 function ThinkingDetails({ steps,duration }: {steps:Chat['activity'];duration:number|null}) {
+  const { state: { settings } } = useApp();
   if (!steps.length) return null;
-  return <><SkillUsage steps={steps} /><details className="thinking-details"><summary><ChevronRight size={13} />{duration === null ? 'Thinking' : `Worked for ${Math.max(1,Math.round(duration / 1000))}s`}<span>{steps.some(step => step.kind === 'tool') ? `${steps.filter(step => step.kind === 'tool').length} actions` : ''}</span></summary><ActivityBody steps={steps} /></details></>;
+  return <><SkillUsage steps={steps} /><details open={settings.activityVisibility === 'expanded'} className="thinking-details"><summary><ChevronRight size={13} />{duration === null ? 'Thinking' : `Worked for ${Math.max(1,Math.round(duration / 1000))}s`}<span>{steps.some(step => step.kind === 'tool') ? `${steps.filter(step => step.kind === 'tool').length} actions` : ''}</span></summary><ActivityBody steps={steps} /></details></>;
 }
 
 function WorkingActivity({ steps,turn,waiting,onStop,onExpand }: {steps:Chat['activity'];turn:Turn;waiting:boolean;onStop:() => void;onExpand:() => void}) {
+  const { state: { settings } } = useApp();
   const action = [...steps].reverse().find(step => step.kind === 'tool' && step.state === 'working');
   return <><SkillUsage steps={steps} /><div className="activity-row">
-    <details className="thinking-details thinking-details--live" onToggle={event => { if (event.currentTarget.open) requestAnimationFrame(onExpand); }}>
+    <details open={settings.activityVisibility === 'expanded'} className="thinking-details thinking-details--live" onToggle={event => { if (event.currentTarget.open) requestAnimationFrame(onExpand); }}>
       <summary><ChevronRight size={13} /><span className="working__pulse" aria-hidden><i /><i /><i /></span><span className="activity-row__label">{turn.status === 'stopping' ? 'Stopping' : waiting ? 'Waiting for your answer' : action ? action.text : <ThinkingLabel />}</span><Elapsed since={turn.startedAt} /></summary>
       <ActivityBody steps={steps} />
     </details>
@@ -323,7 +325,7 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
   function retryNotice(message: string, onRetry: () => void, alert: boolean) {
     return (
       <div className={alert ? 'thread-error' : 'thread-error thread-error--quiet'} role={alert ? 'alert' : 'status'}>
-        <p>{message}{!failedResend ? <small className="retry-note">Retry uses saved history without changing connected files, events or saved resources.</small> : null}</p>
+        <p>{message}{!failedResend ? <small className="retry-note">{(failedRetry ?? stalled)?.guidedGeneration ? 'Retry creates or recovers the requested resource using your saved choices. It does not change connected files or events.' : 'Retry uses saved history without changing connected files, events or saved resources.'}</small> : null}</p>
         <button type="button" className="button button--quiet button--small" disabled={locked || working !== null} onClick={onRetry}>
           <RotateCcw size={14} aria-hidden /> Try again
         </button>
@@ -423,7 +425,7 @@ export function HomeView() {
   // Picked once per visit so it doesn't change under the user while they type.
   const [opening,setOpening] = useState(() => ({ name, text: pickGreeting(name) }));
   useEffect(() => { if (opening.name !== name) setOpening({ name,text:pickGreeting(name) }); },[name,opening.name]);
-  const heading = opening.text;
+  const heading = state.settings.greetingStyle === 'simple' ? name ? `Hello, ${name}` : 'How can I help?' : opening.text;
   const shortcuts: CreateKind[] = ['quiz', 'test', 'flashcards', 'diagram', 'plan'];
 
   if (pending) {

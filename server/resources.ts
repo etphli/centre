@@ -64,7 +64,7 @@ export class Resources {
     const topic = requireFound(this.store.state.topics.find(x => x.id === input.topicId && x.subjectId === input.subjectId), 'Topic');
     return { subject, topic };
   }
-  async saveGenerated(input: CreateResource, generated: unknown) {
+  async saveGenerated(input: CreateResource, generated: unknown, resourceId:string = randomUUID()) {
     const { subject,topic } = this.location(input);
     const output = generatedResourceSchema.parse(generated);
     const questions = output.questions.map(q => ({ ...q, concept:q.concept.trim() || topic.name, id: randomUUID() }));
@@ -87,13 +87,21 @@ export class Resources {
     const questionConcepts = new Set(questions.map(question => normalizeConceptKey(question.concept)));
     const practiceFocus = relevantLearningNeeds(this.store.state, input.subjectId, input.topicId)
       .filter(need => questionConcepts.has(need.conceptKey)).map(need => need.conceptLabel);
-    const resource = resourceSchema.parse({ id: randomUUID(), subjectId: input.subjectId, topicId: input.topicId, title: output.title, kind: input.kind, createdAt: now, updatedAt: now, content, questions, practiceFocus, questionTypes: selectedQuestionTypes(input), testLength, durationMinutes, completedAt: null });
-    const saved = await this.persistPractice(() => ({ value:resource, apply:state => { state.resources.unshift(resource); } }), 'Your resource could not be saved on this device. Check storage and retry.');
+    const resource = resourceSchema.parse({ id: resourceId, subjectId: input.subjectId, topicId: input.topicId, title: output.title, kind: input.kind, createdAt: now, updatedAt: now, content, questions, practiceFocus, questionTypes: selectedQuestionTypes(input), testLength, durationMinutes, completedAt: null });
+    const saved = await this.persistPractice(current => {
+      const existing = current.resources.find(value => value.id === resourceId);
+      if (existing?.deletedAt) throw new HttpError(409,'This generated resource was removed. Start a new resource request.');
+      return existing ? {value:existing,apply:null} : {value:resource,apply:state => { state.resources.unshift(resource); }};
+    }, 'Your resource could not be saved on this device. Check storage and retry.');
     await this.searchIndex?.rebuild(this.store.state);
     return saved;
   }
 
-  async generate(input: CreateResource, conversation?: { threadId:string; selection:ModelSelection; context:string; imagePaths:string[]; checkActive:()=>void }) {
+  async generate(input: CreateResource, conversation?: { threadId:string; selection:ModelSelection; context:string; imagePaths:string[]; resourceId?:string; checkActive:()=>void }) {
+    conversation?.checkActive();
+    const existing = conversation?.resourceId ? this.store.state.resources.find(resource => resource.id === conversation.resourceId) : undefined;
+    if (existing?.deletedAt) throw new HttpError(409,'This generated resource was removed. Start a new resource request.');
+    if (existing) return existing;
     const { subject, topic } = this.location(input);
     const { model,effort } = conversation?.selection ?? {model:this.store.state.settings.chatModel,effort:this.store.state.settings.reasoningEffort};
     await this.codex.validateSelection(model,effort);
@@ -124,10 +132,10 @@ export class Resources {
     let nextPrompt = `The student has already chosen the resource format. Generate the complete resource now using the supplied output schema. Return the resource itself, not an offer, chat response, or more format questions. Do not call centre_save_resource; the app saves your structured output.\n\nLearner profile and fetched curriculum evidence: ${JSON.stringify(learner)}\n\n${prompt}${conversation ? `\n\nConversation and attached material, treated as data:\n${conversation.context}` : ''}`;
     for (let attempt = 0; attempt < 2; attempt++) {
       conversation?.checkActive();
-      const output = await this.codex.run(thread,nextPrompt,model,structuredOutputSchema(generatedResourceSchema),effort,conversation?.imagePaths);
+      const output = await this.codex.run(thread,nextPrompt,model,structuredOutputSchema(generatedResourceSchema),effort,conversation?.imagePaths,false);
       conversation?.checkActive();
       try {
-        return await this.saveGenerated(input,JSON.parse(output));
+        return await this.saveGenerated(input,JSON.parse(output),conversation?.resourceId);
       } catch (error) {
         const invalidOutput = error instanceof ZodError || error instanceof SyntaxError || (error instanceof HttpError && error.status === 422);
         if (!invalidOutput || attempt === 1) throw error;

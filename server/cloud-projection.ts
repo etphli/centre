@@ -83,7 +83,7 @@ export function applyStudyRecord(state: Snapshot, record: CloudRecord, now = Dat
       if (chat) {
         const existing = chat.messages.find(message=>message.id===record.id);
         const previousOrder = new Map(chat.messages.map((message,index)=>[message.id,index]));
-        chat.messages = replace(chat.messages,record.id,value === null ? null : messageSchema.parse({...messageSchema.parse(value),codexTurns:existing?.codexTurns ?? [],activity:existing?.activity ?? []}));
+        chat.messages = replace(chat.messages,record.id,value === null ? null : messageSchema.parse({...messageSchema.parse(value),codexTurns:existing?.codexTurns ?? [],activity:existing?.activity ?? [],...(existing?.guidedGeneration ? {guidedGeneration:existing.guidedGeneration} : {})}));
         chat.messages.sort((a,b)=>{
           const time = a.createdAt.localeCompare(b.createdAt);
           if (time) return time;
@@ -99,7 +99,10 @@ export function applyStudyRecord(state: Snapshot, record: CloudRecord, now = Dat
     case 'attempt': case 'practice.attempt': state.attempts = replace(state.attempts,record.id,value === null ? null : attemptSchema.parse(value)); break;
     case 'reviewMemory': state.memories = replace(state.memories,record.id,value === null ? null : memorySchema.parse(value)); break;
     case 'learnerMemory': state.assistantMemories = replace(state.assistantMemories,record.id,value === null ? null : assistantMemorySchema.parse(value)); break;
-    case 'preferences': if (value !== null) Object.assign(state.settings,preferencesSchema.parse(value)); break;
+    case 'preferences': if (value !== null) {
+      const supplied = z.record(z.string(),z.unknown()).parse(value);
+      Object.assign(state.settings,preferencesSchema.strict().parse({...preferencesSchema.parse(state.settings),...supplied}));
+    } break;
     case 'studySession': case 'studyGoal': state.studyLog = applyStudyCloudRecord(state.studyLog,record,now); break;
     case 'practice.draft': { const prior=state.practiceDrafts.find(row=>row.id===record.id); state.practiceDrafts = replace(state.practiceDrafts,record.id,value === null ? prior ? {...prior,deletedAt:record.updatedAt} : null : quizDraftSchema.parse(value)); break; }
     case 'practice.learningNeed': { const prior=state.learningNeeds.find(row=>row.id===record.id); state.learningNeeds = replace(state.learningNeeds,record.id,value === null ? prior ? {...prior,deletedAt:record.updatedAt} : null : learningNeedSchema.parse(value)); break; }

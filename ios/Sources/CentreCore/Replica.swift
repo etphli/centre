@@ -109,8 +109,12 @@ public actor Replica {
         }
     }
     public func snapshot() -> ReplicaState { state }
-    public func stage(_ changes: [LocalChange], ai: PendingAI? = nil, clearingComposerDraft: (chatId: String, text: String)? = nil) throws {
+    @discardableResult
+    public func stage(_ changes: [LocalChange], ai: PendingAI? = nil, baseline: EditingBaseline? = nil, clearingComposerDraft: (chatId: String, text: String)? = nil) throws -> EditingBaseline? {
         try requireActive()
+        guard baseline?.matches(state.records) != false else {
+            throw CentreError.invalid("This item changed on another device or in another editor. Your edits have not been saved. Reopen it to load the latest copy before trying again.")
+        }
         var next = state
         for change in changes {
             guard !change.kind.isEmpty, !change.id.isEmpty else { throw CentreError.invalid("Missing record identity.") }
@@ -131,6 +135,7 @@ public actor Replica {
             next.composerDrafts.removeValue(forKey:clearingComposerDraft.chatId)
         }
         try persist(next)
+        return baseline?.refreshed(state.records)
     }
     public func setComposerDraft(_ text: String?, forChatId chatId: String) throws {
         try requireActive()
@@ -140,6 +145,21 @@ public actor Replica {
         if let text, !text.isEmpty { next.composerDrafts[chatId]=text }
         else { next.composerDrafts.removeValue(forKey:chatId) }
         try persist(next)
+    }
+    public func updatePreferences(_ patch: JSONValue) throws {
+        let validated = try StudyPreferences.validatedPatch(patch)
+        let current = state.records.first { $0.kind == "preferences" && $0.id == "preferences" }?.data
+        let complete = StudyPreferences.defaults.merging(current ?? .object([:])).merging(validated)
+        try stage([LocalChange(kind: "preferences", id: "preferences", data: complete)])
+    }
+    public func updateResponseType(key: String, type: String, enabled: Bool) throws {
+        guard ["defaultQuizQuestionTypes", "defaultTestQuestionTypes"].contains(key),
+              StudyPreferences.responseTypes.contains(type) else { throw CentreError.invalid("Choose a valid response type.") }
+        let current = state.records.first { $0.kind == "preferences" && $0.id == "preferences" }?.data
+        var types = (current?[key] ?? StudyPreferences.defaults[key]).array
+        types.removeAll { $0 == .string(type) }
+        if enabled { types.append(.string(type)) }
+        try updatePreferences(.object([key: .array(types)]))
     }
     public func cacheConnector(_ connector: JSONValue) throws { try requireActive();var next=state;next.connector=connector;try persist(next) }
     public func resolve(_ conflict: SyncConflict, useLocal: Bool) throws {

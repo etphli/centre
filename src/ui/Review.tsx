@@ -17,7 +17,7 @@ function MemoryCard({ memory }: { memory: StudyMemory }) {
     <li className={`weak${due ? ' is-due' : ''}`}>
       <div className="weak__body">
         <p className="weak__where">
-          {topic?.name ?? 'Unknown topic'}
+          {topic?.name ?? (resource?.subjectId ? 'General study' : 'Personal learning')}
           {resource ? <>, from <button type="button" className="link-button" onClick={() => navigate({ kind: 'resource', resourceId: resource.id })}>{resource.title}</button></> : null}
         </p>
         <p className="weak__question">{memory.question}</p>

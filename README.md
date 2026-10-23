@@ -55,7 +55,7 @@ Resources normally belong to the matching school subject and topic. For learning
 
 The school-year profile defaults to Year 9 NSW. If a subject name includes a year, such as `Year 10 Mathematics`, that year takes priority. For supported NSW Mathematics, English, and Science syllabuses through Year 10, Centre tries to fetch official NESA evidence. If it cannot retrieve official evidence, it marks syllabus alignment as unverified. It does not guess school sequencing or Core and Path choices.
 
-Settings include your nickname, response length, theme, spacing, text size, school year, time zone, quiz question counts, test duration and response types, and default difficulty. Greetings change automatically with the time of day and can use your nickname.
+Settings has dedicated Appearance, Chat and Study pages. Choose one of four text sizes, a reading font and width, relaxed line spacing, reduced motion or stronger contrast. Chat can send with Enter or ⌘/Ctrl+Enter, start response activity expanded, and use simple or varied greetings. Study defaults include quiz and test sizing, response types, difficulty, and automatic or fixed flashcard counts. Your existing defaults are preserved. General includes your nickname and a preference-only reset that leaves accounts, models, memories and saved work intact.
 
 For the iPhone Home Screen app, open **Settings > iPhone**, or choose **View iPhone setup** in General. Scan the public installation QR and follow the Safari steps. Connect with the separate private account code after opening the new Home Screen icon. Native App Store and TestFlight distribution is not available yet.
 
