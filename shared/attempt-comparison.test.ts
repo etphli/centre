@@ -16,6 +16,8 @@ test('chronology is stable across sync arrival order, equivalent instants and ti
   assert.deepEqual(chronologicalAttempts(records).map(item => item.id), ['a', 'b', 'c']);
   assert.deepEqual(records, saved);
   assert.deepEqual(chronologicalAttempts([]), []);
+  const unknownDate = { ...attempt('unknown'), createdAt: 'Date lost in legacy import' };
+  assert.deepEqual(chronologicalAttempts([unknownDate, c, a]).map(item => item.id), ['a', 'c', 'unknown']);
 });
 
 test('unanswered, incorrect, partial and missing grades remain separate', () => {
@@ -62,6 +64,7 @@ test('invalid totals and ambiguous duplicate feedback are not presented as trust
   const record = attempt('duplicate');
   record.result.feedback.push(record.result.feedback[0]);
   assert.equal(attemptQuestions(record)[0]?.outcome, 'ungraded');
+  assert.equal(compareAttempts(record, { ...record, id: 'other' })?.sameMarking, false);
   const noGrade = { ...attempt('empty'), result: { score: 0, total: 0, feedback: [] }, answers: {} };
   assert.equal(attemptSummary(noGrade).percent, null);
   assert.equal(attemptSummary(noGrade).questions, 0);

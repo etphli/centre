@@ -18,7 +18,8 @@ export function normalizedScore(score: number, total: number): number | null {
 export function chronologicalAttempts<T extends AttemptRecord>(attempts: readonly T[]): T[] {
   return [...attempts].sort((a, b) => {
     const left = Date.parse(a.createdAt), right = Date.parse(b.createdAt);
-    const time = Number.isFinite(left) && Number.isFinite(right) ? left - right : a.createdAt.localeCompare(b.createdAt);
+    const time = Number.isFinite(left) && Number.isFinite(right) ? left - right
+      : Number.isFinite(left) ? -1 : Number.isFinite(right) ? 1 : a.createdAt.localeCompare(b.createdAt);
     return time || a.id.localeCompare(b.id);
   });
 }
@@ -55,7 +56,10 @@ export function compareAttempts(earlier: AttemptRecord, later: AttemptRecord) {
   const afterById = new Map(after.map(item => [item.id, item]));
   const ids = [...new Set([...beforeById.keys(), ...afterById.keys()])];
   const sameQuestionSet = before.length === after.length && before.every(item => afterById.has(item.id));
-  const sameMarking = sameQuestionSet && before.every(item => item.marking?.maxScore === afterById.get(item.id)?.marking?.maxScore);
+  const sameMarking = sameQuestionSet && before.every(item => item.marking
+    && normalizedScore(item.marking.score, item.marking.maxScore) !== null
+    && afterById.get(item.id)?.marking?.maxScore === item.marking.maxScore
+    && afterById.get(item.id)?.outcome !== 'ungraded');
   const left = attemptSummary(earlier), right = attemptSummary(later);
   const questions = ids.map(id => {
     const previous = beforeById.get(id), current = afterById.get(id);
