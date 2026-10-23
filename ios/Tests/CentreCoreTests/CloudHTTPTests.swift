@@ -73,6 +73,43 @@ final class CloudHTTPTests: XCTestCase {
         ] { XCTAssertThrowsError(try CloudURL.pairing(URL(string: address)!), address) }
     }
 
+    func testPairingAcceptsCanonicalHTTPSHandoffLinks() throws {
+        let minimumCode = String(repeating: "Az09_-", count: 5) + "aA"
+        XCTAssertEqual(minimumCode.utf8.count, 32)
+        let maximumCode = String(repeating: "x", count: 200)
+        for (address, expectedBase, expectedCode) in [
+            ("https://cloud.example/pair#code=\(minimumCode)", "https://cloud.example", minimumCode),
+            ("https://cloud.example:8443/pair#code=\(maximumCode)", "https://cloud.example:8443", maximumCode)
+        ] {
+            let pairing = try CloudURL.pairing(URL(string: address)!)
+            XCTAssertEqual(pairing.baseURL.absoluteString, expectedBase)
+            XCTAssertEqual(pairing.code, expectedCode)
+        }
+    }
+
+    func testHTTPSPairingRejectsNoncanonicalPathsAndURLFields() throws {
+        let code = String(repeating: "a", count: 32)
+        for address in [
+            "http://cloud.example/pair#code=\(code)",
+            "https://user:password@cloud.example/pair#code=\(code)",
+            "https://cloud.example/pair?code=\(code)",
+            "https://cloud.example/pair?source=desktop#code=\(code)",
+            "https://cloud.example/pair?#code=\(code)",
+            "https://cloud.example/path#code=\(code)",
+            "https://cloud.example/pair/#code=\(code)",
+            "https://cloud.example/p%61ir#code=\(code)",
+            "https://cloud.example/pair#code=\(code)&code=\(code)",
+            "https://cloud.example/pair#code=\(code)&extra=value",
+            "https://cloud.example/pair#other=\(code)",
+            "https://cloud.example/pair#code=short",
+            "https://cloud.example/pair#code=\(String(repeating: "a", count: 201))",
+            "https://cloud.example/pair#code=\(code)%26extra%3Dvalue",
+            "https://cloud.example/pair#code=%25\(code)"
+        ] {
+            XCTAssertThrowsError(try CloudURL.pairing(URL(string: address)!), address)
+        }
+    }
+
     func testRequestUsesBearerOnlyOnBoundOriginAndRejectsEscapingPaths() async throws {
         CloudURLProtocol.install { request in
             XCTAssertEqual(request.url?.host, "cloud.example")

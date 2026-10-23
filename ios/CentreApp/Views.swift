@@ -2465,6 +2465,28 @@ private struct ConnectForm: View {
     var body: some View {
         Group {
             Section {
+                HStack {
+                    Text("Pairing link")
+                    Spacer()
+                    PasteButton(payloadType: String.self) { values in
+                        guard let value = values.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              let link = URL(string: value) else {
+                            model.error = "Paste a valid Centre pairing link."
+                            return
+                        }
+                        do {
+                            let invitation = try CloudURL.pairing(link)
+                            url = invitation.baseURL.absoluteString
+                            code = invitation.code
+                            model.error = nil
+                        } catch {
+                            model.error = error.localizedDescription
+                        }
+                    }
+                    .accessibilityLabel("Paste pairing link")
+                    .accessibilityHint("Pastes a pairing link into the address and code fields.")
+                    .accessibilityIdentifier("connect.pastePairingLink")
+                }
                 TextField("https://", text: $url)
                     .keyboardType(.URL)
                     .textContentType(.URL)
@@ -2483,7 +2505,7 @@ private struct ConnectForm: View {
                 .disabled(working || url.trimmingCharacters(in: .whitespaces).isEmpty || code.trimmingCharacters(in: .whitespaces).isEmpty)
                 .accessibilityIdentifier("connect.pair")
             } header: { Text("Pair with a code") } footer: {
-                Text("Enter your Centre Cloud address and a one-time code from a device that's already signed in. Codes expire after 5 minutes.")
+                Text("Paste a one-time pairing link, or enter the Centre Cloud address and code from a device that's already signed in. Codes expire after 5 minutes.")
             }
             .centreRow(palette)
             Section {
