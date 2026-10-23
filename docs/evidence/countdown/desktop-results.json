@@ -1,0 +1,215 @@
+{
+  "fixture": "Synthetic local study data; real production Electron renderer, IPC and service. Near-completion fixture starts with 298 seconds of saved active time.",
+  "phases": {
+    "initial": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "Production Log renders through real desktop IPC",
+          "passed": true
+        },
+        {
+          "name": "Week action returns to current week and focuses summary",
+          "passed": true
+        },
+        {
+          "name": "Timer action focuses controls without starting time or changing page",
+          "passed": true
+        },
+        {
+          "name": "Manual action opens the existing Log form",
+          "passed": true
+        },
+        {
+          "name": "Repeated action ID does not reopen a form",
+          "passed": true
+        },
+        {
+          "name": "Zero study days have no filled chart marker",
+          "passed": true
+        },
+        {
+          "name": "Weekly aim accepts non-quarter-hour minutes",
+          "passed": true
+        },
+        {
+          "name": "Weekly aim saves and displays progress",
+          "passed": true
+        },
+        {
+          "name": "Shared fields display Australian dates and minute-only times",
+          "passed": true
+        },
+        {
+          "name": "Date picker focuses selected day",
+          "passed": true
+        },
+        {
+          "name": "Shared picker remains within minimum desktop height",
+          "passed": true
+        },
+        {
+          "name": "Calendar arrow navigation moves one day",
+          "passed": true
+        },
+        {
+          "name": "Escape closes only picker and restores its trigger",
+          "passed": true
+        },
+        {
+          "name": "Time suggestions focus the actual selected minute",
+          "passed": true
+        },
+        {
+          "name": "Metadata/same-minute edit preserves exact UTC milliseconds on disk",
+          "passed": true
+        },
+        {
+          "name": "Minimum desktop width keeps daily labels and chart baselines aligned",
+          "passed": true
+        },
+        {
+          "name": "Edit and Delete controls have at least 28px targets",
+          "passed": true
+        },
+        {
+          "name": "Manual entry updates actual study total",
+          "passed": true
+        },
+        {
+          "name": "Entry metadata edit keeps duration",
+          "passed": true
+        },
+        {
+          "name": "Delete removes actual time without counting planned Calendar entry",
+          "passed": true
+        },
+        {
+          "name": "Theme and text settings apply: light-large",
+          "passed": true
+        },
+        {
+          "name": "Neutral action and data tokens: light-large",
+          "passed": true
+        },
+        {
+          "name": "Countdown defaults to 30 minutes with optional details: light-large",
+          "passed": true
+        },
+        {
+          "name": "Countdown has visible initial keyboard focus: light-large",
+          "passed": true
+        },
+        {
+          "name": "Theme and text settings apply: midnight",
+          "passed": true
+        },
+        {
+          "name": "Neutral action and data tokens: midnight",
+          "passed": true
+        },
+        {
+          "name": "Countdown defaults to 30 minutes with optional details: midnight",
+          "passed": true
+        },
+        {
+          "name": "Countdown has visible initial keyboard focus: midnight",
+          "passed": true
+        },
+        {
+          "name": "Theme and text settings apply: dark",
+          "passed": true
+        },
+        {
+          "name": "Neutral action and data tokens: dark",
+          "passed": true
+        },
+        {
+          "name": "Countdown defaults to 30 minutes with optional details: dark",
+          "passed": true
+        },
+        {
+          "name": "Countdown has visible initial keyboard focus: dark",
+          "passed": true
+        },
+        {
+          "name": "Plus adds exactly five minutes",
+          "passed": true
+        },
+        {
+          "name": "Minus stops at five minutes",
+          "passed": true
+        },
+        {
+          "name": "Countdown fits the minimum desktop window",
+          "passed": true
+        },
+        {
+          "name": "Failed start retains chosen duration and allows retry",
+          "passed": true
+        },
+        {
+          "name": "Chosen duration starts as a countdown",
+          "passed": true
+        },
+        {
+          "name": "Timer survives navigation without leaving the current page",
+          "passed": true
+        },
+        {
+          "name": "Paused timer display stays fixed",
+          "passed": true
+        },
+        {
+          "name": "No renderer console errors",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    "restart": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "Production Log renders through real desktop IPC",
+          "passed": true
+        },
+        {
+          "name": "Restart recovers timer paused at checkpoint",
+          "passed": true
+        },
+        {
+          "name": "Closed-app time is absent from recovered duration",
+          "passed": true
+        },
+        {
+          "name": "Recovered timer resumes and saves through UI",
+          "passed": true
+        },
+        {
+          "name": "No renderer console errors",
+          "passed": true
+        }
+      ],
+      "errors": []
+    },
+    "countdown": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "Production Log renders through real desktop IPC",
+          "passed": true
+        },
+        {
+          "name": "Countdown automatically completes and saves exactly five active minutes",
+          "passed": true
+        },
+        {
+          "name": "Default countdown starts without entering study details",
+          "passed": true
+        }
+      ],
+      "errors": []
+    }
+  }
+}
