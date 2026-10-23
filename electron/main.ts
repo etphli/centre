@@ -170,7 +170,6 @@ async function start() {
       filters:[{ name:'Supported study files',extensions:Object.keys(attachmentMimes).map(extension => extension.slice(1)) }],
     });
     if (result.canceled) return [];
-    if (result.filePaths.length > 5) throw new Error('Choose up to 5 files at a time.');
     let totalBytes = 0;
     const selected: Array<z.infer<typeof nativeAttachmentSchema>> = [];
     for (const path of result.filePaths) {

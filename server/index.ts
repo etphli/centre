@@ -28,7 +28,7 @@ import { listSkills,readSkillInstruction,loadApplicableSkills } from './skills';
 import { getCurriculumContext,readCurriculum } from './curriculum';
 import { calendarInputSchema,calendarPatchSchema } from './calendar';
 import { errorMessage, HttpError, requireFound } from './errors';
-import { AttachmentStore, MAX_ATTACHMENTS_PER_MESSAGE } from './attachments';
+import { AttachmentStore } from './attachments';
 import { remember,updateMemory,forgetMemory,forgetMemoryInputSchema } from './assistant-memory';
 import { structuredOutputSchema } from './structured-output';
 import { branchInputSchema,createChatBranch } from './chat-branches';
@@ -236,7 +236,7 @@ export async function createService(options: { port?:number; token?:string; data
     const resourceIds = new Set(resources.map(resource => resource.id));
     return { ...store.state,resources,practiceDrafts:store.state.practiceDrafts.filter(draft => resourceIds.has(draft.resourceId)),interactiveResourceProgress:store.state.interactiveResourceProgress.filter(progress => resourceIds.has(progress.resourceId)),memories:store.state.memories.filter(memory => resourceIds.has(memory.resourceId)),attempts:store.state.attempts.filter(attempt => resourceIds.has(attempt.resourceId)),chats:store.state.chats.filter(chat => !chat.deletedAt),codex:{ ...codex.status },pendingQuestions:questions.list(),activeResponses:[...busy].map(([chatId,startedAt]) => ({chatId,startedAt,status:cancelled.has(chatId) ? 'stopping' : 'working'})) }; }
   async function sendMessage(id: string, value: unknown, options:{existingMessageId?:string;allowTools?:boolean;forceHistory?:boolean;reserved?:boolean} = {}) {
-    const input = z.object({ messageId:z.string().uuid().optional(),content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).max(MAX_ATTACHMENTS_PER_MESSAGE).refine(ids => new Set(ids).size === ids.length,'An attachment can only be included once.').default([]), resourceRequest:createResourceSchema.optional() }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
+    const input = z.object({ messageId:z.string().uuid().optional(),content:z.string().max(100000), context:contextSchema, attachmentIds:z.array(z.string().uuid()).refine(ids => new Set(ids).size === ids.length,'An attachment can only be included once.').default([]), resourceRequest:createResourceSchema.optional() }).strict().refine(message => message.content.trim().length > 0 || message.attachmentIds.length > 0,'Add a message or attach a file.').parse(value);
     const content = input.content.trim();
     const commandKind = resourceKindSchema.safeParse(options.allowTools === false ? undefined : /^\/(\w+)\b/.exec(content)?.[1]);
     const chat = requireFound(store.state.chats.find(x => x.id === id && !x.deletedAt),'Chat');

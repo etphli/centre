@@ -10,7 +10,6 @@ import { HttpError } from './errors';
 
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 export const MAX_ATTACHMENT_TEXT_CHARACTERS = 200_000;
-export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 const MAX_PDF_PAGES = 500;
 const MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
 const MAX_DOCX_DOCUMENT_BYTES = 10 * 1024 * 1024;

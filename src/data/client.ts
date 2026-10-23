@@ -139,7 +139,7 @@ export const api = {
 export async function chooseAttachmentFiles(): Promise<AttachmentUploadInput[]> {
   if (!window.centre) return [];
   const result: unknown = await window.centre.chooseFiles();
-  return z.array(z.object({ name:z.string().min(1).max(200),mimeType:z.string().max(200),data:z.string().max(28_000_000) }).strict()).max(5).parse(result);
+  return z.array(z.object({ name:z.string().min(1).max(200),mimeType:z.string().max(200),data:z.string().max(28_000_000) }).strict()).parse(result);
 }
 export async function openExternal(url: string): Promise<void> {
   if (window.centre) { await window.centre.openExternal(url); return; }
