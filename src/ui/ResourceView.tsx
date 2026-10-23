@@ -79,7 +79,7 @@ function markTone(mark: Mark | undefined) {
 }
 
 function Quiz({ resource, questionId }: { resource: Resource; questionId?: string }) {
-  const { state, refresh, navigationId } = useApp();
+  const { state, refresh, navigationId, navigate } = useApp();
   const latest = state.attempts
     .filter((attempt) => attempt.resourceId === resource.id)
     .reduce<(typeof state.attempts)[number] | undefined>((best, attempt) => (!best || attempt.createdAt > best.createdAt ? attempt : best), undefined);
@@ -225,6 +225,7 @@ function Quiz({ resource, questionId }: { resource: Resource; questionId?: strin
           <button type="button" className="button button--quiet button--small" onClick={tryAgain}>
             <RotateCcw size={14} /> Try again
           </button>
+          <button type="button" className="button button--quiet button--small" onClick={() => navigate({ kind: 'log', resourceId: resource.id })}>Compare attempts</button>
         </div>
       ) : null}
 

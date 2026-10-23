@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "checks": [
+    "Production Log comparison through real Electron IPC",
+    "All saved attempts retain exact content",
+    "Sparse history explains how to compare",
+    "Empty subject gives a resource action",
+    "Keyboard opens the subject picker",
+    "Different totals and sets show caveat",
+    "Improvement repeated mistakes and unanswered are distinct",
+    "Chronological picker retains tie order",
+    "Resource links return directly to its comparison",
+    "Saved light theme and large text actually render",
+    "Comparison contains no page-width overflow",
+    "No renderer console errors"
+  ],
+  "errors": []
+}

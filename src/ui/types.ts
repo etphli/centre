@@ -8,7 +8,7 @@ export type Route =
   | { kind: 'topic'; subjectId: string; topicId: string }
   | { kind: 'resource'; resourceId: string; questionId?: string }
   | { kind: 'calendar' }
-  | { kind: 'log' }
+  | { kind: 'log'; resourceId?: string }
   | { kind: 'review' }
   | { kind: 'settings' };
 

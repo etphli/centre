@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "checks": [
+    "Production Log comparison through real Electron IPC",
+    "All saved attempts retain exact content",
+    "Archived resource history survives app restart",
+    "Archive and restart preserve attempts and review links"
+  ],
+  "errors": []
+}
