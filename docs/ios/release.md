@@ -1,4 +1,4 @@
-# iPhone release setup
+# Native iPhone release setup
 
 The Centre Worker is deployed at `https://centre-cloud.etphli.workers.dev` with Centre-owned D1 database `16c45b97-0c59-4293-9c79-e1f1aa0ef081`, four migrations, `DB` and Workers AI bindings, and the Free plan. Google subject/audience and connector encryption/origin secrets are configured server-side. No signing, archive, App Store Connect upload, or TestFlight invitation has been completed. The user has authorized Apple upload, but the available host has no full Xcode/iOS simulator, signing identity or provisioning profile, Apple team configuration, or App Store Connect authentication. No membership purchase, enrollment fee, billing change, or spending-limit change was made.
 
@@ -31,7 +31,19 @@ The deployed endpoint is `https://centre-cloud.etphli.workers.dev`. It uses Cent
 
 The mobile build needs the public Worker URL and a dedicated iOS Google OAuth client ID, verified server client ID, and reversed callback scheme. The Worker URL is already the tracked default; `Config.local.xcconfig` can override it for local builds. Real remote API and provider smoke checks are separate from the native signing checks and must pass before calling the end-to-end release ready.
 
-## Apple installation
+## Safari Home Screen installation
+
+The Centre Worker serves the browser app at `https://centre-cloud.etphli.workers.dev/iphone/`. The public iPhone QR in Mac Settings points to this address. It contains no account code, session token, or other account authority. This browser app does not need a native build, Apple signing, TestFlight, or an App Store listing.
+
+To install it, open the public iPhone address in Safari on the iPhone, tap **Share**, choose **Add to Home Screen**, and add Centre. Open Centre from the Home Screen before pairing. Safari tabs and Home Screen apps may keep separate local storage. Pairing before installation can leave the installed app signed out.
+
+To connect the installed app, create a fresh account code in Mac Settings. Scan its separate account QR with the iPhone. The `/pair` page offers **Copy account code** and **Open web app**. Open Centre, paste the code, and confirm the connection there. The page does not redeem a code when it loads. A code expires after five minutes and can be used once. Create a new code if it expires or was redeemed in another browser context.
+
+The web app reads and writes the same Centre Cloud records in D1 and uses the existing hosted AI routes. Its offline and sync scope is limited to the browser features described in [iPhone web installation and native parity](web-installation-parity.md). Its browser storage remains separate from the native app's replica and Keychain.
+
+The local host has Command Line Tools but no iOS Simulator. This work has not verified the Safari installation flow, Home Screen storage behavior, or installed-app launch on a physical iPhone. Do not treat the steps above as device-tested evidence.
+
+## Native Apple distribution
 
 [TestFlight](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/) requires a signed uploaded build associated with an App Store Connect application. External invitations can require beta review. Builds expire after 90 days. An arbitrary IPA download is not a general iPhone installation method.
 
@@ -48,6 +60,6 @@ The app target and unsigned Release build are prepared. Remaining distribution s
 
 Once an approved invitation or listing exists, set `VITE_CENTRE_IOS_DISTRIBUTION_URL` during the desktop build. Only validated Apple TestFlight `/join/<code>` or App Store `/app/.../id...` links generate the installation QR. An empty or invalid setting shows that no iPhone release is available. Account pairing remains a separate one-use flow and never embeds a long-lived bearer token.
 
-Account QR codes use `https://<Centre Cloud origin>/pair#code=<one-time-code>` so the iPhone camera can open a normal web page. The fragment is not sent in the HTTP request. The page clears it from the address bar, then opens the existing `centre://pair` invitation only after **Open Centre** is tapped. Native Centre asks for confirmation before redeeming it. iOS also accepts the HTTPS link through **Paste pairing link**. This is a web handoff, not a registered Apple universal link.
+Native account QR codes use `https://<Centre Cloud origin>/pair#code=<one-time-code>` so the iPhone camera can open a normal web page. The fragment is not sent in the HTTP request. The page clears it from the address bar. **Open Centre** passes the invitation to `centre://pair`; native Centre asks for confirmation before redeeming it. Native Centre also accepts the HTTPS link through **Paste pairing link**. This is a web handoff, not a registered Apple universal link. For the browser app, use **Copy account code** and **Open web app**, then paste and confirm inside Centre.
 
-The public Worker page shows installation availability separately. When Apple distribution exists, set the Worker's `CENTRE_IOS_DISTRIBUTION_URL` to the same validated Apple link used by the desktop build. Leave both values unset until an actual invitation or listing is ready. Opening `/pair` never creates a device session or consumes the pairing code.
+The public browser app at `/iphone/` is separate from native distribution. The desktop `VITE_CENTRE_IOS_DISTRIBUTION_URL` and Worker `CENTRE_IOS_DISTRIBUTION_URL` accept validated Apple links for the native app only. Opening `/pair` never creates a device session or consumes the pairing code. Explicit code submission from an app uses `POST /v1/auth/pair`.
