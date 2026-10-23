@@ -1,0 +1,19 @@
+{
+  "tests": 448,
+  "testFailures": 0,
+  "typecheck": "PASS via npm run build",
+  "rendererAndPhoneProductionBuild": "PASS",
+  "macDraftChecks": 15,
+  "macExistingFlows": 46,
+  "phoneDraftChecks": 6,
+  "macRuntime": "Actual Electron/local service/Chromium storage, temporary profile",
+  "phoneRuntime": "Actual Chromium/IndexedDB/SQLite Worker fixture, simulated identity",
+  "native": "Source parse and direct CentreCore module build + executable verification PASS, including 500 writes. XCTest and simulator UI unverified; full Xcode unavailable.",
+  "githubCI": "Jobs never started: account payment/spending-limit annotation. No billing settings or workflows changed.",
+  "models": {
+    "gpt-6.1-sol": "Mac and phone web implementation, native integration/fix to verification fixture, all parent runtime proof",
+    "gpt-6-luna": "Native iOS replica, AppModel, SwiftUI, XCTest and UI-test implementation"
+  },
+  "phoneExistingChecks": 27,
+  "phonePolishChecks": 17
+}

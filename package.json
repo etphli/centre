@@ -19,7 +19,7 @@
     "package:mac": "npm run build && npm run build:electron && electron-builder --mac --publish never",
     "typecheck": "tsc --noEmit",
     "benchmark:performance": "node scripts/benchmark-performance.mjs",
-    "test": "tsx --test shared/*.test.ts server/*.test.ts electron/*.test.ts cloud/*.test.ts cloud-organato/*.test.ts mobile-web/*.test.ts mobile-web/data/*.test.ts scripts/*.test.mjs",
+    "test": "tsx --test shared/*.test.ts src/data/*.test.ts server/*.test.ts electron/*.test.ts cloud/*.test.ts cloud-organato/*.test.ts mobile-web/*.test.ts mobile-web/data/*.test.ts scripts/*.test.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "skills:download": "node scripts/download-claude-skills.mjs",
     "postinstall": "npm run skills:download",

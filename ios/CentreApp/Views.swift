@@ -142,6 +142,7 @@ private struct ChatTab: View {
             if pinA != pinB { return pinA }
             return (model.data(a)["updatedAt"].string ?? a.updatedAt) > (model.data(b)["updatedAt"].string ?? b.updatedAt)
         }
+        let unsentDraftIds=model.composerDrafts.keys.filter{model.record(kind:"chat",id:$0) == nil}.sorted()
         NavigationStack(path: $path) {
             List {
                 ForEach(chats) { chat in
@@ -149,10 +150,21 @@ private struct ChatTab: View {
                         .centreRow(palette)
                         .accessibilityIdentifier("chat.row.\(chat.id)")
                 }
+                ForEach(unsentDraftIds,id:\.self) { id in
+                    NavigationLink(value:ChatRoute.chat(id)) {
+                        VStack(alignment:.leading,spacing:3) {
+                            Text("Unsent prompt").font(.body)
+                            Text(model.composerDrafts[id] ?? "").font(.footnote).foregroundStyle(palette.text3).lineLimit(2)
+                        }
+                        .padding(.vertical,2)
+                    }
+                    .centreRow(palette)
+                    .accessibilityIdentifier("chat.unsent.\(id)")
+                }
             }
             .centreList(palette)
             .overlay {
-                if chats.isEmpty {
+                if chats.isEmpty && unsentDraftIds.isEmpty {
                     ContentUnavailableView {
                         Label("No chats yet", systemImage: "bubble.left")
                     } description: {
@@ -166,8 +178,10 @@ private struct ChatTab: View {
             .navigationTitle("Chat")
             .navigationDestination(for: ChatRoute.self) { route in
                 switch route {
-                case .new: ChatThreadView(chatId: nil)
-                case .chat(let id): ChatThreadView(chatId: id)
+                case .new(let value):
+                    let id=value.uuidString.lowercased()
+                    ChatThreadView(workspace:model.workspaceKey,chatId:id,draft:model.composerDrafts[id] ?? "")
+                case .chat(let id): ChatThreadView(workspace:model.workspaceKey,chatId:id,draft:model.composerDrafts[id] ?? "")
                 }
             }
             .toolbar {
@@ -189,6 +203,7 @@ private struct ChatRow: View {
 
     var body: some View {
         let data = model.data(chat)
+        let hasDraft=model.composerDrafts[chat.id]?.isEmpty == false
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 if data["pinnedAt"].string != nil {
@@ -200,6 +215,7 @@ private struct ChatRow: View {
                 Text(updated, format: .relative(presentation: .named))
                     .font(.footnote).foregroundStyle(palette.text3)
             }
+            if hasDraft { Text("Unsent prompt").font(.footnote).foregroundStyle(palette.text3) }
         }
         .padding(.vertical, 2)
     }
@@ -209,18 +225,27 @@ private struct ChatRow: View {
 private struct ChatThreadView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.centre) private var palette
-    @State private var chatId: String?
+    let workspace:WorkspaceKey?
+    let chatId:String
     @State private var draft = ""
     @State private var sending = false
     @State private var waitedOut = false
     @State private var confirmCloudAI=false
     @ScaledMetric(relativeTo: .body) private var sendSize: CGFloat = 44
 
-    init(chatId: String?) { _chatId = State(initialValue: chatId) }
+    init(workspace:WorkspaceKey?,chatId:String,draft:String) { self.workspace=workspace;self.chatId=chatId;_draft=State(initialValue:draft) }
+
+    private var composerBinding:Binding<String> {
+        Binding(get:{draft},set:{ text in
+            draft=text
+            guard let workspace else { return }
+            model.saveComposerDraft(workspace:workspace,chatId:chatId,text:text)
+        })
+    }
 
     var body: some View {
         let messages = thread()
-        let chatData = chatId.flatMap { model.record(kind: "chat", id: $0) }.map { model.data($0) }
+        let chatData = model.record(kind: "chat", id: chatId).map { model.data($0) }
         let fromDesktop = chatData.map { !$0["modelSelection"].uiIsNull } ?? false
         ScrollViewReader { proxy in
             ScrollView {
@@ -279,7 +304,6 @@ private struct ChatThreadView: View {
     }
 
     private func thread() -> [CloudRecord] {
-        guard let chatId else { return [] }
         return CloudMessageOrder.sorted(model.items("message").filter { model.data($0)["chatId"].string == chatId })
     }
 
@@ -288,10 +312,10 @@ private struct ChatThreadView: View {
         if sending { return ("Saving your message…", true, false) }
         guard let last = messages.last, model.data(last)["role"].string == "user" else { return nil }
         if !model.cloudAIAllowed { return ("Cloud AI is paused. Your message is saved. Allow Cloudflare AI in Settings to send it.",false,false) }
-        if let chatId,let run=model.chatRun(chatId:chatId,messageId:last.id),run.status == "unavailable" {
+        if let run=model.chatRun(chatId:chatId,messageId:last.id),run.status == "unavailable" {
             return ((run.error?["message"].string ?? "Cloud AI is unavailable.")+" Your message is saved. Pull down to check again.",false,false)
         }
-        if let chatId,let run = model.chatRun(chatId:chatId,messageId:last.id),["failed","interrupted","conflict"].contains(run.status) {
+        if let run = model.chatRun(chatId:chatId,messageId:last.id),["failed","interrupted","conflict"].contains(run.status) {
             let reason = run.error?["message"].string.nonEmpty.map { " \($0)" } ?? ""
             return ("Cloud AI couldn't finish a reply.\(reason) Your message is saved on this iPhone.", false, true)
         }
@@ -305,7 +329,7 @@ private struct ChatThreadView: View {
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            TextField("Message Centre", text: $draft, axis: .vertical)
+            TextField("Message Centre", text: composerBinding, axis: .vertical)
                 .lineLimit(1...6)
                 .accessibilityIdentifier("chat.composer")
                 .padding(.horizontal, 12).padding(.vertical, 11)
@@ -327,19 +351,14 @@ private struct ChatThreadView: View {
     }
 
     private func send() {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        let text=draft
+        guard !text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
         guard model.cloudAIAllowed else { confirmCloudAI=true;return }
-        draft = ""
         sending = true
         waitedOut = false
         model.error = nil
         Task {
-            if let id = await model.send(chatId: chatId, text: text) {
-                chatId = id
-            } else {
-                draft = text
-            }
+            if let workspace,await model.send(workspace:workspace,chatId:chatId,text:text) != nil,draft == text { draft="" }
             sending = false
         }
     }

@@ -1,0 +1,12 @@
+PASS unsent composer drafts reopen locally, stay workspace/chat scoped, and clear only on explicit send
+PASS real filesystem outbox/projection reopen with stable mutation UUID
+PASS simulated lost ACK replays exact body; real persisted successor survives
+PASS persisted explicit CAS conflict and fresh use-local UUID; workspace isolation
+PASS real timer JSON import pauses at persisted checkpoint without closed-app credit
+PASS optional 5-minute countdown completes at the exact deadline
+PASS paused countdown excludes breaks and imports paused at its saved checkpoint
+PASS countdown deadline keeps idle and hourly check-in boundaries
+PASS Sydney DST elapsed durations and local Monday boundary
+PASS attempt chronology, normalized changes, repeated-mistake and unanswered distinctions, marking validity, deleted-resource evidence
+PASS canonical HTTPS and legacy pairing links; malformed origins, paths, secrets and duplicate fields rejected
+Verified local CentreCore behavior. Network fixture is simulated; no hosted/provider proof.

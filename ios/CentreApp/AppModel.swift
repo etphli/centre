@@ -6,6 +6,18 @@ import CryptoKit
 struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:String }
 
 @MainActor final class AppModel: ObservableObject {
+    private struct ComposerDraftKey: Hashable {
+        let workspaceFileKey:String
+        let chatId:String
+    }
+    private struct ComposerDraftWrite {
+        let id:UUID
+        let workspace:WorkspaceKey
+        let chatId:String
+        let text:String
+        let replica:Replica
+    }
+
     @Published var records:[CloudRecord]=[]
     @Published var connector:JSONValue = .object([:])
     @Published var pendingCount=0
@@ -20,6 +32,8 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     @Published var aiRuns:[AIRun]=[]
     @Published var calendarCommands:[ConnectorCommand]=[]
     @Published var cloudAIAllowed=false
+    @Published private(set) var composerDrafts:[String:String]=[:]
+    @Published private(set) var workspaceKey:WorkspaceKey?
     private var replica:Replica?
     private var calendarJournal:ConnectorJournal?
     private var attachmentCache:AttachmentCache?
@@ -31,6 +45,9 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     private var lastInteraction=Date()
     private var aiJobs:[PendingAI]=[]
     private var ownedTimers:Set<String>=[]
+    private var pendingComposerDraftWrites:[ComposerDraftKey:ComposerDraftWrite]=[:]
+    private var composerDraftWriter:Task<Void,Never>?
+    private var composerDraftWriterID:UUID?
     private let directory:URL
     private var fixture=false
 
@@ -49,10 +66,12 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             #endif
             if let saved=try SessionVault.read() {
                 guard let url=URL(string:saved.baseURL) else { throw CentreError.invalid("The saved cloud address is invalid.") }
-                baseURL=saved.baseURL;session=saved.session;cloudAIAllowed=saved.cloudAIAllowed == true
-                client=try CloudHTTP(baseURL:url,token:saved.session.token)
+                let newClient=try CloudHTTP(baseURL:url,token:saved.session.token)
                 let workspace=try WorkspaceKey(baseURL:url,workspaceId:saved.session.workspaceId)
-                replica=try Replica(directory:directory,workspace:workspace)
+                let newReplica=try Replica(directory:directory,workspace:workspace)
+                composerDrafts=(await newReplica.snapshot()).composerDrafts
+                workspaceKey=workspace;baseURL=saved.baseURL;session=saved.session;cloudAIAllowed=saved.cloudAIAllowed == true
+                client=newClient;replica=newReplica
                 calendarJournal=try ConnectorJournal(directory:directory,workspace:workspace)
                 attachmentCache=try AttachmentCache(directory:directory,workspace:workspace)
                 try await recoverTimers()
@@ -79,10 +98,51 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     }
     func touch() { lastInteraction=Date() }
     func refresh() async {
-        guard let replica else { return }
+        guard let workspace=workspaceKey,let replica else { return }
+        let journal=calendarJournal
         let value=await replica.snapshot()
-        calendarCommands=await calendarJournal?.snapshot() ?? []
+        guard workspaceKey == workspace,self.replica === replica else { return }
+        let commands=await journal?.snapshot() ?? []
+        guard workspaceKey == workspace,self.replica === replica else { return }
+        calendarCommands=commands
         records=value.records;pendingCount=value.pendingCount+calendarCommands.filter(\.pending).count;conflicts=value.conflicts;connector=value.connector;aiJobs=value.ai;aiRuns=value.ai.compactMap(\.run)
+    }
+    func saveComposerDraft(workspace:WorkspaceKey,chatId:String,text:String) {
+        guard !signingOut,session != nil,workspaceKey == workspace,let replica,!chatId.isEmpty,chatId.utf16.count <= 200,text.utf16.count <= 100_000 else { return }
+        if text.isEmpty { composerDrafts.removeValue(forKey:chatId) }
+        else { composerDrafts[chatId]=text }
+        let key=ComposerDraftKey(workspaceFileKey:workspace.fileKey,chatId:chatId)
+        pendingComposerDraftWrites[key]=ComposerDraftWrite(id:UUID(),workspace:workspace,chatId:chatId,text:text,replica:replica)
+        scheduleComposerDraftWrites()
+    }
+    private func scheduleComposerDraftWrites() {
+        guard composerDraftWriter == nil,!pendingComposerDraftWrites.isEmpty else { return }
+        let writerID=UUID()
+        composerDraftWriterID=writerID
+        composerDraftWriter=Task { [weak self] in
+            guard let self else { return }
+            await self.persistComposerDraftWrites(writerID:writerID)
+        }
+    }
+    private func persistComposerDraftWrites(writerID:UUID) async {
+        try? await Task.sleep(for:.milliseconds(150))
+        while !Task.isCancelled,let (key,write)=pendingComposerDraftWrites.first {
+            guard !signingOut,workspaceKey == write.workspace,replica === write.replica else { pendingComposerDraftWrites.removeValue(forKey:key);continue }
+            do { try await write.replica.setComposerDraft(write.text.isEmpty ? nil:write.text,forChatId:write.chatId) }
+            catch { if !signingOut,workspaceKey == write.workspace,replica === write.replica { self.error=error.localizedDescription } }
+            if pendingComposerDraftWrites[key]?.id == write.id { pendingComposerDraftWrites.removeValue(forKey:key) }
+        }
+        if composerDraftWriterID == writerID {
+            composerDraftWriter=nil;composerDraftWriterID=nil
+            if !signingOut { scheduleComposerDraftWrites() }
+        }
+    }
+    private func flushComposerDraftWrites() async {
+        while true {
+            scheduleComposerDraftWrites()
+            guard let writer=composerDraftWriter else { return }
+            await writer.value
+        }
     }
     func chatRun(chatId:String,messageId:String) -> AIRun? {
         aiJobs.compactMap { job -> AIRun? in
@@ -121,22 +181,31 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         }
         return saved
     }
-    func send(chatId:String?,text:String) async -> String? {
+    func send(workspace:WorkspaceKey,chatId:String,text:String) async -> String? {
+        guard !signingOut,workspaceKey == workspace,let originatingReplica=replica else { return nil }
         guard cloudAIAllowed else { error="Allow Cloudflare AI before sending a message.";return nil }
-        let text=text.trimmingCharacters(in:.whitespacesAndNewlines)
-        guard !text.isEmpty,text.utf16.count <= 8000 else { error="Write a message of up to 8,000 characters.";return nil }
-        let chatId=chatId ?? UUID().uuidString.lowercased(),messageId=UUID().uuidString.lowercased(),now=Clock.iso(Date())
+        let composerText=text,messageText=text.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !messageText.isEmpty,messageText.utf16.count <= 8000 else { error="Write a message of up to 8,000 characters.";return nil }
+        await flushComposerDraftWrites()
+        guard !signingOut,workspaceKey == workspace,replica === originatingReplica else { return nil }
+        let messageId=UUID().uuidString.lowercased(),now=Clock.iso(Date())
         var committed=false
         await perform {
-            guard let replica else { return }
+            guard !signingOut,workspaceKey == workspace,replica === originatingReplica else { throw CentreError.unavailable("This chat changed workspaces before the message was saved.") }
             let existing=record(kind:"chat",id:chatId)?.data
             let chat=existing?.merging(.object(["updatedAt":.string(now)])) ?? .object([
-                "id":.string(chatId),"title":.string(String(text.prefix(60))),"createdAt":.string(now),"updatedAt":.string(now),"deletedAt":.null,"pinnedAt":.null,"folderId":.null,"sortOrder":.number(0),"modelSelection":.null,"lineage":.object(["schemaVersion":.number(1),"kind":.string("root")])])
-            let message:JSONValue = .object(["id":.string(messageId),"chatId":.string(chatId),"role":.string("user"),"content":.string(text),"createdAt":.string(now),"responseDurationMs":.null,"resourceIds":.array([]),"attachmentIds":.array([]),"requestContext":.object(["page":.string("chat")])])
-            try await replica.stage([LocalChange(kind:"chat",id:chatId,data:chat),LocalChange(kind:"message",id:messageId,data:message)],ai:.chat(AIRequest(chatId:chatId,messageId:messageId),nil))
+                "id":.string(chatId),"title":.string(String(messageText.prefix(60))),"createdAt":.string(now),"updatedAt":.string(now),"deletedAt":.null,"pinnedAt":.null,"folderId":.null,"sortOrder":.number(0),"modelSelection":.null,"lineage":.object(["schemaVersion":.number(1),"kind":.string("root")])])
+            let message:JSONValue = .object(["id":.string(messageId),"chatId":.string(chatId),"role":.string("user"),"content":.string(messageText),"createdAt":.string(now),"responseDurationMs":.null,"resourceIds":.array([]),"attachmentIds":.array([]),"requestContext":.object(["page":.string("chat")])])
+            try await originatingReplica.stage([LocalChange(kind:"chat",id:chatId,data:chat),LocalChange(kind:"message",id:messageId,data:message)],ai:.chat(AIRequest(chatId:chatId,messageId:messageId),nil),clearingComposerDraft:(chatId:chatId,text:composerText))
             committed=true
         }
-        if committed { Task { await sync() };return chatId }
+        if committed {
+            if workspaceKey == workspace,replica === originatingReplica {
+                if composerDrafts[chatId] == composerText { composerDrafts.removeValue(forKey:chatId) }
+                Task { await sync() }
+            }
+            return chatId
+        }
         return nil
     }
     @discardableResult
@@ -240,6 +309,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     }
     func background() async {
         guard !signingOut else { return }
+        await flushComposerDraftWrites()
         do { ownedTimers.removeAll();try await recoverTimers();await refresh() } catch { self.error=error.localizedDescription }
     }
     @discardableResult
@@ -307,24 +377,27 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         if let session,session.workspaceId != newSession.workspaceId || (client != nil && client?.baseURL != base) { throw CentreError.invalid("Sign out before connecting a different workspace. Your pending study data must stay with its original account.") }
         let api=try CloudHTTP(baseURL:base,token:newSession.token)
         try await api.bootstrap(workspaceId:newSession.workspaceId)
-        let store=try Replica(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
-        let journal=try ConnectorJournal(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
+        let workspace=try WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId)
+        let store=try Replica(directory:directory,workspace:workspace)
+        let savedComposerDrafts=(await store.snapshot()).composerDrafts
+        let journal=try ConnectorJournal(directory:directory,workspace:workspace)
         try SessionVault.save(SavedSession(baseURL:base.absoluteString,session:newSession))
-        let attachments=try AttachmentCache(directory:directory,workspace:WorkspaceKey(baseURL:base,workspaceId:newSession.workspaceId))
+        let attachments=try AttachmentCache(directory:directory,workspace:workspace)
+        composerDrafts=savedComposerDrafts;workspaceKey=workspace
         self.baseURL=base.absoluteString;self.session=newSession;client=api;replica=store;calendarJournal=journal;attachmentCache=attachments;cloudAIAllowed=false
         try await recoverTimers();await refresh()
     }
     func logout(discard:Bool) async {
         guard !syncing,!busy,!signingOut else { error="Wait for synchronization to finish before signing out.";return }
         guard pendingCount == 0 && conflicts.isEmpty || discard else { error="You have pending study changes. Synchronize them or explicitly discard them before signing out.";return }
-        signingOut=true;busy=true;scheduledSync?.cancel()
+        signingOut=true;busy=true;scheduledSync?.cancel();composerDraftWriter?.cancel();composerDraftWriter=nil;composerDraftWriterID=nil;pendingComposerDraftWrites.removeAll()
         defer { signingOut=false;busy=false }
         let store=replica,journal=calendarJournal,attachments=attachmentCache,api=client,oldSession=session
         do {
             // Block every producer before the first await. Erased actors also reject retained stale handles.
             try await store?.erase();try await journal?.erase();try await attachments?.erase()
             try SessionVault.clear();GIDSignIn.sharedInstance.signOut()
-            scheduledSync?.cancel();session=nil;client=nil;replica=nil;calendarJournal=nil;attachmentCache=nil;calendarCommands=[];records=[];connector = .object([:]);pendingCount=0;conflicts=[];aiJobs=[];aiRuns=[];cloudAIAllowed=false;status="Signed out. Private data removed from this iPhone."
+            scheduledSync?.cancel();session=nil;client=nil;replica=nil;workspaceKey=nil;calendarJournal=nil;attachmentCache=nil;calendarCommands=[];records=[];connector = .object([:]);pendingCount=0;conflicts=[];aiJobs=[];aiRuns=[];composerDrafts=[:];cloudAIAllowed=false;status="Signed out. Private data removed from this iPhone."
             if let api,let oldSession,!fixture { _ = try? await api.call("/v1/devices/revoke",method:"POST",body:.object(["deviceId":.string(oldSession.deviceId)])) }
         } catch { self.error=error.localizedDescription }
     }
@@ -465,6 +538,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
         var journal=try ConnectorJournal(directory:directory,workspace:key)
         var attachments=try AttachmentCache(directory:directory,workspace:key)
         if ProcessInfo.processInfo.arguments.contains("-reset-fixture") { try await store.erase();try await journal.erase();try await attachments.erase();store=try Replica(directory:directory,workspace:key);journal=try ConnectorJournal(directory:directory,workspace:key);attachments=try AttachmentCache(directory:directory,workspace:key) }
+        composerDrafts=(await store.snapshot()).composerDrafts;workspaceKey=key
         replica=store;calendarJournal=journal;attachmentCache=attachments;session=CloudSession(token:"ctr_fixture_not_a_credential",deviceId:"ui-test",workspaceId:key.workspaceId,expiresAt:"2099-01-01T00:00:00.000Z");baseURL=base.absoluteString
         let existing=await store.snapshot()
         if existing.records.isEmpty {

@@ -57,6 +57,49 @@ struct CentreCoreVerification {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("centre-core-verification-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let workspace = try WorkspaceKey(baseURL: URL(string: "https://verification.invalid")!, workspaceId: "account-workspace")
+        let draftDirectory=FileManager.default.temporaryDirectory.appendingPathComponent("centre-draft-verification-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at:draftDirectory) }
+        let draftReplica=try Replica(directory:draftDirectory,workspace:workspace)
+        try await draftReplica.setComposerDraft("draft for existing chat",forChatId:"chat-a")
+        try await draftReplica.setComposerDraft("draft for new chat",forChatId:"chat-b")
+        for count in 1...500 { try await draftReplica.setComposerDraft(String(repeating:"x",count:count),forChatId:"stress") }
+        let stressed=await draftReplica.snapshot()
+        try check(stressed.composerDrafts["stress"] == String(repeating:"x",count:500),"Rapid composer writes lost the latest characters")
+        try await draftReplica.setComposerDraft(nil,forChatId:"stress")
+        let unsent=await draftReplica.snapshot()
+        try check(unsent.records.isEmpty && unsent.outbox.isEmpty,"Unsent composer text entered cloud-facing records or outbox")
+        let reopenedDrafts=try Replica(directory:draftDirectory,workspace:workspace)
+        let reopenedDraftState=await reopenedDrafts.snapshot()
+        try check(reopenedDraftState.composerDrafts == ["chat-a":"draft for existing chat","chat-b":"draft for new chat"],"Composer drafts did not survive a workspace reopen")
+        let otherDraftWorkspace=try WorkspaceKey(baseURL:workspace.baseURL,workspaceId:"other-account-workspace")
+        let otherDraftReplica=try Replica(directory:draftDirectory,workspace:otherDraftWorkspace)
+        try await otherDraftReplica.stage([])
+        let otherDraftState=await otherDraftReplica.snapshot()
+        try check(otherDraftState.composerDrafts.isEmpty,"A different workspace inherited composer text")
+        let oldFilePath=draftDirectory.appendingPathComponent(otherDraftWorkspace.fileKey+".json")
+        guard var oldFile=try JSONSerialization.jsonObject(with:Data(contentsOf:oldFilePath)) as? [String:Any] else { throw VerificationFailure(description:"Could not inspect the old replica fixture") }
+        oldFile.removeValue(forKey:"composerDrafts")
+        try JSONSerialization.data(withJSONObject:oldFile,options:[.sortedKeys]).write(to:oldFilePath,options:.atomic)
+        let reopenedOldReplica=try Replica(directory:draftDirectory,workspace:otherDraftWorkspace)
+        let reopenedOldState=await reopenedOldReplica.snapshot()
+        try check(reopenedOldState.composerDrafts.isEmpty,"A pre-draft replica file did not decode with an empty composer map")
+        let draftChat=JSONValue.object(["id":.string("chat-a"),"title":.string("Chat A")])
+        let draftMessage=JSONValue.object(["id":.string("message-a"),"chatId":.string("chat-a"),"role":.string("user"),"content":.string("draft for existing chat")])
+        try await reopenedDrafts.stage([LocalChange(kind:"chat",id:"chat-a",data:draftChat),LocalChange(kind:"message",id:"message-a",data:draftMessage)],clearingComposerDraft:(chatId:"chat-a",text:"draft for existing chat"))
+        let sentDraftState=await reopenedDrafts.snapshot()
+        try check(sentDraftState.composerDrafts["chat-a"] == nil && sentDraftState.composerDrafts["chat-b"] == "draft for new chat","Sending did not clear only its own composer draft")
+        let cloudMutationHasComposerDraft=sentDraftState.outbox.contains { queued in
+            guard case .object(let fields)?=queued.mutation.data else { return false }
+            return fields["composerDrafts"] != nil
+        }
+        try check(sentDraftState.outbox.count == 2 && !cloudMutationHasComposerDraft,"Composer draft data leaked into cloud mutations")
+        try await reopenedDrafts.setComposerDraft("submitted text",forChatId:"chat-a")
+        try await reopenedDrafts.setComposerDraft("newer text while sending",forChatId:"chat-a")
+        try await reopenedDrafts.stage([],clearingComposerDraft:(chatId:"chat-a",text:"submitted text"))
+        let newerDraftState=await reopenedDrafts.snapshot()
+        try check(newerDraftState.composerDrafts["chat-a"] == "newer text while sending","An older send cleared text typed while it was in flight")
+        print("PASS unsent composer drafts reopen locally, stay workspace/chat scoped, and clear only on explicit send")
+
         func reopen() throws -> Replica { try Replica(directory: directory, workspace: workspace) }
         func edit(_ title: String) -> LocalChange {
             LocalChange(kind: "resource", id: "r1", data: .object(["title": .string(title), "future": .array([.bool(true), .null])]))

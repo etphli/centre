@@ -101,6 +101,63 @@ final class ReplicaTests: XCTestCase {
         XCTAssertEqual(disk.records[0].data?["title"], .string("Offline"))
     }
 
+    func testComposerDraftsStayLocalPerChatAndWorkspaceAndClearOnlyOnTheirSend() async throws {
+        let original=try replica()
+        try await original.setComposerDraft("draft for chat A",forChatId:"chat-a")
+        try await original.setComposerDraft("draft for chat B",forChatId:"chat-b")
+        let local=await original.snapshot()
+        XCTAssertTrue(local.records.isEmpty)
+        XCTAssertTrue(local.outbox.isEmpty)
+        XCTAssertEqual(local.composerDrafts,["chat-a":"draft for chat A","chat-b":"draft for chat B"])
+
+        let reopened=try replica(),saved=await reopened.snapshot()
+        XCTAssertEqual(saved.composerDrafts,local.composerDrafts,"Unsent prompts must reopen from the workspace-local replica.")
+        let otherWorkspace=try Replica(directory:directory,workspace:workspace("workspace-b"))
+        let other=await otherWorkspace.snapshot()
+        XCTAssertTrue(other.composerDrafts.isEmpty,"A different account must not inherit local prompt text.")
+
+        let chat=JSONValue.object(["id":.string("chat-a"),"title":.string("Chat A")])
+        let message=JSONValue.object(["id":.string("message-a"),"chatId":.string("chat-a"),"role":.string("user"),"content":.string("draft for chat A")])
+        try await reopened.stage([LocalChange(kind:"chat",id:"chat-a",data:chat),LocalChange(kind:"message",id:"message-a",data:message)],clearingComposerDraft:(chatId:"chat-a",text:"draft for chat A"))
+        let sent=await reopened.snapshot()
+        XCTAssertNil(sent.composerDrafts["chat-a"])
+        XCTAssertEqual(sent.composerDrafts["chat-b"],"draft for chat B")
+        XCTAssertEqual(sent.outbox.count,2,"Only the explicit send should create cloud mutations.")
+        let mutationContainsComposerDraft=sent.outbox.contains { queued in
+            guard case .object(let fields)?=queued.mutation.data else { return false }
+            return fields["composerDrafts"] != nil
+        }
+        XCTAssertFalse(mutationContainsComposerDraft,"Local composer drafts must not enter cloud mutations.")
+        XCTAssertEqual(sent.records.first(where:{$0.kind == "message"})?.data?["content"],.string("draft for chat A"))
+    }
+
+    func testOldReplicaFilesDecodeWithoutComposerDrafts() async throws {
+        let store=try replica()
+        try await store.stage([])
+        let path=directory.appendingPathComponent(try workspace().fileKey + ".json")
+        var oldFile=try XCTUnwrap(JSONSerialization.jsonObject(with:Data(contentsOf:path)) as? [String:Any])
+        oldFile.removeValue(forKey:"composerDrafts")
+        try JSONSerialization.data(withJSONObject:oldFile,options:[.sortedKeys]).write(to:path,options:.atomic)
+
+        let reopened=try replica(),state=await reopened.snapshot()
+        XCTAssertTrue(state.composerDrafts.isEmpty)
+        XCTAssertTrue(state.records.isEmpty)
+    }
+
+    func testOlderSendCannotClearANewerComposerDraft() async throws {
+        let store=try replica()
+        try await store.setComposerDraft("submitted text",forChatId:"chat-a")
+        try await store.setComposerDraft("newer text entered while sending",forChatId:"chat-a")
+
+        let chat=JSONValue.object(["id":.string("chat-a"),"title":.string("Chat A")])
+        let message=JSONValue.object(["id":.string("message-a"),"chatId":.string("chat-a"),"role":.string("user"),"content":.string("submitted text")])
+        try await store.stage([LocalChange(kind:"chat",id:"chat-a",data:chat),LocalChange(kind:"message",id:"message-a",data:message)],clearingComposerDraft:(chatId:"chat-a",text:"submitted text"))
+
+        let state=await store.snapshot()
+        XCTAssertEqual(state.composerDrafts["chat-a"],"newer text entered while sending")
+        XCTAssertEqual(state.records.first(where:{$0.kind == "message"})?.data?["content"],.string("submitted text"))
+    }
+
     func testLostAcknowledgementReplaysExactBodyAndKeepsNewerEdit() async throws {
         let original = try replica()
         try await original.stage([edit("First")])

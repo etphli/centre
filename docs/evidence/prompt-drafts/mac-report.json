@@ -1,0 +1,67 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "half-typed Mac prompt survives Home to Resources",
+      "passed": true
+    },
+    {
+      "name": "returning Home restores the exact prompt",
+      "passed": true
+    },
+    {
+      "name": "prompt survives full renderer reload",
+      "passed": true
+    },
+    {
+      "name": "new saved chat does not inherit the Home draft",
+      "passed": true
+    },
+    {
+      "name": "another saved chat starts with its own empty draft",
+      "passed": true
+    },
+    {
+      "name": "switching chats restores A without B text",
+      "passed": true
+    },
+    {
+      "name": "chat draft survives leaving for Resources and returning",
+      "passed": true
+    },
+    {
+      "name": "saved chat draft survives renderer reload",
+      "passed": true
+    },
+    {
+      "name": "explicit Send clears only A composer draft",
+      "passed": true
+    },
+    {
+      "name": "sending A leaves B draft untouched",
+      "passed": true
+    },
+    {
+      "name": "sending A leaves the new-prompt draft untouched",
+      "passed": true
+    },
+    {
+      "name": "failed local save is clearly reported",
+      "passed": true
+    },
+    {
+      "name": "failed disk save still keeps current-session text across pages",
+      "passed": true
+    },
+    {
+      "name": "a later successful save clears the warning",
+      "passed": true
+    },
+    {
+      "name": "no renderer exceptions",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "scope": "Actual Electron renderer/local service/Chromium localStorage, isolated profile. No live model used; deliberately missing Codex for the sent-message recovery case."
+}
