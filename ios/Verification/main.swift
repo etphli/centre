@@ -94,12 +94,69 @@ struct CentreCoreVerification {
         let timerFile = directory.appendingPathComponent("imported-timer.json")
         try JSONEncoder().encode(checkpoint).write(to: timerFile, options: .atomic)
         let imported = try JSONDecoder().decode(StudySession.self, from: Data(contentsOf: timerFile))
+        try check(imported.targetMinutes == nil, "Legacy timer import gained a countdown target")
+        let legacyFields = try JSONSerialization.jsonObject(with: JSONEncoder().encode(started)) as? [String: Any]
+        try check(legacyFields?["targetMinutes"] == nil, "Legacy timer encoding added a countdown target")
         let recovered = try StudyRules.recover(imported, now: now, restart: true)
         try check(recovered.state == .paused(reason: "recovery"), "Imported timer kept running")
         try check(recovered.segments.last?.end == "2026-10-22T00:00:15.000Z", "Recovery credited time after checkpoint")
         try check(StudyRules.weeklyDuration([recovered], at: now, timeZone: "Australia/Sydney") == 15, "Recovered duration exceeded checkpoint")
         try check(StudyRules.recover(recovered, now: now, restart: true) == recovered, "Recovery was not idempotent")
         print("PASS real timer JSON import pauses at persisted checkpoint without closed-app credit")
+
+        let countdownStart = try Clock.date("2026-10-22T02:00:00.000Z")
+        let metadataFree = try StudyRules.start(timeZone: "Australia/Sydney", now: countdownStart)
+        try check(metadataFree.title == "Study session" && metadataFree.subjectId == nil, "Omitted timer metadata did not use the default title")
+        var countdown = try StudyRules.start(title: "", subjectId: nil, targetMinutes: 5, timeZone: "Australia/Sydney", now: countdownStart)
+        try check(countdown.title == "Study session" && countdown.targetMinutes == 5, "Optional timer metadata or selected duration was not saved")
+        for minutes in [0, 4, 6, 1441, 1445] {
+            var invalid = countdown
+            invalid.targetMinutes = minutes
+            try check((try? StudyRules.validate(invalid, now: countdownStart)) == nil, "Invalid countdown target \(minutes) was accepted")
+        }
+        for second in stride(from: 15, through: 285, by: 15) {
+            countdown = try StudyRules.heartbeat(countdown, now: countdownStart.addingTimeInterval(Double(second)), activity: true)
+        }
+        countdown = try StudyRules.heartbeat(countdown, now: countdownStart.addingTimeInterval(305), activity: true)
+        try check(countdown.state == .completed, "Countdown did not complete when its deadline passed")
+        try check(countdown.segments.last?.end == Clock.iso(countdownStart.addingTimeInterval(300)), "Countdown credited time after its exact deadline")
+        try check(try StudyRules.elapsedSeconds(countdown, now: countdownStart.addingTimeInterval(305)) == 300, "Countdown duration was not capped at five minutes")
+        let cloudCountdown = CloudRecord(kind: "studySession", id: countdown.id, version: 1, cursor: "1", data: try JSONValue.encode(countdown))
+        try check(try cloudCountdown.data?.decode(StudySession.self) == countdown, "Cloud record round-trip lost the countdown target or completion")
+        print("PASS optional 5-minute countdown completes at the exact deadline")
+
+        var pausedCountdown = try StudyRules.start(title: "Break-aware timer", subjectId: nil, targetMinutes: 30, timeZone: "Australia/Sydney", now: countdownStart)
+        for second in stride(from: 15, through: 285, by: 15) {
+            pausedCountdown = try StudyRules.heartbeat(pausedCountdown, now: countdownStart.addingTimeInterval(Double(second)), activity: true)
+        }
+        pausedCountdown = try StudyRules.pause(pausedCountdown, now: countdownStart.addingTimeInterval(300))
+        try check(try StudyRules.remainingSeconds(pausedCountdown, now: countdownStart.addingTimeInterval(3600)) == 1500, "Paused time reduced the countdown")
+        let resumedCountdown = try StudyRules.resume(pausedCountdown, now: countdownStart.addingTimeInterval(3600))
+        let checkpointCountdown = try StudyRules.heartbeat(resumedCountdown, now: countdownStart.addingTimeInterval(3615), activity: true)
+        let cloudRunningCountdown = CloudRecord(kind: "studySession", id: checkpointCountdown.id, version: 2, cursor: "2", data: try JSONValue.encode(checkpointCountdown))
+        guard let synchronizedCountdown = try cloudRunningCountdown.data?.decode(StudySession.self) else {
+            throw VerificationFailure(description: "Cloud import lost the running countdown data")
+        }
+        let importedCountdown = try StudyRules.recover(synchronizedCountdown, now: countdownStart.addingTimeInterval(4000), restart: true)
+        try check(importedCountdown.targetMinutes == 30 && importedCountdown.state == .paused(reason: "recovery"), "Imported countdown lost its target or resumed running")
+        try check(importedCountdown.segments.last?.end == Clock.iso(countdownStart.addingTimeInterval(3615)), "Imported countdown did not recover at its checkpoint")
+        try check(try StudyRules.remainingSeconds(importedCountdown, now: countdownStart.addingTimeInterval(4000)) == 1485, "Recovery lost the selected duration or closed interval")
+        print("PASS paused countdown excludes breaks and imports paused at its saved checkpoint")
+
+        var idleCountdown = try StudyRules.start(title: "Idle boundary", subjectId: nil, targetMinutes: 30, timeZone: "Australia/Sydney", now: countdownStart)
+        for second in stride(from: 15, through: 600, by: 15) {
+            idleCountdown = try StudyRules.heartbeat(idleCountdown, now: countdownStart.addingTimeInterval(Double(second)))
+        }
+        try check(idleCountdown.state == .paused(reason: "idle"), "The 10-minute idle boundary did not precede the countdown deadline")
+        try check(try StudyRules.remainingSeconds(idleCountdown, now: countdownStart.addingTimeInterval(600)) == 1200, "Idle pause lost the remaining countdown")
+
+        var checkInCountdown = try StudyRules.start(title: "Check-in boundary", subjectId: nil, targetMinutes: 90, timeZone: "Australia/Sydney", now: countdownStart)
+        for second in stride(from: 15, through: 3600, by: 15) {
+            checkInCountdown = try StudyRules.heartbeat(checkInCountdown, now: countdownStart.addingTimeInterval(Double(second)), activity: true)
+        }
+        try check(checkInCountdown.state == .paused(reason: "check-in"), "The hourly check-in did not precede the 90-minute countdown deadline")
+        try check(try StudyRules.remainingSeconds(checkInCountdown, now: countdownStart.addingTimeInterval(3600)) == 1800, "Hourly check-in lost the remaining countdown")
+        print("PASS countdown deadline keeps idle and hourly check-in boundaries")
 
         func manual(_ start: String, _ end: String) throws -> StudySession {
             try StudyRules.manual(title: "DST", subjectId: nil, timeZone: "Australia/Sydney", start: Clock.date(start), end: Clock.date(end), now: now)

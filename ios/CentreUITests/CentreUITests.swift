@@ -108,10 +108,20 @@ final class CentreUITests: XCTestCase {
 
     func testTimerRecoversPausedAndCompletedLogAndGoalPersist() {
         tab("Log")
+        let duration = app.staticTexts["timer.duration.value"]
+        XCTAssertTrue(duration.waitForExistence(timeout: 5))
+        XCTAssertEqual(duration.label, "30 minutes")
+        tap("timer.duration.increase")
+        XCTAssertEqual(duration.label, "35 minutes")
+        tap("timer.duration.decrease")
+        XCTAssertEqual(duration.label, "30 minutes")
         let title = app.textFields["timer.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("Cell biology reading\n")
         tap("timer.start")
         XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout: 5))
+        let countdown = app.descendants(matching: .any).matching(identifier: "timer.clock").firstMatch
+        XCTAssertTrue(countdown.waitForExistence(timeout: 5))
+        XCTAssertTrue(countdown.label.contains("remaining"), "A target timer must read down instead of up")
         restart(); tab("Log")
         XCTAssertTrue(app.buttons["timer.resume"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["timer.pause"].exists)
@@ -129,6 +139,18 @@ final class CentreUITests: XCTestCase {
         let completed = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "log.session.", "Cell biology reading")).firstMatch
         reveal(completed)
         capture("06-completed-log-and-goal-restored")
+    }
+
+    func testTimerStartsWithoutMetadataUsingDefaultTitleAndDuration() {
+        tab("Log")
+        XCTAssertEqual(app.staticTexts["timer.duration.value"].label, "30 minutes")
+        tap("timer.start")
+        XCTAssertTrue(app.buttons["timer.pause"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Study session"].waitForExistence(timeout: 5))
+        let countdown = app.descendants(matching: .any).matching(identifier: "timer.clock").firstMatch
+        XCTAssertTrue(countdown.waitForExistence(timeout: 5))
+        XCTAssertTrue(countdown.label.contains("remaining"))
+        capture("23-default-countdown-without-study-metadata")
     }
 
     func testReviewCalendarAndSettingsReportOfflineState() {
