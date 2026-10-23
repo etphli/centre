@@ -1,4 +1,4 @@
-import { studyLogSchema, type StudyTags, type StudySegment, type TimerAction } from '../../shared/study-log';
+import { studyLogSchema, timerStartSchema, type StudyTags, type StudySegment, type TimerAction } from '../../shared/study-log';
 import { connectorsResponseSchema, type ConnectorId, type GoogleConnectorId } from '../../shared/connectors';
 import { searchQuerySchema, searchResultsSchema } from '../../shared/search';
 import { z } from 'zod';
@@ -81,7 +81,7 @@ export const api = {
   createStudy: (input: StudyTags & {id:string;segments:StudySegment[]}) => request('POST', '/study-log/sessions', studyLogSchema, input),
   editStudy: (id:string,input:StudyTags & {expectedRevision:number;segments:StudySegment[]}) => request('PATCH', `/study-log/sessions/${encodeURIComponent(id)}`, studyLogSchema, input),
   deleteStudy: (id:string,expectedRevision:number) => request('POST', `/study-log/sessions/${encodeURIComponent(id)}/delete`, studyLogSchema, {expectedRevision}),
-  startStudy: (input:StudyTags & {id:string}) => request('POST', '/study-log/timer/start', studyLogSchema, input),
+  startStudy: (input:z.infer<typeof timerStartSchema>) => request('POST', '/study-log/timer/start', studyLogSchema, input),
   timerStudy: (id:string,action:TimerAction,expectedRevision:number,activity = false) => request('POST', `/study-log/timer/${encodeURIComponent(id)}/${action}`, studyLogSchema, {expectedRevision,activity}),
   saveStudyGoal: (input:{id:string;weekStart:string;timeZone:string;targetMinutes:number;expectedRevision?:number}) => request('POST', '/study-log/goals', studyLogSchema, input),
   state: () => request('GET', '/state', snapshotSchema),

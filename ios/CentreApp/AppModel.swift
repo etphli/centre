@@ -27,6 +27,7 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     private var scheduledSync:Task<Void,Never>?
     private var syncing=false
     private var signingOut=false
+    private var timerHeartbeatRunning=false
     private var lastInteraction=Date()
     private var aiJobs:[PendingAI]=[]
     private var ownedTimers:Set<String>=[]
@@ -186,14 +187,14 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             }
         }
     }
-    @discardableResult func timer(action:String,id:String?,title:String,subjectId:String?) async -> Bool {
+    @discardableResult func timer(action:String,id:String?,title:String,subjectId:String?,targetMinutes:Int?=nil) async -> Bool {
         let saved = await perform {
             guard let replica else { return }
             let now=Date(),value:StudySession
             var previous:StudySession?
             if action == "start" {
                 guard activeTimer == nil else { throw CentreError.invalid("Finish your current timer before starting another.") }
-                value=try StudyRules.start(title:title,subjectId:subjectId,timeZone:timeZone,now:now)
+                value=try StudyRules.start(title:title,subjectId:subjectId,targetMinutes:targetMinutes,timeZone:timeZone,now:now)
             } else {
                 guard let id,let record=record(kind:"studySession",id:id),let data=record.data else { throw CentreError.invalid("This timer is unavailable.") }
                 let session=try data.decode(StudySession.self);previous=session
@@ -214,11 +215,17 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
     func heartbeat() async {
         guard !signingOut else { return }
         guard let replica,let timer=activeTimer,let body=timer.data,body["state"]["kind"].string == "running" else { return }
+        guard !timerHeartbeatRunning else { return }
+        timerHeartbeatRunning=true
+        defer { timerHeartbeatRunning=false }
         do {
+            let now=Date()
             let original=try body.decode(StudySession.self)
-            let value=try StudyRules.heartbeat(original,now:Date(),activity:Date().timeIntervalSince(lastInteraction)<15)
-            try StudyRules.validate(value,others:sessions.filter{$0.id != value.id},now:Date(),previous:original)
-            try await replica.stage([LocalChange(kind:"studySession",id:value.id,data:JSONValue.encode(value))]);await refresh();scheduleSync()
+            let value=try StudyRules.heartbeat(original,now:now,activity:now.timeIntervalSince(lastInteraction)<15)
+            try StudyRules.validate(value,others:sessions.filter{$0.id != value.id},now:now,previous:original)
+            try await replica.stage([LocalChange(kind:"studySession",id:value.id,data:JSONValue.encode(value))])
+            if value.state.kind == "running" { ownedTimers.insert(value.id) } else { ownedTimers.remove(value.id) }
+            await refresh();scheduleSync()
         } catch { self.error=error.localizedDescription }
     }
     func recoverTimers(excludingLocal:Bool=false) async throws {

@@ -1998,6 +1998,7 @@ private struct TimerPanel: View {
     @Environment(\.centre) private var palette
     @Environment(\.dynamicTypeSize) private var textSize
     @State private var title = ""
+    @State private var targetMinutes = StudyRules.timerDefaultMinutes
     @State private var subjectId: String?
     @State private var acting = false
 
@@ -2007,22 +2008,61 @@ private struct TimerPanel: View {
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Timer").font(CentreFont.serif(.title3))
-                TextField("What are you studying?", text: $title)
+                TextField("Study session (optional)", text: $title)
                     .accessibilityIdentifier("timer.title")
                     .padding(12)
                     .background(palette.surface2, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                Text("Leave blank to use Study session.")
+                    .font(.footnote).foregroundStyle(palette.text3)
+                durationControl
                 SubjectPicker(subjects: Subjects.all(model), selection: $subjectId)
                 Button(acting ? "Starting…" : "Start timer") {
-                    run("start", id: nil, title: title.trimmingCharacters(in: .whitespaces))
+                    let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    run("start", id: nil, title: name.isEmpty ? "Study session" : name, targetMinutes: targetMinutes)
                 }
                 .buttonStyle(CentrePrimaryButtonStyle())
-                .disabled(acting || title.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(acting)
                 .accessibilityIdentifier("timer.start")
                 Text("Time counts only while Centre is open. If iOS closes it, the timer pauses at the last saved moment.")
                     .font(.footnote).foregroundStyle(palette.text3)
             }
             .padding(.vertical, 6)
         }
+    }
+
+    private var durationControl: some View {
+        let layout = textSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
+            Text("Duration")
+                .font(.subheadline)
+                .foregroundStyle(palette.text2)
+            HStack(spacing: 12) {
+                Button {
+                    targetMinutes = max(StudyRules.timerMinimumMinutes, targetMinutes - StudyRules.timerMinuteStep)
+                } label: {
+                    Image(systemName: "minus").frame(width: 44, height: 44)
+                }
+                .buttonStyle(CentreQuietButtonStyle())
+                .disabled(acting || targetMinutes <= StudyRules.timerMinimumMinutes)
+                .accessibilityLabel("Decrease timer duration by 5 minutes")
+                .accessibilityIdentifier("timer.duration.decrease")
+                Text("\(targetMinutes) minutes")
+                    .font(.headline.monospacedDigit())
+                    .accessibilityIdentifier("timer.duration.value")
+                Button {
+                    targetMinutes = min(StudyRules.timerMaximumMinutes, targetMinutes + StudyRules.timerMinuteStep)
+                } label: {
+                    Image(systemName: "plus").frame(width: 44, height: 44)
+                }
+                .buttonStyle(CentreQuietButtonStyle())
+                .disabled(acting || targetMinutes >= StudyRules.timerMaximumMinutes)
+                .accessibilityLabel("Increase timer duration by 5 minutes")
+                .accessibilityIdentifier("timer.duration.increase")
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 
     private func active(_ timer: CloudRecord) -> some View {
@@ -2034,6 +2074,7 @@ private struct TimerPanel: View {
         let confirmed = When.parse(state["confirmedAt"].string)
         let name = data["title"].string.nonEmpty ?? "Study session"
         let subject = data["subjectId"].string.flatMap { Subjects.name(model, $0) }
+        let countdownRemaining = Study.remainingSeconds(data, now: Date())
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(name).font(CentreFont.serif(.title3))
@@ -2041,18 +2082,22 @@ private struct TimerPanel: View {
             }
             if running, let since {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(Study.clock(saved + max(0, context.date.timeIntervalSince(since))))
+                    let remaining = Study.remainingSeconds(data, now: context.date)
+                    let elapsed = Study.elapsedSeconds(data, now: context.date) ?? (saved + max(0, context.date.timeIntervalSince(since)))
+                    Text(Study.clock(remaining.map { ceil($0) } ?? elapsed))
                         .font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                        .accessibilityLabel(remaining.map(Study.remainingLabel) ?? "Elapsed \(Study.duration(elapsed))")
+                        .accessibilityIdentifier("timer.clock")
                 }
-                .accessibilityLabel("Elapsed \(Study.duration(saved + max(0, Date().timeIntervalSince(since))))")
-                .accessibilityIdentifier("timer.clock")
             } else {
-                Text(Study.clock(saved)).font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                let remaining = Study.remainingSeconds(data, now: Date())
+                Text(Study.clock(remaining.map { ceil($0) } ?? saved)).font(.system(.largeTitle, design: .rounded).monospacedDigit())
                     .foregroundStyle(palette.text2)
-                    .accessibilityLabel("Saved \(Study.duration(saved))")
+                    .accessibilityLabel(remaining.map(Study.remainingLabel) ?? "Saved \(Study.duration(saved))")
                     .accessibilityIdentifier("timer.clock")
             }
-            Text(statusText(state)).font(.footnote).foregroundStyle(running ? palette.text3 : palette.warn)
+            Text(running && countdownRemaining == 0 ? "Time is up. Saving the completed timer." : statusText(state))
+                .font(.footnote).foregroundStyle(running ? palette.text3 : palette.warn)
                 .accessibilityIdentifier("timer.status")
             if running, let confirmed, Date().timeIntervalSince(confirmed) > 50 * 60 {
                 Button("I'm still studying") { run("confirm", id: timer.id, title: name, subjectId: data["subjectId"].string) }
@@ -2078,6 +2123,14 @@ private struct TimerPanel: View {
             }
             .disabled(acting)
         }
+        .task(id: running && countdownRemaining != nil ? timer.id : nil) {
+            guard running, let countdownRemaining else { return }
+            if countdownRemaining > 0 {
+                do { try await Task.sleep(for: .seconds(countdownRemaining)) }
+                catch { return }
+            }
+            await model.heartbeat()
+        }
         .padding(.vertical, 6)
     }
 
@@ -2096,14 +2149,17 @@ private struct TimerPanel: View {
         }
     }
 
-    private func run(_ action: String, id: String?, title: String, subjectId: String? = nil) {
+    private func run(_ action: String, id: String?, title: String, subjectId: String? = nil, targetMinutes: Int? = nil) {
         acting = true
         let subject = id == nil ? self.subjectId : subjectId
         model.error = nil
         Task {
-            let done = await model.timer(action: action, id: id, title: title, subjectId: subject)
+            let done = await model.timer(action: action, id: id, title: title, subjectId: subject, targetMinutes: targetMinutes)
             acting = false
-            if done, action == "start" { self.title = "" }
+            if done, action == "start" {
+                self.title = ""
+                self.targetMinutes = StudyRules.timerDefaultMinutes
+            }
         }
     }
 }
@@ -2596,7 +2652,7 @@ private enum Num {
     }
 }
 
-/// Study-log v1 helpers. Durations come only from stored UTC segments.
+/// Study-log v1 helpers. Saved and current durations use the portable StudyRules model.
 private enum Study {
     static func segments(_ data: JSONValue) -> [(Date, Date)] {
         data["segments"].array.compactMap { item in
@@ -2606,6 +2662,19 @@ private enum Study {
     }
     static func savedSeconds(_ data: JSONValue) -> Double {
         segments(data).reduce(0) { $0 + $1.1.timeIntervalSince($1.0) }
+    }
+    static func elapsedSeconds(_ data: JSONValue, now: Date) -> Double? {
+        guard let session = try? data.decode(StudySession.self) else { return nil }
+        return try? StudyRules.elapsedSeconds(session, now: now)
+    }
+    static func remainingSeconds(_ data: JSONValue, now: Date) -> Double? {
+        guard let session = try? data.decode(StudySession.self) else { return nil }
+        do { return try StudyRules.remainingSeconds(session, now: now) }
+        catch { return nil }
+    }
+    static func remainingLabel(_ seconds: Double) -> String {
+        let minutes = Int(ceil(max(0, seconds) / 60))
+        return "\(minutes) \(minutes == 1 ? "minute" : "minutes") remaining"
     }
     static func start(_ data: JSONValue) -> Date? { segments(data).first?.0 }
     static func end(_ data: JSONValue) -> Date? { segments(data).last?.1 }

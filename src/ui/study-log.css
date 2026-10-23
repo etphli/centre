@@ -61,6 +61,13 @@
 .study-timer__error, .study-error { color: var(--danger); font-size: 0.75rem; }
 .study-timer__error { margin-left: 6px; flex-shrink: 0; white-space: nowrap; }
 .study-form { display: grid; gap: 16px; }
+.study-countdown { display: flex; align-items: center; justify-content: center; gap: 24px; padding: 16px 0; }
+.study-countdown output { min-width: 80px; text-align: center; font-size: 2.5rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.study-countdown output span { display: block; margin-top: 6px; font-size: 0.8125rem; color: var(--text-2); }
+.study-countdown button { min-height: 40px; white-space: nowrap; }
+.study-form__details summary { cursor: pointer; font-size: 0.8125rem; }
+.study-form__details[open] summary { margin-bottom: 16px; }
+@media (max-width: 400px) { .study-countdown { gap: 8px; } .study-countdown output { min-width: 64px; } }
 .study-form label, .study-form__field { display: grid; gap: 6px; font-size: 0.8125rem; }
 .study-form label > .muted { display: contents; }
 .study-form input, .study-form select, .study-form textarea { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-s); padding: 8px 10px; }

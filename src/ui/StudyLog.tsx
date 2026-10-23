@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Clock3, Pause, Play, Plus, Square, Timer } f
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api } from '../data/client';
 import { useStudyClock, useStudyLog } from '../data/useStudyLog';
-import { clipSegments, durationMs, localStudyInstant, sessionSegments, shiftStudyDate, studyDayBounds, weekStartAt, weeklyStudy, type StudySession, type StudySegment } from '../../shared/study-log';
+import { DEFAULT_TIMER_MINUTES, MAX_TIMER_MINUTES, TIMER_STEP_MINUTES, timerRemainingMs, clipSegments, durationMs, localStudyInstant, sessionSegments, shiftStudyDate, studyDayBounds, weekStartAt, weeklyStudy, type StudySession, type StudySegment } from '../../shared/study-log';
 import { useApp } from './context';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
@@ -30,6 +30,7 @@ export function StudyEntryDialog({ mode, session, onClose }: { mode: 'timer' | '
   const [taskId, setTask] = useState(session?.taskId ?? '');
   const [title, setTitle] = useState(session?.title ?? '');
   const [notes, setNotes] = useState(session?.notes ?? '');
+  const [minutes, setMinutes] = useState(DEFAULT_TIMER_MINUTES);
   const [problem, setProblem] = useState('');
   const [intervals, setIntervals] = useState(() => {
     const end = Math.floor(Date.now() / 60000) * 60000;
@@ -38,19 +39,18 @@ export function StudyEntryDialog({ mode, session, onClose }: { mode: 'timer' | '
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setProblem('');
     try {
-      const tags = { subjectId: subjectId || null, taskId: taskId || null, title, notes, timeZone };
+      const tags = { subjectId: subjectId || null, taskId: taskId || null, title: mode === 'timer' ? title.trim() || 'Study session' : title, notes, timeZone };
       let segments: StudySegment[] = [];
       if (mode !== 'timer') segments = intervals.map(interval => {
         const convert = (value: string, original: string) => Temporal.PlainDateTime.from(value).equals(Temporal.PlainDateTime.from(localInput(original, timeZone))) ? original : localStudyInstant(value.slice(0, 10), value.slice(11), timeZone);
         return { start: convert(interval.start, interval.original.start), end: convert(interval.end, interval.original.end) };
       });
-      const saved = await run(() => mode === 'timer' ? api.startStudy({ id, ...tags }) : mode === 'edit' && session ? api.editStudy(session.id, { ...tags, segments, expectedRevision: session.revision }) : api.createStudy({ id, ...tags, segments }));
+      const saved = await run(() => mode === 'timer' ? api.startStudy({ id, ...tags, targetMinutes: minutes }) : mode === 'edit' && session ? api.editStudy(session.id, { ...tags, segments, expectedRevision: session.revision }) : api.createStudy({ id, ...tags, segments }));
       if (saved) onClose();
     } catch (failure) { setProblem(failure instanceof RangeError ? 'This local time is ambiguous or does not exist because of a clock change. Choose another time.' : failure instanceof Error ? failure.message : 'Check the study times.'); }
   };
-  return <Dialog title={mode === 'timer' ? 'Start studying' : mode === 'edit' ? 'Edit study entry' : 'Add study time'} description={mode === 'timer' ? 'The timer stays in the top bar while you study. Pauses are excluded.' : `Record actual study in ${timeZone}. For overnight study, choose the following day as the end date.`} onClose={onClose}>
-    <form className="study-form" onSubmit={submit}>
-      <label>What did you study?<input required autoFocus maxLength={200} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Quadratic equations" /></label>
+  const fields = <>
+      <label>{mode === 'timer' ? 'What are you studying?' : 'What did you study?'}<input required={mode !== 'timer'} autoFocus={mode !== 'timer'} maxLength={200} value={title} onChange={event => setTitle(event.target.value)} placeholder={mode === 'timer' ? 'Study session' : 'e.g. Quadratic equations'} /></label>
       <div className="study-form__pair">
         <div className="study-form__field"><span>Subject</span><Select label="Subject" value={subjectId} onChange={value => { setSubject(value); setTask(''); }} options={[{ value: '', label: 'Personal study' }, ...state.subjects.map(subject => ({ value: subject.id, label: subject.name })), ...(subjectId && !state.subjects.some(subject => subject.id === subjectId) ? [{ value: subjectId, label: 'Unavailable subject' }] : [])]} /></div>
         <div className="study-form__field"><span>Task <span className="muted">optional</span></span><Select label="Task" value={taskId} onChange={setTask} options={[{ value: '', label: 'No linked task' }, ...state.assignments.filter(task => !subjectId || task.subjectId === subjectId).map(task => ({ value: task.id, label: task.title })), ...(taskId && !state.assignments.some(task => task.id === taskId) ? [{ value: taskId, label: 'Unavailable task' }] : [])]} /></div>
@@ -59,10 +59,22 @@ export function StudyEntryDialog({ mode, session, onClose }: { mode: 'timer' | '
         <DateTimeField label={`Start${intervals.length > 1 ? ` ${index + 1}` : ''}`} value={interval.start} onChange={start => setIntervals(values => values.map((value, i) => i === index ? { ...value, start } : value))} />
         <DateTimeField label={`End${intervals.length > 1 ? ` ${index + 1}` : ''}`} value={interval.end} onChange={end => setIntervals(values => values.map((value, i) => i === index ? { ...value, end } : value))} />
         {intervals.length > 1 ? <button type="button" className="link-button" aria-label={`Remove interval ${index + 1}`} onClick={() => setIntervals(values => values.filter((_, i) => i !== index))}>Remove</button> : null}
-      </div>)}<p className="muted">Only these intervals count. Gaps between them stay excluded.</p></fieldset> : <p className="study-form__help">Centre pauses after 10 minutes without interaction and asks you to check in every hour. After closing or sleep, it recovers paused. You can add any missing time manually.</p>}
+      </div>)}<p className="muted">Only these intervals count. Gaps between them stay excluded.</p></fieldset> : null}
       <label>Notes <span className="muted">optional</span><textarea rows={3} maxLength={10000} value={notes} onChange={event => setNotes(event.target.value)} /></label>
+  </>;
+  return <Dialog title={mode === 'timer' ? 'Start timer' : mode === 'edit' ? 'Edit study entry' : 'Add study time'} description={mode === 'timer' ? 'Choose your study time. The countdown stays in the top bar.' : `Record actual study in ${timeZone}. For overnight study, choose the following day as the end date.`} onClose={onClose} dismissible={!busy}>
+    <form className="study-form" onSubmit={submit}>
+      {mode === 'timer' ? <>
+        <div className="study-countdown" role="group" aria-label="Timer duration">
+          <button type="button" className="button" aria-label="Decrease timer by 5 minutes" disabled={busy || minutes <= TIMER_STEP_MINUTES} onClick={() => setMinutes(value => value - TIMER_STEP_MINUTES)}>−5 min</button>
+          <output aria-live="polite" aria-label="Timer duration">{minutes}<span>minutes</span></output>
+          <button type="button" className="button" aria-label="Increase timer by 5 minutes" disabled={busy || minutes >= MAX_TIMER_MINUTES} onClick={() => setMinutes(value => value + TIMER_STEP_MINUTES)}>+5 min</button>
+        </div>
+        <details className="study-form__details"><summary>Study details <span className="muted">optional</span></summary><div className="study-form">{fields}</div></details>
+        <p className="study-form__help">Pauses are excluded. Centre pauses after 10 minutes without interaction. After closing or sleep, resume to continue.</p>
+      </> : fields}
       {problem || error ? <p role="alert" className="study-error">{problem || error}</p> : null}
-      <div className="study-form__actions"><button type="button" className="button button--quiet" onClick={onClose}>Cancel</button><button className="button button--primary" disabled={busy}>{busy ? 'Saving…' : mode === 'timer' ? 'Start timer' : 'Save study time'}</button></div>
+      <div className="study-form__actions"><button type="button" className="button button--quiet" disabled={busy} onClick={onClose}>Cancel</button><button className="button button--primary" disabled={busy}>{busy ? 'Saving…' : mode === 'timer' ? 'Start timer' : 'Save study time'}</button></div>
     </form>
   </Dialog>;
 }
@@ -84,6 +96,8 @@ export function StudyTimer() {
   const [start, setStart] = useState(false);
   const active = log.sessions.find(session => !session.deletedAt && session.state.kind !== 'completed');
   const running = active?.state.kind === 'running';
+  const remaining = active ? timerRemainingMs(active, now) : null;
+  const readout = active ? remaining ?? durationMs(sessionSegments(active, now)) : 0;
   const control = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (actionRequest?.mode !== 'timer' || !ready || busy) return;
@@ -91,7 +105,7 @@ export function StudyTimer() {
   }, [actionRequest, ready, busy, active, acknowledgeAction]);
   return <div className="study-timer">
     {active ? <>
-      <button ref={control} type="button" className={`study-timer__readout${running ? ' is-running' : ''}`} aria-expanded={open} aria-label={`Study timer: ${running ? 'running' : 'paused'}, ${studyHours(durationMs(sessionSegments(active, now)))}, ${active.title}`} onClick={() => setOpen(value => !value)}><Timer size={15} aria-hidden /><span>{stopwatch(durationMs(sessionSegments(active, now)))}</span>{!running ? <span>Paused</span> : null}</button>
+      <button ref={control} type="button" className={`study-timer__readout${running ? ' is-running' : ''}`} aria-expanded={open} aria-label={`Study timer: ${running ? 'running' : 'paused'}, ${studyHours(readout)}${remaining === null ? ' elapsed' : ' remaining'}, ${active.title}`} onClick={() => setOpen(value => !value)}><Timer size={15} aria-hidden /><span>{stopwatch(remaining === null ? readout : Math.ceil(readout / 1000) * 1000)}</span>{!running ? <span>Paused</span> : null}</button>
       <button type="button" className="icon-button" aria-label={running ? 'Pause study timer' : 'Resume study timer'} disabled={busy} onClick={() => void command(running ? 'pause' : 'resume')}>{running ? <Pause size={14} /> : <Play size={14} />}</button>
       <button type="button" className="icon-button" aria-label="Stop and save study timer" disabled={busy} onClick={() => void command('stop')}><Square size={13} /></button>
       {open ? <div className="study-timer__panel">

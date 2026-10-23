@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { HEARTBEAT_MS, emptyStudyLog, type StudyLog, type TimerAction } from '../../shared/study-log';
+import { HEARTBEAT_MS, emptyStudyLog, timerRemainingMs, type StudyLog, type TimerAction } from '../../shared/study-log';
 import { api } from './client';
 import { z } from 'zod';
 
@@ -76,6 +76,15 @@ function useStudyStore(snapshot: StudyLog) {
       for (const name of ['pointerdown', 'keydown', 'wheel']) window.removeEventListener(name, onActivity);
     };
   }, [apply, run]);
+  useEffect(() => {
+    const active = log.sessions.find(session => !session.deletedAt && session.state.kind === 'running');
+    const remaining = active ? timerRemainingMs(active, Date.now()) : null;
+    if (!active || remaining === null || busy || error) return;
+    const timer = setTimeout(() => {
+      void run(() => api.timerStudy(active.id, 'heartbeat', active.revision, false));
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [log, busy, error, run]);
   const command = useCallback((action: TimerAction) => {
     const active = current.current.sessions.find(session => !session.deletedAt && session.state.kind !== 'completed');
     return active ? run(() => api.timerStudy(active.id, action, active.revision, true)) : Promise.resolve(false);

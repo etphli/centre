@@ -23,11 +23,13 @@ final class StudyLogTests: XCTestCase {
     func testCanonicalJSONAndRecovery() throws {
         let json = #"{"schemaVersion":1,"id":"cb777188-d7d6-40d9-9056-390bfb0d5811","revision":2,"createdAt":"2026-10-22T00:00:00.000Z","updatedAt":"2026-10-22T00:00:15.000Z","deletedAt":null,"source":"timer","subjectId":null,"taskId":null,"title":"Import this timer paused","notes":"Closed app and second device never count beyond checkpoint.","timeZone":"Australia/Sydney","segments":[],"state":{"kind":"running","since":"2026-10-22T00:00:00.000Z","checkpointAt":"2026-10-22T00:00:15.000Z","lastActivityAt":"2026-10-22T00:00:15.000Z","confirmedAt":"2026-10-22T00:00:00.000Z"}}"#
         let original = try JSONDecoder().decode(StudySession.self, from: Data(json.utf8))
+        XCTAssertNil(original.targetMinutes, "Legacy timer records remain elapsed stopwatches")
         let encoded = try JSONEncoder().encode(original)
         let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         XCTAssertTrue(fields["deletedAt"] is NSNull)
         XCTAssertTrue(fields["subjectId"] is NSNull)
         XCTAssertTrue(fields["taskId"] is NSNull)
+        XCTAssertNil(fields["targetMinutes"], "Legacy records omit the optional countdown field")
         XCTAssertEqual(try JSONDecoder().decode(StudySession.self, from: encoded), original)
         let now = try date("2026-10-22T01:00:00.000Z")
         let recovered = try StudyRules.recover(original, now: now, restart: true)
@@ -78,6 +80,81 @@ final class StudyLogTests: XCTestCase {
         let resumed = try StudyRules.resume(expired, now: now.addingTimeInterval(3600))
         let stopped = try StudyRules.stop(resumed, now: now.addingTimeInterval(3615))
         XCTAssertEqual(try StudyRules.weeklyDuration([stopped], at: now.addingTimeInterval(4000), timeZone: "Australia/Sydney"), 30)
+    }
+
+    func testCountdownValidationAndCanonicalEncoding() throws {
+        let now = try date("2026-10-22T00:00:00.000Z")
+        let metadataFree = try StudyRules.start(timeZone: "Australia/Sydney", now: now)
+        XCTAssertEqual(metadataFree.title, "Study session")
+        XCTAssertNil(metadataFree.subjectId)
+        let timer = try StudyRules.start(title: "  ", subjectId: nil, targetMinutes: 30, timeZone: "Australia/Sydney", now: now)
+        XCTAssertEqual(timer.title, "Study session")
+        XCTAssertEqual(timer.targetMinutes, 30)
+        let encoded = try JSONEncoder().encode(timer)
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertEqual(fields["targetMinutes"] as? Int, 30)
+        XCTAssertEqual(try JSONDecoder().decode(StudySession.self, from: encoded), timer)
+
+        for minutes in [0, 4, 6, 1441, 1445] {
+            var invalid = timer
+            invalid.targetMinutes = minutes
+            XCTAssertThrowsError(try StudyRules.validate(invalid, now: now), "\(minutes) minutes must be rejected")
+        }
+        var manualWithTarget = try manual("2026-10-22T00:00:00.000Z", "2026-10-22T00:01:00.000Z", now: now)
+        manualWithTarget.targetMinutes = 5
+        XCTAssertThrowsError(try StudyRules.validate(manualWithTarget, now: now), "Only timer records can have a target duration")
+
+        let minimum = try StudyRules.start(title: "Minimum", subjectId: nil, targetMinutes: 5, timeZone: "Australia/Sydney", now: now)
+        let maximum = try StudyRules.start(title: "Maximum", subjectId: nil, targetMinutes: 1440, timeZone: "Australia/Sydney", now: now)
+        XCTAssertEqual(minimum.targetMinutes, 5)
+        XCTAssertEqual(maximum.targetMinutes, 1440)
+    }
+
+    func testCountdownExcludesPausedTimeAndSurvivesCheckpointRecovery() throws {
+        let now = try date("2026-10-22T00:00:00.000Z")
+        var started = try StudyRules.start(title: "Revision", subjectId: nil, targetMinutes: 30, timeZone: "Australia/Sydney", now: now)
+        for second in stride(from: 15, through: 285, by: 15) {
+            started = try StudyRules.heartbeat(started, now: now.addingTimeInterval(Double(second)), activity: true)
+        }
+        let paused = try StudyRules.pause(started, now: now.addingTimeInterval(300))
+        XCTAssertEqual(try XCTUnwrap(StudyRules.remainingSeconds(paused, now: now.addingTimeInterval(300))), 1500)
+        XCTAssertEqual(try XCTUnwrap(StudyRules.remainingSeconds(paused, now: now.addingTimeInterval(3600))), 1500)
+
+        let resumed = try StudyRules.resume(paused, now: now.addingTimeInterval(3600))
+        let checkpoint = try StudyRules.heartbeat(resumed, now: now.addingTimeInterval(3605), activity: true)
+        XCTAssertEqual(try XCTUnwrap(StudyRules.remainingSeconds(checkpoint, now: now.addingTimeInterval(3605))), 1495)
+        let recovered = try StudyRules.recover(checkpoint, now: now.addingTimeInterval(4000), restart: true)
+        XCTAssertEqual(recovered.state, .paused(reason: "recovery"))
+        XCTAssertEqual(recovered.targetMinutes, 30)
+        XCTAssertEqual(recovered.segments.last?.end, "2026-10-22T01:00:05.000Z")
+        XCTAssertEqual(try XCTUnwrap(StudyRules.remainingSeconds(recovered, now: now.addingTimeInterval(4000))), 1495)
+    }
+
+    func testCountdownCompletesAtExactDeadlineAndEarlierPauseRulesStillWin() throws {
+        let now = try date("2026-10-22T00:00:00.000Z")
+        var countdown = try StudyRules.start(title: "Five minute timer", subjectId: nil, targetMinutes: 5, timeZone: "Australia/Sydney", now: now)
+        for second in stride(from: 15, through: 285, by: 15) {
+            countdown = try StudyRules.heartbeat(countdown, now: now.addingTimeInterval(Double(second)), activity: true)
+        }
+        countdown = try StudyRules.heartbeat(countdown, now: now.addingTimeInterval(305), activity: true)
+        XCTAssertEqual(countdown.state, .completed)
+        XCTAssertEqual(countdown.segments, [.init(start: Clock.iso(now), end: Clock.iso(now.addingTimeInterval(300)))])
+        XCTAssertEqual(try StudyRules.elapsedSeconds(countdown, now: now.addingTimeInterval(305)), 300)
+        XCTAssertEqual(try XCTUnwrap(StudyRules.remainingSeconds(countdown, now: now.addingTimeInterval(305))), 0)
+
+        var idle = try StudyRules.start(title: "Idle limit", subjectId: nil, targetMinutes: 30, timeZone: "Australia/Sydney", now: now)
+        for second in stride(from: 15, through: 600, by: 15) {
+            idle = try StudyRules.heartbeat(idle, now: now.addingTimeInterval(Double(second)))
+        }
+        XCTAssertEqual(idle.state, .paused(reason: "idle"))
+        XCTAssertEqual(try XCTUnwrap(StudyRules.remainingSeconds(idle, now: now.addingTimeInterval(600))), 1200)
+
+        var checkIn = try StudyRules.start(title: "Hourly check-in", subjectId: nil, targetMinutes: 90, timeZone: "Australia/Sydney", now: now)
+        for second in stride(from: 15, through: 3600, by: 15) {
+            checkIn = try StudyRules.heartbeat(checkIn, now: now.addingTimeInterval(Double(second)), activity: true)
+        }
+        XCTAssertEqual(checkIn.state, .paused(reason: "check-in"))
+        XCTAssertEqual(try XCTUnwrap(StudyRules.remainingSeconds(checkIn, now: now.addingTimeInterval(3600))), 1800)
     }
 
     func testIdleCheckInAndExplicitConfirmation() throws {

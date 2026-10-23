@@ -51,21 +51,23 @@ public struct StudySession: Codable, Equatable, Identifiable, Sendable {
     public var title: String
     public var notes: String
     public var timeZone: String
+    public var targetMinutes: Int?
     public var segments: [StudySegment]
     public var state: StudyState
-    public init(schemaVersion: Int = 1, id: String = UUID().uuidString.lowercased(), revision: Int = 1, createdAt: String, updatedAt: String, deletedAt: String? = nil, source: String, subjectId: String? = nil, taskId: String? = nil, title: String, notes: String = "", timeZone: String, segments: [StudySegment] = [], state: StudyState) {
+    public init(schemaVersion: Int = 1, id: String = UUID().uuidString.lowercased(), revision: Int = 1, createdAt: String, updatedAt: String, deletedAt: String? = nil, source: String, subjectId: String? = nil, taskId: String? = nil, title: String, notes: String = "", timeZone: String, targetMinutes: Int? = nil, segments: [StudySegment] = [], state: StudyState) {
         self.schemaVersion = schemaVersion; self.id = id; self.revision = revision
         self.createdAt = createdAt; self.updatedAt = updatedAt; self.deletedAt = deletedAt
         self.source = source; self.subjectId = subjectId; self.taskId = taskId
-        self.title = title; self.notes = notes; self.timeZone = timeZone; self.segments = segments; self.state = state
+        self.title = title; self.notes = notes; self.timeZone = timeZone; self.targetMinutes = targetMinutes; self.segments = segments; self.state = state
     }
-    private enum CodingKeys: String, CodingKey { case schemaVersion, id, revision, createdAt, updatedAt, deletedAt, source, subjectId, taskId, title, notes, timeZone, segments, state }
+    private enum CodingKeys: String, CodingKey { case schemaVersion, id, revision, createdAt, updatedAt, deletedAt, source, subjectId, taskId, title, notes, timeZone, targetMinutes, segments, state }
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(schemaVersion, forKey: .schemaVersion); try c.encode(id, forKey: .id); try c.encode(revision, forKey: .revision)
         try c.encode(createdAt, forKey: .createdAt); try c.encode(updatedAt, forKey: .updatedAt); try c.encode(deletedAt, forKey: .deletedAt)
         try c.encode(source, forKey: .source); try c.encode(subjectId, forKey: .subjectId); try c.encode(taskId, forKey: .taskId)
         try c.encode(title, forKey: .title); try c.encode(notes, forKey: .notes); try c.encode(timeZone, forKey: .timeZone)
+        try c.encodeIfPresent(targetMinutes, forKey: .targetMinutes)
         try c.encode(segments, forKey: .segments); try c.encode(state, forKey: .state)
     }
 }
@@ -97,6 +99,10 @@ public enum StudyRules {
     public static func preferredSession(_ sessions:[StudySession]) -> StudySession? {
         sessions.first { $0.deletedAt == nil && $0.state.kind == "running" } ?? sessions.first { $0.deletedAt == nil && $0.state.kind == "paused" }
     }
+    public static let timerDefaultMinutes = 30
+    public static let timerMinimumMinutes = 5
+    public static let timerMaximumMinutes = 1440
+    public static let timerMinuteStep = 5
     public static let heartbeatInterval: TimeInterval = 15
     public static let leaseInterval: TimeInterval = 45
     public static let idleInterval: TimeInterval = 600
@@ -117,15 +123,35 @@ public enum StudyRules {
         let stamp = Clock.iso(now)
         return .running(since: stamp, checkpointAt: stamp, lastActivityAt: stamp, confirmedAt: stamp)
     }
-    private static func limit(_ session: StudySession, now: Date) throws -> (end: Date, reason: String?) {
-        guard case let .running(_, checkpoint, activity, confirmed) = session.state else { return (now, nil) }
+    private static func activeSeconds(_ segments: [StudySegment]) throws -> TimeInterval {
+        try segments.reduce(0) { total, segment in
+            total + (try instant(segment.end)).timeIntervalSince(try instant(segment.start))
+        }
+    }
+    private static func activeSeconds(_ session: StudySession) throws -> TimeInterval {
+        try activeSeconds(session.segments)
+    }
+    private static func limit(_ session: StudySession, now: Date) throws -> (end: Date, reason: String?, completed: Bool) {
+        guard case let .running(since, checkpoint, activity, confirmed) = session.state else { return (now, nil, false) }
         let checkpointDate = try instant(checkpoint)
-        if now < checkpointDate { return (checkpointDate, "clock") }
+        if now < checkpointDate { return (checkpointDate, "clock", false) }
         let idle = try instant(activity).addingTimeInterval(idleInterval)
         let checkIn = try instant(confirmed).addingTimeInterval(checkInInterval)
         let lease = now.timeIntervalSince(checkpointDate) > leaseInterval
-        let end = min(now, idle, checkIn, lease ? checkpointDate : now)
-        return (end, lease && end == checkpointDate ? "recovery" : end == idle ? "idle" : end == checkIn ? "check-in" : nil)
+        let deadline: Date? = try session.targetMinutes.map { minutes in
+            let remaining = max(0, Double(minutes * 60) - (try activeSeconds(session)))
+            return (try instant(since)).addingTimeInterval(remaining)
+        }
+        let boundaries: [(date: Date, reason: String?, completed: Bool, priority: Int)] = [
+            (now, nil, false, 4),
+            (idle, "idle", false, 2),
+            (checkIn, "check-in", false, 3),
+            (lease ? checkpointDate : now, lease ? "recovery" : nil, false, lease ? 1 : 4)
+        ] + (deadline.map { [($0, nil, true, 0)] } ?? [])
+        let boundary = boundaries.min {
+            $0.date == $1.date ? $0.priority < $1.priority : $0.date < $1.date
+        }!
+        return (boundary.date, boundary.reason, boundary.completed)
     }
     private static func close(_ session: StudySession, end: Date, state: StudyState) throws -> StudySession {
         var next = session
@@ -141,9 +167,10 @@ public enum StudyRules {
     private static func requireTimer(_ session: StudySession) throws {
         guard session.source == "timer", session.deletedAt == nil, session.state != .completed else { throw CentreError.invalid("Choose an unfinished timer.") }
     }
-    public static func start(id: String = UUID().uuidString.lowercased(), title: String, subjectId: String?, taskId: String? = nil, timeZone: String, now: Date) throws -> StudySession {
+    public static func start(id: String = UUID().uuidString.lowercased(), title: String = "Study session", subjectId: String? = nil, taskId: String? = nil, targetMinutes: Int? = nil, timeZone: String, now: Date) throws -> StudySession {
         let stamp = Clock.iso(now)
-        let result = StudySession(id: id, createdAt: stamp, updatedAt: stamp, source: "timer", subjectId: subjectId, taskId: taskId, title: title.trimmingCharacters(in: .whitespacesAndNewlines), timeZone: timeZone, state: running(now))
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = StudySession(id: id, createdAt: stamp, updatedAt: stamp, source: "timer", subjectId: subjectId, taskId: taskId, title: normalizedTitle.isEmpty ? "Study session" : normalizedTitle, timeZone: timeZone, targetMinutes: targetMinutes, state: running(now))
         try validate(result, others: [], now: now); return result
     }
     public static func manual(id: String = UUID().uuidString.lowercased(), title: String, subjectId: String?, taskId: String? = nil, timeZone: String, start: Date, end: Date, now: Date) throws -> StudySession {
@@ -153,7 +180,11 @@ public enum StudyRules {
     }
     public static func recover(_ session: StudySession, now: Date, restart: Bool = false) throws -> StudySession {
         guard case let .running(_, checkpoint, _, _) = session.state else { return session }
-        let bound = restart ? (end: try instant(checkpoint), reason: Optional("recovery")) : try limit(session, now: now)
+        if restart {
+            return changed(try close(session, end: instant(checkpoint), state: .paused(reason: "recovery")), now: now)
+        }
+        let bound = try limit(session, now: now)
+        if bound.completed { return changed(try close(session, end: bound.end, state: .completed), now: now) }
         guard let reason = bound.reason else { return session }
         return changed(try close(session, end: bound.end, state: .paused(reason: reason)), now: now)
     }
@@ -179,11 +210,15 @@ public enum StudyRules {
         if recovered != session { return recovered }
         guard case .paused = session.state else { throw CentreError.invalid("This timer is already running.") }
         guard session.segments.last.map({ (try? instant($0.end)) ?? now }) ?? now <= now else { throw CentreError.invalid("The clock is earlier than this timer's last interval.") }
+        if try remainingSeconds(session, now: now) == 0 {
+            return changed(try close(session, end: now, state: .completed), now: now)
+        }
         var next = session; next.state = running(now); return changed(next, now: now)
     }
     public static func stop(_ session: StudySession, now: Date) throws -> StudySession {
         try requireTimer(session)
         let recovered = try recover(session, now: now)
+        if recovered.state == .completed { return recovered }
         let next = try close(recovered, end: now, state: .completed)
         return changed(next, now: now)
     }
@@ -192,10 +227,21 @@ public enum StudyRules {
         guard case .running = session.state else { return session.segments }
         return try close(session, end: limit(session, now: now).end, state: .completed).segments
     }
+    public static func elapsedSeconds(_ session: StudySession, now: Date) throws -> TimeInterval {
+        try activeSeconds(try sessionSegments(session, now: now))
+    }
+    public static func remainingSeconds(_ session: StudySession, now: Date) throws -> TimeInterval? {
+        guard let targetMinutes = session.targetMinutes else { return nil }
+        return max(0, Double(targetMinutes * 60) - (try elapsedSeconds(session, now: now)))
+    }
     public static func validate(_ session: StudySession, others: [StudySession] = [], now: Date, previous: StudySession? = nil) throws {
         guard session.schemaVersion == 1, UUID(uuidString: session.id) != nil, session.revision > 0,
               ["timer", "manual"].contains(session.source), !session.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               session.title.utf16.count <= 200, session.notes.utf16.count <= 10000, session.segments.count <= 5000 else { throw CentreError.invalid("Invalid study entry.") }
+        if let targetMinutes = session.targetMinutes {
+            guard session.source == "timer", (timerMinimumMinutes...timerMaximumMinutes).contains(targetMinutes),
+                  targetMinutes.isMultiple(of: timerMinuteStep) else { throw CentreError.invalid("Choose a timer duration from 5 to 1,440 minutes in 5-minute steps.") }
+        }
         for tag in [session.subjectId, session.taskId].compactMap({ $0 }) {
             guard !tag.isEmpty, tag.utf16.count <= 200 else { throw CentreError.invalid("Invalid subject or task ID.") }
         }

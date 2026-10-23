@@ -211,17 +211,20 @@ test('account changes stop uploads and another workspace cannot read the library
 test('incoming running timers pause at their checkpoint and persist the recovery as a pending edit', async t => {
   const cloud = await backend(t), a = await device(t, cloud);
   await a.sync.enableImport();
-  const session = studySessionSchema.parse({ schemaVersion: 1, id: randomUUID(), revision: 1, createdAt: instant, updatedAt: instant, deletedAt: null, subjectId: null, taskId: null, title: 'Maths', notes: '', timeZone: 'Australia/Sydney', source: 'timer', segments: [], state: { kind: 'running', since: instant, checkpointAt: '2026-10-22T00:00:15.000Z', lastActivityAt: instant, confirmedAt: instant } });
+  const session = studySessionSchema.parse({ schemaVersion: 1, id: randomUUID(), revision: 1, createdAt: instant, updatedAt: instant, deletedAt: null, subjectId: null, taskId: null, title: 'Maths', notes: '', timeZone: 'Australia/Sydney', source: 'timer', targetMinutes: 30, segments: [], state: { kind: 'running', since: instant, checkpointAt: '2026-10-22T00:00:15.000Z', lastActivityAt: instant, confirmedAt: instant } });
   await seed(cloud, a, 'studySession', session.id, session);
   await a.sync.sync();
   const reopened = await reopen(a), recovered = reopened.store.state.studyLog.sessions[0];
   assert.deepEqual(recovered?.state, { kind: 'paused', reason: 'recovery' });
   assert.deepEqual(recovered?.segments, [{ start: instant, end: '2026-10-22T00:00:15.000Z' }]);
   assert.equal(recovered?.revision, 2);
+  assert.equal(recovered?.targetMinutes, 30);
   const persisted = await journal(a.directory);
   assert.ok(persisted.outbox.some(row => row.kind === 'studySession' && row.id === session.id));
   assert.equal((await reopened.sync.sync()).error, null);
-  assert.deepEqual((await changes(cloud, reopened)).find(row => row.kind === 'studySession')?.data?.state, { kind: 'paused', reason: 'recovery' });
+  const remote = (await changes(cloud, reopened)).find(row => row.kind === 'studySession');
+  assert.deepEqual(remote?.data?.state, { kind: 'paused', reason: 'recovery' });
+  assert.equal(remote?.data?.targetMinutes, 30);
 });
 
 test('attachments preserve IDs and bytes across devices, deferred messages and future kinds survive restart', async t => {

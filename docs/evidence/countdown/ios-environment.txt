@@ -1,0 +1,8 @@
+swift test: failed before executing tests.
+error: /Users/likht.ethan/.t3/worktrees/centre/fix-add-timer-dialog/ios/Tests/CentreCoreTests/AttachmentCacheTests.swift:1:8 unable to resolve module dependency: 'XCTest'
+
+
+> centre@0.1.0 test:ios
+> bash scripts/verify-ios.sh
+
+xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance
