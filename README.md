@@ -17,19 +17,23 @@ Centre opens in its own Electron window. The local service starts with the app a
 
 To run the shared interface in a browser, use `npm run dev` and open `http://127.0.0.1:5186`. Native file dialogs, PDF export, and updates require the desktop app.
 
+## Use Centre on an iPhone
+
+In Centre on your Mac, open **Settings > iPhone** and scan the installation QR. In Safari, choose **Share > Add to Home Screen**, then open the new Centre icon and connect with a one-time account code. The [Home Screen web app](https://centre-cloud.etphli.workers.dev/iphone/) uses Centre Cloud while your laptop is closed. Saved Log, resources, quiz drafts and Review work offline; AI and marking need a connection. See [installation, supported tools and verification limits](docs/iphone-web.md).
+
 ## Connect Organato
 
 1. In Organato, open **Settings > API keys**.
 2. Create an API key with read and write access.
 3. In Centre, open **Settings**, save the key, and sync.
 
-Centre reads your subjects, assignments, and to-dos from Organato. It saves topics, chats, resources, quiz attempts, review notes, and preferences locally. Centre creates calendar study sessions as calendar-enabled Organato to-dos through the `/items` API. Organato has no separate calendar-event endpoint. Add sessions in Calendar or ask chat to add or edit one. Calendar can mark a session complete. Centre has no action for deleting a session. Organato handles any connected calendar provider sync.
+Centre reads your subjects, assignments, and to-dos from Organato. It saves topics, chats, resources, quiz attempts, review notes, and preferences locally. Centre creates calendar study sessions as calendar-enabled Organato to-dos through the `/items` API. Organato has no separate calendar-event endpoint. Add sessions in Calendar or ask chat to add or edit one. Calendar can mark a session complete. Removing a Centre-created session archives that linked item and preserves unrelated assignments. Organato handles any connected calendar provider sync.
 
 A missing key makes Organato sync and writes fail. A read-only key can sync but cannot create, update, or complete work. Centre reports failed writes and does not save a local substitute. Inspect Organato before retrying a write whose result is unclear.
 
 ## Study in Centre
 
-Start a chat to ask questions or explain a difficult topic. Use `/quiz`, `/test`, or `/flashcards` to create a resource with guided choices. Type `/diagram` followed by a description, or ask to make something interactive, to create a diagram directly in chat. Centre also creates interactive resources proactively when they make a task easier, such as a checkable list for upcoming work or a quiz for practice questions. Ask for plain text when that is what you prefer. Checklist controls work while the resource is open; checked progress resets when it reloads. Your message stays as you typed it. `/plan` starts a study-planning conversation.
+Start a chat to ask questions or explain a difficult topic. Use `/quiz`, `/test`, or `/flashcards` to create a resource with guided choices. Type `/diagram` followed by a description, or ask to make something interactive, to create a diagram directly in chat. Centre also creates interactive resources proactively when they make a task easier, such as a checkable list for upcoming work or a quiz for practice questions. Ask for plain text when that is what you prefer. Checklist progress and unfinished quiz answers survive reloads. Compare saved quiz attempts from Log or their resource. Your message stays as you typed it. `/plan` starts a study-planning conversation.
 
 Centre lists the visible models and supported reasoning efforts from your Codex CLI catalog. New chats and resource generation default to `gpt-6.1-sol` with medium reasoning. Quiz marking defaults to `gpt-6-luna` with medium reasoning. Choose its model and reasoning independently in Settings. The message bar changes the model and effort for that conversation only. New chats use the default set in Settings.
 

@@ -1,18 +1,18 @@
 # Centre for iPhone
 
-Centre has a native SwiftUI iPhone target for iOS 17 and later. It reads and writes Centre Cloud directly. The Mac, Electron service, and desktop Codex process are not part of the mobile connection.
+Centre has two iPhone clients. The Safari web app at [the public iPhone address](https://centre-cloud.etphli.workers.dev/iphone/) is intended for Safari's Add to Home Screen flow and does not require a signed native release. That device flow has not been verified here. The native SwiftUI app targets iOS 17 and later, reads and writes Centre Cloud directly, and is still awaiting Apple distribution setup. The two clients use separate local storage.
 
-The app is source code awaiting review and release setup. There is no published TestFlight invitation or downloadable release yet. See [release setup](release.md) before signing or distributing it.
+For the Safari install and account-pairing steps, see [iPhone web installation and native parity](web-installation-parity.md). There is no published TestFlight invitation or downloadable native release yet. See [native release setup](release.md) before signing or distributing the SwiftUI app.
 
 ## Architecture
 
-`ios/CentreApp` owns navigation, native controls, Google Sign-In, Keychain access, and Quick Look. `ios/Sources/CentreCore` contains the portable Foundation domain, transport, replica, and operation journals. XcodeGen defines the real application and UI-test targets in `ios/project.yml`.
+`ios/CentreApp` owns the native app's navigation, controls, Google Sign-In, Keychain access, and Quick Look. `ios/Sources/CentreCore` contains the portable Foundation domain, transport, replica, and operation journals. XcodeGen defines the native application and UI-test targets in `ios/project.yml`. The Safari app is a separate browser client; it does not wrap or execute these Swift modules.
 
-SwiftUI fits this repository because the existing React interface depends on Electron and a local Codex service. A web wrapper would first need to separate those assumptions. The native target instead uses the cloud protocol directly and gives the phone native text sizing, navigation, file previews, and account storage. The portable Swift package lets persistence and timer rules run without the iOS SDK. Canonical JSON fixtures check parity with the TypeScript domain.
+The Safari app and SwiftUI app use Centre Cloud rather than the Mac's local Electron service or desktop Codex process. They keep separate local state and have different platform features. The native target provides native text sizing, navigation, file previews, and Keychain storage. The portable Swift package lets persistence and timer rules run without the iOS SDK. Canonical JSON fixtures check parity with the TypeScript domain.
 
 The app mirrors Centre's dark, midnight, and light palette and Iowan titles. Controls and selected states use neutral Centre ink. The reading-size preference adjusts ordinary Dynamic Type sizes; accessibility sizes remain unchanged.
 
-## Working features
+## Native app features
 
 - Chats read portable messages and ancestry from Centre Cloud. New replies use the hosted tutor, with explicit first-use data permission and honest waiting, quota, and failure states.
 - Saved notes, quizzes, tests, flashcards, and static diagrams remain readable offline. Notes and quiz drafts save locally before network work. A draft is not shown as a graded attempt.
@@ -25,7 +25,9 @@ The app mirrors Centre's dark, midnight, and light palette and Iowan titles. Con
 
 Diagrams are deliberately static on iPhone. The renderer disables JavaScript, handlers, navigation, windows, downloads, and remote requests. Script-dependent drawings can show only their static content. Desktop checklist progress stays in the replica, but this release does not execute generated checklist scripts or fabricate progress for them.
 
-## Persistence and retries
+## Native persistence and retries
+
+The following replica and retry rules describe the SwiftUI client. The Safari app has browser-managed storage and its own offline behavior. See [iPhone web installation and native parity](web-installation-parity.md) for the shared record and hosted-AI contracts.
 
 One atomic replica file belongs to one HTTPS server and workspace. It holds the cloud shadow, cursor, local edits, explicit conflicts, and AI requests. Unknown kinds and schema versions stay on disk. Visible or archived projections never imply deletion of hidden records.
 

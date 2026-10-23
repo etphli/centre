@@ -1,0 +1,16 @@
+{
+  "id": "/iphone/",
+  "name": "Centre",
+  "short_name": "Centre",
+  "description": "Your study, in one place. Log study time, read resources and practise on your iPhone.",
+  "start_url": "/iphone/",
+  "scope": "/iphone/",
+  "display": "standalone",
+  "background_color": "#1b1b1a",
+  "theme_color": "#1b1b1a",
+  "lang": "en",
+  "icons": [
+    { "src": "/iphone/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/iphone/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
