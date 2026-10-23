@@ -47,6 +47,10 @@ test('countdown completes at the chosen duration, excluding pauses, and persists
     assert.equal(Reflect.get(saved, 'targetMinutes'), 5);
     assert.equal(saved.state.kind, 'completed');
     await assert.rejects(f.call('/timer/start', { id, ...tags, targetMinutes: 10 }), /already in use/);
+    const recovered = studySessionSchema.parse({ ...saved, id: randomUUID(), state: { kind: 'paused', reason: 'recovery' } });
+    await f.store.update(state => { state.studyLog.sessions.push(recovered); });
+    const resumed = await f.call(`/timer/${recovered.id}/resume`, { expectedRevision: recovered.revision });
+    assert.equal(resumed.sessions.find(session => session.id === recovered.id)?.state.kind, 'completed');
   } finally { await f.cleanup(); }
 });
 

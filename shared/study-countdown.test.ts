@@ -32,3 +32,14 @@ test('legacy stopwatch records stay valid and manual records reject countdown ta
   const end = new Date(checkpoint + 1000).toISOString();
   assert.equal(studySessionSchema.safeParse({ ...countdown(), source: 'manual', segments: [{ start: legacy.createdAt, end }], state: { kind: 'completed' } }).success, false);
 });
+
+test('a persisted checkpoint at the countdown deadline completes without adding offline time', () => {
+  const original = countdown();
+  const end = checkpoint + 1800000;
+  const stamp = new Date(end).toISOString();
+  const running = studySessionSchema.parse({ ...original, state: { ...original.state, checkpointAt: stamp, lastActivityAt: stamp } });
+  const completed = recoverStudySession(running, end + 3600000);
+  assert.equal(completed.state.kind, 'completed');
+  assert.equal(completed.segments[0].end, stamp);
+  assert.equal(timerRemainingMs(completed, end + 3600000), 0);
+});

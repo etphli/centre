@@ -64,7 +64,7 @@ export function runningLimit(session: StudySession, now: number): { end: number;
   const lease = now - checkpoint > LEASE_MS;
   const deadline = session.targetMinutes === undefined ? Infinity : Date.parse(state.since) + Math.max(0, session.targetMinutes * 60000 - durationMs(session.segments));
   const end = Math.min(now, idle, checkIn, lease ? checkpoint : now, deadline);
-  return { end, reason: lease && end === checkpoint ? 'recovery' : end === deadline ? 'finished' : end === idle ? 'idle' : end === checkIn ? 'check-in' : null };
+  return { end, reason: end === deadline ? 'finished' : lease && end === checkpoint ? 'recovery' : end === idle ? 'idle' : end === checkIn ? 'check-in' : null };
 }
 export function closeRunning(session: StudySession, end: number, state: StudySession['state']): StudySession {
   if (session.state.kind !== 'running') return { ...session, state };
