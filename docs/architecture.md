@@ -50,6 +50,8 @@ Online quizzes show one question at a time. Moving between questions preserves a
 
 Attachment bytes and extracted text live in private sidecars under the local data directory. PDF and DOCX extraction enforce size and expansion limits. Images become Codex local-image inputs. Prompts label attachment content as untrusted student data. PDF.js remains an external production module so its worker resolves inside the packaged app.
 
+Prompts have no attachment-count limit. Native selection, the composer, recovery, stored messages and synced message records retain every attachment ID. Files remain limited to 20 MB each and 30 MB combined per message. iOS currently sends text-only prompts and displays all attachment IDs in synced messages, so it has no upload-count limit to remove.
+
 Chat stores public reasoning summaries and tool progress. The service ignores raw reasoning deltas. A completed turn saves its bounded activity list alongside the assistant message.
 
 The light theme uses Claude's live `bg-100`, `bg-200`, `bg-300`, `bg-400` and text tokens read on 20 October 2026 from its [official stylesheet](https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/shared-styles-Ca_9Kdqp.css). The page uses `#f9f9f7`, the sidebar `#f3f3f0`, and inputs `#ffffff`.

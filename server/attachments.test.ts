@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ZodError } from 'zod';
 import { AttachmentStore, MAX_ATTACHMENT_BYTES } from './attachments';
+import { Store } from './store';
+import { snapshotSchema } from '../shared/schema';
+import { projectMessageForSync } from '../shared/chat-sync';
 import { HttpError } from './errors';
 import { createService } from './index';
 
@@ -97,7 +100,7 @@ test('uploads reject traversal names, corrupt encodings, unsupported formats, an
   } finally { await rm(directory,{recursive:true,force:true}); }
 });
 
-test('attachment API returns only metadata and keeps message references after the AI service is unavailable',async () => {
+for (const count of [1,6,25]) test(`attachment API persists and syncs ${count} files after the AI service is unavailable`,async () => {
   const directory = await mkdtemp(join(tmpdir(),'centre-attachment-api-test-'));
   const originalCodexBinary = process.env.CENTRE_CODEX_BIN;
   process.env.CENTRE_CODEX_BIN = join(directory,'missing-codex');
@@ -114,14 +117,28 @@ test('attachment API returns only metadata and keeps message references after th
     assert.equal((await request(`/api/attachments/${uploaded.body.id}`)).status,200);
     assert.equal((await request(`/api/attachments/${uploaded.body.id}`)).body.name,'lesson.txt');
 
+    const attachmentIds:string[] = [uploaded.body.id];
+    for (let index = 1; index < count; index++) {
+      const next = await request('/api/attachments','POST',upload(`lesson-${index}.txt`,Buffer.from(`Study material ${index}.`),'text/plain'));
+      assert.equal(next.status,200);
+      attachmentIds.push(next.body.id);
+    }
     const chat = await request('/api/chats','POST',{});
-    const attempted = await request(`/api/chats/${chat.body.id}/messages`,'POST',{ content:'',context:{ page:'chat' },attachmentIds:[uploaded.body.id] });
+    const path = `/api/chats/${chat.body.id}/messages`;
+    assert.equal((await request(path,'POST',{content:'',context:{page:'chat'},attachmentIds:[...attachmentIds,attachmentIds[0]]})).status,400);
+    const attempted = await request(path,'POST',{ content:'',context:{ page:'chat' },attachmentIds });
     assert.equal(attempted.status,500);
     const persisted = await request('/api/state');
     assert.equal(persisted.status,200);
     assert.equal(persisted.body.chats[0].messages[0].content,'');
-    assert.deepEqual(persisted.body.chats[0].messages[0].attachmentIds,[uploaded.body.id]);
+    snapshotSchema.parse(persisted.body);
+    assert.deepEqual(persisted.body.chats[0].messages[0].attachmentIds,attachmentIds);
     assert.deepEqual(persisted.body.chats[0].activity,[]);
+    const reopened = await Store.open(directory);
+    const message = reopened.state.chats[0]?.messages[0];
+    assert.ok(message);
+    assert.deepEqual(message.attachmentIds,attachmentIds);
+    assert.deepEqual(projectMessageForSync(message,chat.body.id).attachmentIds,attachmentIds);
   } finally {
     await service.close(); await rm(directory,{recursive:true,force:true});
     if (originalCodexBinary === undefined) delete process.env.CENTRE_CODEX_BIN; else process.env.CENTRE_CODEX_BIN = originalCodexBinary;
