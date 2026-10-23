@@ -18,7 +18,7 @@ A session contains `source:timer|manual`, nullable `subjectId` and `taskId`, `ti
 - `{kind:'paused',reason:'user'|'idle'|'recovery'|'check-in'|'clock'}`
 - `{kind:'completed'}`
 
-Countdown sessions also store optional `targetMinutes`, an integer multiple of five from 5 to 1440. Only timer sessions accept it. Older timer records without a target retain elapsed-time stopwatch behavior. The target travels with cloud records and is preserved when a remote running timer recovers paused. The cloud Worker must use the updated shared schema before clients sync countdown records.
+Countdown sessions also store optional `targetMinutes`, an integer multiple of five from 5 to 1440. Only timer sessions accept it. Older timer records without a target retain elapsed-time stopwatch behavior. The target travels with cloud records and is preserved when a remote running timer recovers paused. The cloud Worker must use the updated shared schema before clients sync countdown records. Older client builds also need the matching update before reading countdown records.
 
 Manual sessions are completed and contain at least one interval. Paused time is absent from segments. A timer may complete with no elapsed time. Completed timer entries retain their separate intervals when edited; changing metadata preserves exact timestamps.
 
