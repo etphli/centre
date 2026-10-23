@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "network loss immediately changes Synced to Offline",
+      "passed": true
+    },
+    {
+      "name": "reconnecting refreshes status without reloading",
+      "passed": true
+    },
+    {
+      "name": "returning to Chat opens its exact half-typed prompt",
+      "passed": true
+    },
+    {
+      "name": "rapid final characters survive immediate tab navigation",
+      "passed": true
+    },
+    {
+      "name": "unsent phone prompt survives a full browser reload",
+      "passed": true
+    },
+    {
+      "name": "no renderer exceptions",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "scope": "Actual browser/IndexedDB/Worker fixture. Identity simulated. No production data."
+}

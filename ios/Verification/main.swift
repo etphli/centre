@@ -62,6 +62,10 @@ struct CentreCoreVerification {
         let draftReplica=try Replica(directory:draftDirectory,workspace:workspace)
         try await draftReplica.setComposerDraft("draft for existing chat",forChatId:"chat-a")
         try await draftReplica.setComposerDraft("draft for new chat",forChatId:"chat-b")
+        for count in 1...500 { try await draftReplica.setComposerDraft(String(repeating:"x",count:count),forChatId:"stress") }
+        let stressed=await draftReplica.snapshot()
+        try check(stressed.composerDrafts["stress"] == String(repeating:"x",count:500),"Rapid composer writes lost the latest characters")
+        try await draftReplica.setComposerDraft(nil,forChatId:"stress")
         let unsent=await draftReplica.snapshot()
         try check(unsent.records.isEmpty && unsent.outbox.isEmpty,"Unsent composer text entered cloud-facing records or outbox")
         let reopenedDrafts=try Replica(directory:draftDirectory,workspace:workspace)
@@ -69,6 +73,7 @@ struct CentreCoreVerification {
         try check(reopenedDraftState.composerDrafts == ["chat-a":"draft for existing chat","chat-b":"draft for new chat"],"Composer drafts did not survive a workspace reopen")
         let otherDraftWorkspace=try WorkspaceKey(baseURL:workspace.baseURL,workspaceId:"other-account-workspace")
         let otherDraftReplica=try Replica(directory:draftDirectory,workspace:otherDraftWorkspace)
+        try await otherDraftReplica.stage([])
         let otherDraftState=await otherDraftReplica.snapshot()
         try check(otherDraftState.composerDrafts.isEmpty,"A different workspace inherited composer text")
         let oldFilePath=draftDirectory.appendingPathComponent(otherDraftWorkspace.fileKey+".json")

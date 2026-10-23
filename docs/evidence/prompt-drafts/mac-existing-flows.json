@@ -1,0 +1,311 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "Production renderer uses the desktop preload",
+      "passed": true
+    },
+    {
+      "name": "Isolated fixture loaded through desktop IPC",
+      "passed": true
+    },
+    {
+      "name": "Diagram shortcut prefills /diagram without opening a dialog",
+      "passed": true
+    },
+    {
+      "name": "Bare /diagram remains a composer command",
+      "passed": true
+    },
+    {
+      "name": "Test setup defaults to 45 minutes with question types and no question-count field",
+      "passed": true,
+      "details": {
+        "title": "New test",
+        "duration": "45",
+        "quizCount": null,
+        "types": [
+          {
+            "label": "Multiple choice",
+            "pressed": "true"
+          },
+          {
+            "label": "Short response",
+            "pressed": "true"
+          },
+          {
+            "label": "Long response",
+            "pressed": "true"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tests can switch to exact count before creation",
+      "passed": true
+    },
+    {
+      "name": "Timed test remains the personal default",
+      "passed": true
+    },
+    {
+      "name": "Escape closes the custom subject listbox and keeps its setup dialog open",
+      "passed": true
+    },
+    {
+      "name": "Test question-type toggle changes its selected state",
+      "passed": true,
+      "details": {
+        "before": "true",
+        "after": "false"
+      }
+    },
+    {
+      "name": "Quiz setup uses the configured question count and exposes type toggles",
+      "passed": true,
+      "details": {
+        "count": "3",
+        "types": 3
+      }
+    },
+    {
+      "name": "Light theme applies its palette and persists through IPC",
+      "passed": true,
+      "details": {
+        "theme": "light",
+        "muted": "#7b7974",
+        "darkMuted": "#74736e",
+        "saved": "light"
+      }
+    },
+    {
+      "name": "Light palette matches Claude live bg-100, bg-200 and text-400 tokens",
+      "passed": true,
+      "details": {
+        "theme": "light",
+        "muted": "#7b7974",
+        "bg": "#f9f9f7",
+        "sidebar": "#f3f3f0",
+        "saved": "light"
+      }
+    },
+    {
+      "name": "Default dark theme can be restored",
+      "passed": true,
+      "details": {
+        "theme": "dark",
+        "muted": "#74736e"
+      }
+    },
+    {
+      "name": "Models settings has one editable picker per purpose and no duplicate below Codex sign-in",
+      "passed": true
+    },
+    {
+      "name": "Model menu shows latest Sol, Luna, and Astra choices without Terra",
+      "passed": true,
+      "details": [
+        "GPT-6.1 Sol",
+        "GPT-6 Astra",
+        "GPT-6 Luna"
+      ]
+    },
+    {
+      "name": "Reasoning menu omits max and ultra and uses the blue custom range",
+      "passed": true,
+      "details": {
+        "names": [
+          "GPT-6.1 Sol",
+          "GPT-6 Astra",
+          "GPT-6 Luna"
+        ],
+        "stops": [
+          "Low",
+          "Medium",
+          "High",
+          "Extra high"
+        ],
+        "sliderStyle": "background-image: linear-gradient(to right,#8ea6e8 33.33333333333333%,var(--line-strong) 0%);",
+        "sliderHeight": "20px",
+        "sliderPadding": "0px",
+        "sliderBackgroundSize": "100% 3px",
+        "sliderBackgroundRepeat": "no-repeat",
+        "ariaLabel": "Reasoning effort"
+      }
+    },
+    {
+      "name": "Reasoning slider stays compact and draws a thin full-width blue track",
+      "passed": true,
+      "details": {
+        "height": "20px",
+        "padding": "0px",
+        "backgroundSize": "100% 3px",
+        "backgroundRepeat": "no-repeat"
+      }
+    },
+    {
+      "name": "Model menu stays inside the compact desktop viewport",
+      "passed": true
+    },
+    {
+      "name": "Default chat reasoning saves to settings",
+      "passed": true,
+      "details": {
+        "saved": "high"
+      }
+    },
+    {
+      "name": "Keyboard slider changes persist the default reasoning",
+      "passed": true
+    },
+    {
+      "name": "Dragging the slider saves its final value",
+      "passed": true
+    },
+    {
+      "name": "Default model selection persists without changing marking settings",
+      "passed": true
+    },
+    {
+      "name": "Saved default model is shown after remounting settings",
+      "passed": true
+    },
+    {
+      "name": "A distinct marking model is available in the catalog",
+      "passed": true,
+      "details": "GPT-6.1 Sol"
+    },
+    {
+      "name": "Marking model selection persists over IPC independently of the chat model",
+      "passed": true,
+      "details": {
+        "chatModel": "gpt-6-luna",
+        "gradingModel": "gpt-6.1-sol"
+      }
+    },
+    {
+      "name": "Marking reasoning saves independently of the default chat reasoning",
+      "passed": true
+    },
+    {
+      "name": "Test cover has section totals and no questions",
+      "passed": true
+    },
+    {
+      "name": "Test section numbering continues across parts",
+      "passed": true
+    },
+    {
+      "name": "Existing tests export the new cover and section template",
+      "passed": true
+    },
+    {
+      "name": "Legacy light diagrams follow the dark app palette",
+      "passed": true,
+      "details": {
+        "bg": "rgb(27, 27, 26)",
+        "height": 775,
+        "ink": "rgb(236, 235, 231)",
+        "panel": "rgb(32, 32, 31)",
+        "theme": "dark"
+      }
+    },
+    {
+      "name": "A minimally styled checklist keeps its final checkbox visible",
+      "passed": true
+    },
+    {
+      "name": "Diagram embedding follows content height",
+      "passed": true,
+      "details": {
+        "embedHeight": 777,
+        "contentHeight": 775
+      }
+    },
+    {
+      "name": "The themed embedded diagram remains interactive",
+      "passed": true
+    },
+    {
+      "name": "Mounted diagrams follow theme changes without reloading",
+      "passed": true,
+      "details": {
+        "bg": "rgb(249, 249, 247)",
+        "panel": "rgb(255, 255, 255)",
+        "theme": "light"
+      }
+    },
+    {
+      "name": "Open file writes a standalone themed HTML file and invokes macOS",
+      "passed": true,
+      "details": {
+        "fileCreated": true
+      }
+    },
+    {
+      "name": "Resource classification can be corrected from its page",
+      "passed": true
+    },
+    {
+      "name": "Empty Review has a single explanation and clear next actions",
+      "passed": true
+    },
+    {
+      "name": "Resource navigation opens the seeded quiz with exactly one active question",
+      "passed": true
+    },
+    {
+      "name": "Mixed quiz accepts multiple-choice, short, and long answers",
+      "passed": true
+    },
+    {
+      "name": "Synthetic chat request settled before Electron exits",
+      "passed": true,
+      "details": "cancelled from the SideChat UI"
+    },
+    {
+      "name": "ChatDock exposes the newly opened chat",
+      "passed": true
+    },
+    {
+      "name": "Closing and reopening SideChat preserves the multiple-choice answer",
+      "passed": true
+    },
+    {
+      "name": "Closing and reopening SideChat preserves the short response",
+      "passed": true
+    },
+    {
+      "name": "Closing and reopening SideChat preserves the long response",
+      "passed": true
+    },
+    {
+      "name": "Synthetic chat flow does not create or modify quiz resources",
+      "passed": true,
+      "details": {
+        "resources": 3,
+        "attempts": 0
+      }
+    },
+    {
+      "name": "No renderer console errors occurred",
+      "passed": true,
+      "details": []
+    }
+  ],
+  "screenshots": {
+    "home": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-home.png",
+    "test-setup": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-test-setup.png",
+    "models": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-models.png",
+    "models-menu": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-models-menu.png",
+    "models-compact": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-models-compact.png",
+    "settings-light": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-settings-light.png",
+    "quiz": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-quiz.png",
+    "side-chat": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-side-chat.png",
+    "diagram-dark": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-diagram-dark.png",
+    "diagram-light": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-diagram-light.png",
+    "paper-cover": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-paper-cover.png",
+    "review-empty": "/Users/likht.ethan/.t3/worktrees/centre/feat-iphone-web-installation/.runtime/qa-review-empty.png"
+  },
+  "consoleErrors": []
+}

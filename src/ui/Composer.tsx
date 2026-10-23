@@ -1,10 +1,12 @@
 import { ArrowUp, Plus, Square } from 'lucide-react';
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import { kindDescriptions, kindIcons, kindLabels } from './icons';
 import type { CreateKind } from './types';
 import { ModelMenu } from './ModelMenu';
 import { AttachmentButton, useComposerAttachments } from './Attachments';
 import './attachments.css';
+import { useApp } from './context';
+import { promptDraft, promptDraftKey, type PromptDraft } from '../data/prompt-drafts';
 
 const commands: CreateKind[] = ['quiz', 'test', 'flashcards', 'diagram', 'plan'];
 const commandNames: Record<string, CreateKind> = { quiz: 'quiz', test: 'test', flashcards: 'flashcards', cards: 'flashcards', diagram: 'diagram', plan: 'plan', notes: 'notes' };
@@ -22,8 +24,17 @@ interface ComposerProps {
   notice?: ReactNode;
 }
 
-export function Composer({ chatId = null, variant, placeholder, contextLabel, busy, onSend, onCancel, onCommand, autoFocus, notice }: ComposerProps) {
-  const [value, setValue] = useState('');
+export function Composer(props: ComposerProps) {
+  const { state } = useApp();
+  const accounts = [state.settings.account?.email.toLowerCase() ?? null, state.settings.cloudAccount?.email.toLowerCase() ?? null];
+  const chatId = props.chatId ?? null;
+  const draft = promptDraft(accounts, chatId);
+  return <DraftComposer key={promptDraftKey(accounts, chatId)} {...props} draft={draft}/>;
+}
+
+function DraftComposer({ chatId = null, variant, placeholder, contextLabel, busy, onSend, onCancel, onCommand, autoFocus, notice, draft }: ComposerProps & { draft: PromptDraft }) {
+  const { text: value, error: draftError } = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
+  const setValue = draft.setText;
   const attachments = useComposerAttachments();
   const [dragging,setDragging] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -127,6 +138,7 @@ export function Composer({ chatId = null, variant, placeholder, contextLabel, bu
   return (
     <div className={`composer composer--${variant}${dragging ? ' composer--dragging' : ''}`} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDragging(true); } }} onDragLeave={event => { if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) setDragging(false); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); setDragging(false); void attachments.addFiles(Array.from(event.dataTransfer.files)); }}>
       {attachments.picker}
+      {draftError ? <p className="composer__file-error" role="alert">{draftError}</p> : null}
       {notice ? <div className="composer__notice">{notice}</div> : null}
       <div className="composer__box">
         {attachments.chips}
