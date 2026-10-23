@@ -235,6 +235,108 @@ test("a lost write acknowledgment replays the exact stored mutation body", async
   assert.equal(records.filter((record) => record.kind === "topic" && record.id === id).length, 1);
 });
 
+test("100 edits coalesce behind an immutable uncertain head and replay before the latest projection", async (t) => {
+  const cloud = await worker(t);
+  const persistence = new MemoryPersistence();
+  const bodies: string[] = [];
+  let firstWriteDeliveryAtFetch: string | undefined;
+  let dropFirstAcknowledgment = true;
+  const fetcher: typeof fetch = async (input, init) => {
+    const isWrite = requestUrl(input).pathname === "/v1/records" && init?.method === "POST";
+    if (isWrite) {
+      bodies.push(String(init?.body));
+      if (bodies.length === 1) {
+        const state = await persistence.read();
+        firstWriteDeliveryAtFetch = Object.values(state.workspaces)[0]?.outbox[0]?.delivery;
+      }
+    }
+    const response = await cloud.fetch(input, init);
+    if (isWrite && dropFirstAcknowledgment) {
+      dropFirstAcknowledgment = false;
+      throw new TypeError("The connection closed after the first write committed.");
+    }
+    return response;
+  };
+  const { store } = await pairStore(cloud, persistence, fetcher);
+  const id = randomUUID();
+  await store.save("topic", id, topic(id, "Draft 0"));
+  const beforeSync = await persistence.read();
+  const workspaceBeforeSync = Object.values(beforeSync.workspaces)[0];
+  assert.ok(workspaceBeforeSync);
+  const originalMutation = structuredClone(workspaceBeforeSync.outbox[0]?.mutation);
+  assert.ok(originalMutation);
+
+  await store.sync();
+  assert.equal(store.getSnapshot().phase, "offline");
+  assert.equal(store.getSnapshot().pending, 1);
+  assert.equal(firstWriteDeliveryAtFetch, "uncertain");
+
+  for (let revision = 1; revision <= 100; revision++) {
+    await store.save("topic", id, topic(id, `Draft ${revision}`));
+  }
+
+  const whileOffline = await persistence.read();
+  const offlineWorkspace = Object.values(whileOffline.workspaces)[0];
+  assert.ok(offlineWorkspace);
+  assert.equal(offlineWorkspace.outbox.length, 2);
+  assert.equal(offlineWorkspace.outbox[0]?.delivery, "uncertain");
+  assert.deepEqual(offlineWorkspace.outbox[0]?.mutation, originalMutation);
+  assert.equal(offlineWorkspace.outbox[1]?.delivery, "queued");
+  assert.equal(offlineWorkspace.outbox[1]?.mutation.expectedVersion, 1);
+  assert.equal(offlineWorkspace.entities[`e:${JSON.stringify(["topic", id])}`]?.data?.name, "Draft 100");
+
+  await store.sync();
+
+  assert.equal(bodies.length, 3);
+  assert.equal(bodies[0], bodies[1]);
+  const latestMutation = cloudMutationSchema.parse(JSON.parse(bodies[2] ?? "null"));
+  assert.equal(latestMutation.expectedVersion, 1);
+  assert.equal(latestMutation.data?.name, "Draft 100");
+  assert.equal(store.getSnapshot().pending, 0);
+  assert.equal(store.getSnapshot().conflicts.length, 0);
+  const saved = store.getSnapshot().entities.find((entity) => entity.id === id);
+  assert.equal(saved?.version, 2);
+  assert.equal(saved?.data?.name, "Draft 100");
+});
+
+test("a save during receipt replay counts the refreshed cloud version only once", async (t) => {
+  const cloud = await worker(t);
+  const bodies: string[] = [];
+  let dropFirstAcknowledgment = true;
+  let saveBeforeReplay: (() => Promise<void>) | null = null;
+  const fetcher: typeof fetch = async (input, init) => {
+    const isWrite = requestUrl(input).pathname === "/v1/records" && init?.method === "POST";
+    if (isWrite) {
+      bodies.push(String(init?.body));
+      if (bodies.length === 2) await saveBeforeReplay?.();
+    }
+    const response = await cloud.fetch(input, init);
+    if (isWrite && dropFirstAcknowledgment) {
+      dropFirstAcknowledgment = false;
+      throw new TypeError("The connection closed after the first write committed.");
+    }
+    return response;
+  };
+  const { store } = await pairStore(cloud, new MemoryPersistence(), fetcher);
+  const id = randomUUID();
+  saveBeforeReplay = () => store.save("topic", id, topic(id, "Edit during replay"));
+  await store.save("topic", id, topic(id, "Initial edit"));
+
+  await store.sync();
+  assert.equal(store.getSnapshot().phase, "offline");
+  await store.sync();
+
+  assert.equal(bodies.length, 3);
+  const latestMutation = cloudMutationSchema.parse(JSON.parse(bodies[2] ?? "null"));
+  assert.equal(latestMutation.expectedVersion, 1);
+  assert.equal(latestMutation.data?.name, "Edit during replay");
+  assert.equal(store.getSnapshot().pending, 0);
+  assert.equal(store.getSnapshot().conflicts.length, 0);
+  const saved = store.getSnapshot().entities.find((entity) => entity.id === id);
+  assert.equal(saved?.version, 2);
+  assert.equal(saved?.data?.name, "Edit during replay");
+});
+
 test("an older acknowledgment keeps a later local edit and its queued version", async (t) => {
   const cloud = await worker(t);
   let releaseFirst: () => void = () => {};

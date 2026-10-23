@@ -393,8 +393,9 @@ function dateNow(now: () => number): string {
 function expectedVersionFor(workspace: MobileWorkspaceState, kind: string, id: string): number {
   const key = entityKey(kind, id);
   const current = workspace.shadow[storageKey(kind, id)]?.version ?? 0;
-  const waiting = workspace.outbox.filter((entry) => entityKey(entry.mutation.kind, entry.mutation.id) === key).length;
-  const expectedVersion = current + waiting;
+  const expectedVersion = workspace.outbox
+    .filter((entry) => entityKey(entry.mutation.kind, entry.mutation.id) === key)
+    .reduce((version, entry) => Math.max(version, entry.mutation.expectedVersion + 1), current);
   if (!Number.isSafeInteger(expectedVersion) || expectedVersion >= Number.MAX_SAFE_INTEGER) {
     throw new Error("This record has reached the cloud version limit.");
   }
@@ -431,6 +432,31 @@ function clearRecordOutbox(workspace: MobileWorkspaceState, kind: string, id: st
 }
 
 function enqueueEntity(workspace: MobileWorkspaceState, entity: MobileEntity, expectedVersion?: number): void {
+  const key = entityKey(entity.kind, entity.id);
+  const queuedTail: number[] = [];
+  for (let index = workspace.outbox.length - 1; index >= 0; index--) {
+    const entry = workspace.outbox[index];
+    if (entityKey(entry.mutation.kind, entry.mutation.id) !== key) continue;
+    if (entry.delivery !== "queued") break;
+    queuedTail.push(index);
+  }
+
+  if (queuedTail.length > 0) {
+    const firstQueued = queuedTail.at(-1);
+    const lastQueued = queuedTail[0];
+    if (firstQueued === undefined || lastQueued === undefined) {
+      throw new Error("The mobile outbox queue changed while coalescing an edit.");
+    }
+    const expected = expectedVersion ?? workspace.outbox[firstQueued]?.mutation.expectedVersion;
+    if (expected === undefined) throw new Error("The queued mobile mutation is incomplete.");
+    const replacement = { mutation: makeMutation(workspace, entity, expected), delivery: "queued" as const };
+    const replaced = new Set(queuedTail);
+    workspace.outbox = workspace.outbox.flatMap((entry, index) =>
+      index === lastQueued ? [replacement] : replaced.has(index) ? [] : [entry],
+    );
+    return;
+  }
+
   if (workspace.outbox.length >= CLOUD_LIMITS.records) {
     throw new Error("The offline mutation queue reached the Centre cloud record limit.");
   }
@@ -628,12 +654,18 @@ function applyRemotePage(
     workspace.shadow[key] = remote;
     const duplicateKey = domainIdentityConflict(workspace, remote);
     const pending = workspace.outbox.some((entry) => entityKey(entry.mutation.kind, entry.mutation.id) === localKey);
+    const acknowledgesUncertainMutation = workspace.outbox.some(({ mutation, delivery }) =>
+      delivery === "uncertain" &&
+      entityKey(mutation.kind, mutation.id) === localKey &&
+      mutation.expectedVersion + 1 === remote.version &&
+      sameProjection(mutation, remote),
+    );
     if (duplicateKey) {
       workspace.conflicts[duplicateKey] = remote;
       continue;
     }
 
-    if (pending && !sameProjection(local, remote)) {
+    if (pending && !sameProjection(local, remote) && !acknowledgesUncertainMutation) {
       workspace.conflicts[localKey] = remote;
       continue;
     }
@@ -1126,7 +1158,7 @@ export class MobileStore {
       const candidate = await this.nextMutation(context);
       if (!candidate) return;
       const { mutation, key } = candidate;
-      await this.setDelivery(context, mutation.mutationId, "uncertain");
+      if (!(await this.setDelivery(context, mutation.mutationId, "uncertain"))) continue;
       try {
         const value = await this.authenticatedRequest(
           "/v1/records",
@@ -1168,13 +1200,18 @@ export class MobileStore {
     return null;
   }
 
-  private async setDelivery(context: RequestContext, mutationId: string, delivery: PendingDelivery): Promise<void> {
-    await this.transact((state) => {
+  private async setDelivery(context: RequestContext, mutationId: string, delivery: "uncertain"): Promise<boolean> {
+    return this.transact((state) => {
       if (!contextMatches(state, context)) throw new SessionChangedError();
+      let marked = false;
       updateWorkspace(state, context.workspaceId, (workspace) => {
         const entry = workspace.outbox.find((value) => value.mutation.mutationId === mutationId);
-        if (entry) entry.delivery = delivery;
+        if (entry && entry.delivery !== "blocked") {
+          entry.delivery = delivery;
+          marked = true;
+        }
       });
+      return marked;
     });
   }
 
