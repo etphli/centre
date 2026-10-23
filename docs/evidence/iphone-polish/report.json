@@ -1,0 +1,75 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "network loss immediately changes Synced to Offline",
+      "passed": true
+    },
+    {
+      "name": "reconnecting refreshes status without reloading",
+      "passed": true
+    },
+    {
+      "name": "Log resumes an unfinished quiz after full reload",
+      "passed": true
+    },
+    {
+      "name": "continue opens the right quiz with its retained answer",
+      "passed": true
+    },
+    {
+      "name": "due review shortcut opens Review",
+      "passed": true
+    },
+    {
+      "name": "resume rows fit 320px with large text",
+      "passed": true
+    },
+    {
+      "name": "resume action has a visible keyboard focus ring",
+      "passed": true
+    },
+    {
+      "name": "a real waiting service worker announces the update",
+      "passed": true
+    },
+    {
+      "name": "deferring an update keeps the running timer and page intact",
+      "passed": true
+    },
+    {
+      "name": "offline update pauses the timer durably before reloading",
+      "passed": true
+    },
+    {
+      "name": "offline update preserves both saved answers and queued edits",
+      "passed": true
+    },
+    {
+      "name": "offline update preserves the private unsent chat draft",
+      "passed": true
+    },
+    {
+      "name": "updated shell has no remaining waiting worker",
+      "passed": true
+    },
+    {
+      "name": "updated page has no renderer exceptions",
+      "passed": true
+    },
+    {
+      "name": "a failed deferred page shows recovery controls instead of a blank app",
+      "passed": true
+    },
+    {
+      "name": "other study pages remain usable after a chunk failure",
+      "passed": true
+    },
+    {
+      "name": "explicit reload recovers the deferred page once the connection returns",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "scope": "Actual Chromium, IndexedDB, real waiting/activation service worker and offline reload; Worker/SQLite fixture authentication, no production account or inference. Physical Safari unverified."
+}

@@ -1,3 +1,4 @@
+import { Markdown } from './Markdown';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { ChevronRight, MessageSquare, Plus, Send } from 'lucide-react';
@@ -5,7 +6,7 @@ import { syncedChatSchema, syncedMessageSchema } from '../shared/chat-sync';
 import { library, dateLabel } from './domain';
 import { MobileRequestError, type MobileState } from './data/store';
 import type { MobileModel } from './model';
-import { Back, Empty, ErrorLine, Markdown, useAction } from './ui';
+import { Back, Empty, ErrorLine, useAction } from './ui';
 const journalSchema=z.object({id:z.uuid(),chatId:z.string(),messageId:z.string()});
 const replySchema=z.object({run:z.object({status:z.enum(['queued','running','completed','failed','interrupted']),errorCode:z.string().nullable()})});
 export function ChatView({state,model}:{state:MobileState;model:MobileModel}) {

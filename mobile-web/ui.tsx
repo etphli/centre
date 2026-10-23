@@ -1,6 +1,4 @@
 import { type ReactNode, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { ChevronLeft, LoaderCircle } from 'lucide-react';
 import { z } from 'zod';
 import { MobileRequestError } from './data/store';
@@ -27,4 +25,3 @@ export function ErrorLine({error}:{error:string|null}) {return error?<p classNam
 export function Empty({title,children}:{title:string;children:ReactNode}) {return <div className="empty"><h2>{title}</h2><p>{children}</p></div>;}
 export function Back({onClick,children='Back'}:{onClick:()=>void;children?:ReactNode}) {return <button className="text-button back" onClick={onClick}><ChevronLeft size={18}/>{children}</button>;}
 export function Busy({label='Working'}:{label?:string}) {return <span className="busy"><LoaderCircle size={16} aria-hidden/>{label}</span>;}
-export function Markdown({text}:{text:string}) {return <div className="prose"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{a:({href,children})=>href&&/^(https?:|mailto:)/i.test(href)?<a href={href} target="_blank" rel="noreferrer">{children}</a>:<span>{children}</span>,img:({alt})=><span className="muted">{alt ? `[Image: ${alt}]` : '[Image]'}</span>}}>{text}</ReactMarkdown></div>;}

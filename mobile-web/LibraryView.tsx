@@ -1,3 +1,4 @@
+import { Markdown } from './Markdown';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { BookOpen, ChevronRight, Search } from 'lucide-react';
@@ -6,19 +7,19 @@ import { type MobileState, MobileRequestError } from './data/store';
 import type { MobileModel } from './model';
 import type { Resource } from '../shared/schema';
 import { attemptSchema, quizDraftSchema } from '../shared/practice';
-import { Back, Empty, ErrorLine, Markdown, useAction } from './ui';
+import { Back, Empty, ErrorLine, useAction } from './ui';
 import { AttemptHistory } from './AttemptHistory';
 import { SafeDocument } from './SafeDocument';
 const gradeInput=z.object({id:z.uuid(),resourceId:z.string(),draftId:z.uuid(),expectedDraftRevision:z.number().int().positive()});
 const gradeJournal=gradeInput.extend({terminal:z.boolean().default(false)});
 const gradeReply=z.object({status:z.string(),attempt:attemptSchema.optional()});
-export function LibraryView({state,model}:{state:MobileState;model:MobileModel}) {
-  const data=useMemo(()=>library(state.entities),[state.entities]),[selected,setSelected]=useState<string|null>(null),[search,setSearch]=useState('');
+export function LibraryView({state,model,selected,onSelect}:{state:MobileState;model:MobileModel;selected:string|null;onSelect:(id:string|null)=>void}) {
+  const data=useMemo(()=>library(state.entities),[state.entities]),[search,setSearch]=useState('');
   const resource=data.resources.find(item=>item.id===selected);
-  if(resource)return <ResourceView key={resource.id} resource={resource} state={state} model={model} onBack={()=>setSelected(null)}/>;
+  if(resource)return <ResourceView key={resource.id} resource={resource} state={state} model={model} onBack={()=>onSelect(null)}/>;
   const results=data.resources.filter(item=>`${item.title} ${item.kind} ${item.kind==='diagram'?'':item.content}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
   return <><div className="page-title"><div><p className="muted">Bring your materials along</p><h1>Resources</h1></div><BookOpen aria-hidden/></div><label className="search"><Search size={18}/><span className="sr-only">Search saved resources</span><input placeholder="Search your resources" value={search} onChange={event=>setSearch(event.target.value)}/></label>
-    {!results.length?<Empty title={search?'No matching resources':'Your library, on your phone'}>{search?'Try another word.':'In Centre on your Mac, enable cloud sync and import your library. Synced resources will be available here and offline.'}</Empty>:<div className="list">{results.map(item=><button className="list-row" key={item.id} onClick={()=>setSelected(item.id)}><div><span className="detail kind">{item.kind}</span><h2>{item.title}</h2><p>{item.questions.length?`${item.questions.length} questions · `:''}{dateLabel(item.updatedAt)}</p></div><ChevronRight size={18}/></button>)}</div>}
+    {!results.length?<Empty title={search?'No matching resources':'Your library, on your phone'}>{search?'Try another word.':'In Centre on your Mac, enable cloud sync and import your library. Synced resources will be available here and offline.'}</Empty>:<div className="list">{results.map(item=><button className="list-row" key={item.id} onClick={()=>onSelect(item.id)}><div><span className="detail kind">{item.kind}</span><h2>{item.title}</h2><p>{item.questions.length?`${item.questions.length} questions · `:''}{dateLabel(item.updatedAt)}</p></div><ChevronRight size={18}/></button>)}</div>}
   </>;
 }
 function ResourceView({resource,state,model,onBack}:{resource:Resource;state:MobileState;model:MobileModel;onBack:()=>void}) {

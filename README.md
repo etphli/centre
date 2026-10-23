@@ -57,7 +57,7 @@ The school-year profile defaults to Year 9 NSW. If a subject name includes a yea
 
 Settings include your nickname, response length, theme, spacing, text size, school year, time zone, quiz question counts, test duration and response types, and default difficulty. Greetings change automatically with the time of day and can use your nickname.
 
-For the mobile app, open **Settings > iPhone**, or choose **View iPhone setup** in General. Centre for iPhone requires iOS 17 or later. There is no downloadable iPhone release yet. When a TestFlight invitation or App Store listing is available, this page shows its download link, QR code and installation steps. Account pairing on the same page connects an already installed app; it does not install Centre.
+For the iPhone Home Screen app, open **Settings > iPhone**, or choose **View iPhone setup** in General. Scan the public installation QR and follow the Safari steps. Connect with the separate private account code after opening the new Home Screen icon. Native App Store and TestFlight distribution is not available yet.
 
 Diagrams embed directly into chat and resource pages, resize to fit their content, and follow the active colour theme. **Open file** opens a standalone HTML copy. **Move** corrects a saved resource’s subject and topic. The diagram frame blocks network access and access to the app.
 

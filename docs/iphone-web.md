@@ -8,7 +8,7 @@ This is a Home Screen web app. It does not require a native Apple download or an
 
 ## Available study tools
 
-- **Log:** weekly chart and aims, completed study entry, a foreground countdown timer, saved sessions and quiz history. Countdown minutes and measured UTC segments use the same portable rules as macOS and native iOS.
+- **Log:** weekly chart and aims, completed study entry, a foreground countdown timer, saved sessions and quiz history. Resume the newest unfinished quiz or open due reviews directly from Log. Countdown minutes and measured UTC segments use the same portable rules as macOS and native iOS.
 - **Resources:** search saved titles and note text, read notes and flashcards, save unfinished quiz answers, request cloud marking and inspect immutable attempts. Generated HTML uses a static reading view. Checklists retain their canonical item IDs and progress; generated scripts, remote images and custom animations do not execute.
 - **Review:** read due items and resolve them offline. The Worker applies linked learning evidence when resolutions sync.
 - **Chat:** saved conversations, durable unsent text and explicit Centre Cloud AI replies. Sending commits the message, request identity and cleared composer together. Lost responses are checked with the same request ID.
@@ -24,6 +24,14 @@ The service worker caches only the public files under `/iphone/`. API responses,
 Edits and their queued mutations commit atomically before networking. Never-sent edits to one record coalesce; a sent mutation retains its exact ID and body for replay. Transport CAS versions remain separate from domain revisions. Conflicting edits require a choice. Old screens and requests are bound to their original workspace, including during account switching.
 
 Keep Centre open while using its timer. Leaving the app pauses it where the browser allows the visibility event to finish. An interrupted or closed app recovers paused at its last 15-second checkpoint. It never assumes that time spent with a suspended app was study time. Idle and hourly check-in limits, countdown completion and imported-running recovery use `shared/study-log.ts`. A browser without Web Locks can still log completed study but cannot start a timer.
+
+## Updates and connection status
+
+The connection indicator changes to Offline as soon as the browser reports a lost network connection. Returning online triggers sync. A browser can still report online when Centre Cloud is unreachable; a failed request then shows the existing offline or error state.
+
+When a new offline shell has finished installing, Centre offers **Review update**. Save or cancel any open form, then choose **Update and reload**. The app finishes queued local model writes and pauses its owned timer before activating the waiting service worker and reloading. Saved answers, private unsent messages and the offline queue stay in IndexedDB. Choosing **Keep working** leaves the current page and timer running. Updates are checked on opening, returning to the foreground or reconnecting, with a one-minute minimum between checks.
+
+Study pages and Markdown load when opened. The service worker still saves every static chunk for offline use; this reduces startup JavaScript execution, not the total offline download. This browser-shell behavior has no native SwiftUI counterpart. Native app updates use Apple's distribution flow, and no macOS behavior or shared cloud schema changed.
 
 ## Develop and verify
 
@@ -43,7 +51,9 @@ The browser verifier starts its own disposable localhost fixture with the real W
 CENTRE_PLAYWRIGHT_MODULE=/absolute/path/to/playwright-core node scripts/verify-iphone.mjs
 ```
 
-The verifier checks real IndexedDB writes and reloads, offline service-worker launch, quiz/checklist/review progress, post-commit lost responses, terminal grading recovery, timer ownership, light/large layouts, account isolation and static-only caches. Its temporary browser and server are closed on completion. `scripts/iphone-fixture.ts` can also run separately for manual inspection; it binds only to loopback and must never be deployed.
+Run `CENTRE_PLAYWRIGHT_MODULE=/absolute/path/to/playwright-core node scripts/verify-iphone-polish.mjs` for the resume shortcuts, immediate connection status and a real waiting-service-worker update while offline. It verifies that answers, unsent text and the paused timer survive.
+
+The original verifier checks real IndexedDB writes and reloads, offline service-worker launch, quiz/checklist/review progress, post-commit lost responses, terminal grading recovery, timer ownership, light/large layouts, account isolation and static-only caches. Its temporary browser and server are closed on completion. `scripts/iphone-fixture.ts` can also run separately for manual inspection; it binds only to loopback and must never be deployed.
 
 ## Verification boundary
 
