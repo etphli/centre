@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "checks": [
+    "Uninstalled iPhone release is explicitly unavailable",
+    "Account pairing disabled while signed out",
+    "Camera-specific instructions distinguish connecting from installing",
+    "Copied link is HTTPS with a fragment secret and no query",
+    "QR retains a white background in light large-text Settings",
+    "Minimum desktop width has no horizontal overflow",
+    "Hide removes private QR",
+    "Failed invitation shows an error with no QR",
+    "Expired invitation removes scannable QR",
+    "Camera page clears the secret and creates an explicit app handoff",
+    "Camera page is honest about the missing signed iPhone release",
+    "Camera page has no external resources or background account calls",
+    "Phone-width page has no horizontal overflow and usable touch targets",
+    "Phone copy action copies only the one-time code",
+    "Explicit Open Centre retains the exact cloud origin and code",
+    "Same-tab rescan discards the old invitation and rejects an invalid code",
+    "Same-tab valid rescan uses the new code",
+    "No uncaught renderer errors"
+  ],
+  "errors": [],
+  "fixture": "Cloud sign-in status and invitation replies simulated; actual production renderer, preload and local service."
+}

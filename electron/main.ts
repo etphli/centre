@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import { mkdir,readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -152,6 +152,10 @@ async function start() {
   ipcMain.handle('centre:actions:acknowledge', (event, value: unknown) => {
     authorize(event);
     actions.acknowledge(z.string().uuid().parse(value));
+  });
+  ipcMain.handle('centre:copy-text', (event, value: unknown) => {
+    authorize(event);
+    return clipboard.writeText(z.string().max(4096).parse(value));
   });
   ipcMain.handle('centre:request', async (event, method: unknown, path: unknown, body: unknown) => {
     authorize(event);

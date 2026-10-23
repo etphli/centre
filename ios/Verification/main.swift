@@ -111,6 +111,29 @@ struct CentreCoreVerification {
         try check(StudyRules.weekStart(at: Clock.date("2026-10-18T12:59:59.000Z"), timeZone: "Australia/Sydney") == "2026-10-12", "Sunday week boundary wrong")
         try check(StudyRules.weekStart(at: Clock.date("2026-10-18T13:00:00.000Z"), timeZone: "Australia/Sydney") == "2026-10-19", "Monday week boundary wrong")
         print("PASS Sydney DST elapsed durations and local Monday boundary")
+        let pairingCode = String(repeating: "a", count: 64)
+        for address in ["https://cloud.example/pair#code=\(pairingCode)", "centre://pair?baseUrl=https%3A%2F%2Fcloud.example&code=\(pairingCode)"] {
+            guard let link = URL(string: address) else { throw VerificationFailure(description: "Invalid pairing fixture URL") }
+            let invitation = try CloudURL.pairing(link)
+            try check(invitation.baseURL.host == "cloud.example" && invitation.code == pairingCode, "Pairing link changed cloud origin or secret")
+        }
+        for address in [
+            "http://cloud.example/pair#code=\(pairingCode)",
+            "https://user@cloud.example/pair#code=\(pairingCode)",
+            "https://cloud.example/pair?code=\(pairingCode)",
+            "https://cloud.example/pair?extra=1#code=\(pairingCode)",
+            "https://cloud.example/pair/#code=\(pairingCode)",
+            "https://cloud.example/p%61ir#code=\(pairingCode)",
+            "https://cloud.example/pair#code=\(pairingCode)&code=\(pairingCode)",
+            "https://cloud.example/pair#code=\(pairingCode)&extra=1",
+            "https://cloud.example/pair#code=short",
+            "https://cloud.example/pair#code=\(String(repeating: "a", count: 201))",
+            "https://cloud.example/pair#code=%25\(pairingCode)"
+        ] {
+            guard let link = URL(string: address) else { throw VerificationFailure(description: "Invalid rejection fixture URL") }
+            try check((try? CloudURL.pairing(link)) == nil, "Accepted malformed pairing link")
+        }
+        print("PASS canonical HTTPS and legacy pairing links; malformed origins, paths, secrets and duplicate fields rejected")
         print("Verified local CentreCore behavior. Network fixture is simulated; no hosted/provider proof.")
     }
 }

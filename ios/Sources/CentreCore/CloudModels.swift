@@ -73,16 +73,55 @@ public enum CloudURL {
         return url
     }
     public static func pairing(_ url: URL) throws -> (baseURL: URL, code: String) {
-        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false), parts.scheme == "centre", parts.host == "pair", parts.path.isEmpty,
-              parts.user == nil, parts.password == nil, parts.fragment == nil,
-              let items = parts.queryItems, items.count == 2,
-              items.filter({ $0.name == "baseUrl" }).count == 1, items.filter({ $0.name == "code" }).count == 1,
-              let base = items.first(where: { $0.name == "baseUrl" })?.value.flatMap(URL.init(string:)),
-              let code = items.first(where: { $0.name == "code" })?.value,
-              code.count >= 32, code.count <= 200, code.range(of: "^[A-Za-z0-9_-]+$", options:.regularExpression) != nil else {
-            throw CentreError.invalid("This pairing code is invalid. Create a new code in desktop Settings.")
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw invalidPairingLink()
         }
+
+        if parts.scheme == "centre" {
+            guard parts.host == "pair", parts.percentEncodedPath.isEmpty,
+                  parts.user == nil, parts.password == nil, parts.fragment == nil,
+                  let items = parts.queryItems, items.count == 2,
+                  items.filter({ $0.name == "baseUrl" }).count == 1,
+                  items.filter({ $0.name == "code" }).count == 1,
+                  let base = items.first(where: { $0.name == "baseUrl" })?.value.flatMap(URL.init(string:)),
+                  let code = items.first(where: { $0.name == "code" })?.value,
+                  isPairingCode(code) else {
+                throw invalidPairingLink()
+            }
+            return (try validate(base), code)
+        }
+
+        // The web handoff link carries its one-time code only in the fragment, so it
+        // is not sent to the public Worker when Safari requests /pair.
+        guard parts.scheme == "https", parts.host?.isEmpty == false,
+              parts.user == nil, parts.password == nil,
+              parts.percentEncodedPath == "/pair",
+              parts.percentEncodedQuery == nil,
+              let fragment = parts.percentEncodedFragment,
+              fragment.hasPrefix("code=") else {
+            throw invalidPairingLink()
+        }
+        let code = String(fragment.dropFirst("code=".count))
+        guard isPairingCode(code) else { throw invalidPairingLink() }
+
+        var origin = parts
+        origin.percentEncodedPath = ""
+        origin.query = nil
+        origin.fragment = nil
+        guard let base = origin.url else { throw invalidPairingLink() }
         return (try validate(base), code)
+    }
+
+    private static func isPairingCode(_ code: String) -> Bool {
+        let bytes = Array(code.utf8)
+        guard (32...200).contains(bytes.count) else { return false }
+        return bytes.allSatisfy {
+            (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 95 || $0 == 45
+        }
+    }
+
+    private static func invalidPairingLink() -> CentreError {
+        .invalid("This pairing code is invalid. Create a new code in desktop Settings.")
     }
 }
 

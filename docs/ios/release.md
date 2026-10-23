@@ -47,3 +47,7 @@ The app target and unsigned Release build are prepared. Remaining distribution s
 `ios/ExportOptions.plist` uses App Store Connect export without an automatic upload. It is not a signing identity or a release permission.
 
 Once an approved invitation or listing exists, set `VITE_CENTRE_IOS_DISTRIBUTION_URL` during the desktop build. Only validated Apple TestFlight `/join/<code>` or App Store `/app/.../id...` links generate the installation QR. An empty or invalid setting shows that no iPhone release is available. Account pairing remains a separate one-use flow and never embeds a long-lived bearer token.
+
+Account QR codes use `https://<Centre Cloud origin>/pair#code=<one-time-code>` so the iPhone camera can open a normal web page. The fragment is not sent in the HTTP request. The page clears it from the address bar, then opens the existing `centre://pair` invitation only after **Open Centre** is tapped. Native Centre asks for confirmation before redeeming it. iOS also accepts the HTTPS link through **Paste pairing link**. This is a web handoff, not a registered Apple universal link.
+
+The public Worker page shows installation availability separately. When Apple distribution exists, set the Worker's `CENTRE_IOS_DISTRIBUTION_URL` to the same validated Apple link used by the desktop build. Leave both values unset until an actual invitation or listing is ready. Opening `/pair` never creates a device session or consumes the pairing code.

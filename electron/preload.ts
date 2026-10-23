@@ -14,6 +14,7 @@ ipcRenderer.on('centre:window-chrome', (_event, value: unknown) => {
 });
 
 contextBridge.exposeInMainWorld('centre', {
+  copyText: (text: string) => ipcRenderer.invoke('centre:copy-text', text),
   launchers: {
     list: () => ipcRenderer.invoke('centre:launchers:list'),
     change: (action: string, operation: string) => ipcRenderer.invoke('centre:launchers:change', action, operation),
