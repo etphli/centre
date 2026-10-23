@@ -87,6 +87,10 @@ app.on('browser-window-created',(_event,w)=>{if(win)return;win=w;win.setSize(128
  await evaluate('window.centre.request("PATCH","/settings",{theme:"light",textSize:"large"})');await wait('document.documentElement.dataset.theme==="light"&&document.documentElement.dataset.textSize==="large"');await check('Saved light theme and large text actually render','getComputedStyle(document.documentElement).colorScheme==="light"');await shot('desktop-light-large');
  win.setMinimumSize(600,660);win.setSize(760,1000);await wait('innerWidth===760');await shot('desktop-narrow');
  await check('Comparison contains no page-width overflow','document.documentElement.scrollWidth<=window.innerWidth');
+ await evaluate('window.dispatchEvent(new CustomEvent("centre:study-log-action",{detail:{id:"comparison-week-shortcut",mode:"week"}}))');
+ await wait('document.activeElement?.id==="study-week-title"');
+ await check('Week shortcut from comparison opens and focuses study time','Boolean(document.querySelector(".study-aim"))&&!document.querySelector(".attempt-history")');
+ await click('Attempts');await choose('Attempt subject',2);await wait('document.querySelectorAll(".attempt-trend tbody tr").length===4');
  await evaluate('window.centre.request("POST","/resources/history-quiz/archive",{})');await delay(1300);
  await choose('Attempt subject',4);await wait('document.querySelector(".attempt-links")?.textContent.includes("Resource unavailable")');
  await shot('desktop-archived');

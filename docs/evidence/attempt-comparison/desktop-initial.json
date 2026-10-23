@@ -12,6 +12,7 @@
     "Resource links return directly to its comparison",
     "Saved light theme and large text actually render",
     "Comparison contains no page-width overflow",
+    "Week shortcut from comparison opens and focuses study time",
     "No renderer console errors"
   ],
   "errors": []
