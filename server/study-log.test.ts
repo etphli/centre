@@ -34,7 +34,13 @@ test('countdown completes at the chosen duration, excluding pauses, and persists
     await command('pause');
     f.advance(3600000); await command('resume');
     for (let i = 0; i < 9; i++) { f.advance(15000); await command('heartbeat'); }
-    f.advance(20000); await command('heartbeat');
+    f.advance(20000);
+    await mkdir(join(f.directory, 'state.json.tmp'));
+    await assert.rejects(command('heartbeat'));
+    assert.equal(f.store.state.studyLog.sessions[0].state.kind, 'running');
+    assert.equal((await Store.open(f.directory)).state.studyLog.sessions[0].state.kind, 'running');
+    await rm(join(f.directory, 'state.json.tmp'), { recursive: true });
+    await command('heartbeat');
     assert.equal(log.sessions[0].state.kind, 'completed');
     assert.equal(durationMs(log.sessions[0].segments), 300000);
     const saved = (await Store.open(f.directory)).state.studyLog.sessions[0];
