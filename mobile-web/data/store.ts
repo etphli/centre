@@ -910,42 +910,97 @@ export class MobileStore {
     data: Record<string, unknown> | null,
     deleted = false,
   ): Promise<void> {
+    await this.saveBatch([{ kind, id, data, deleted }]);
+  }
+
+  async saveBatch(
+    items: Array<{
+      kind: string;
+      id: string;
+      data: Record<string, unknown> | null;
+      deleted?: boolean;
+    }>,
+    localValues?: Record<string, unknown>,
+  ): Promise<void> {
+    if (!Array.isArray(items)) throw new Error("Mobile save batches must be an array.");
+    if (items.length > 25) throw new Error("Mobile save batches can contain at most 25 items.");
+
+    const preparedItems = Array.from(items, (item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        throw new Error("Mobile save batches contain an invalid item.");
+      }
+      const { kind, id, data } = item;
+      const deleted = item.deleted === undefined ? false : item.deleted;
+      if (typeof kind !== "string" || !kind || kind.length > 100 || typeof id !== "string" || !id || id.length > 200) {
+        throw new Error("Cloud record kind and ID are outside their allowed lengths.");
+      }
+      if (typeof deleted !== "boolean") throw new Error("Cloud record deleted must be a boolean.");
+      if (!CLOUD_ENTITY_KINDS.includes(kind)) throw new Error("Unsupported Centre cloud record kind.");
+      if (kind === "practice.attempt") throw new Error("Practice attempts are created by the authenticated cloud grader.");
+      if (!deleted && !data) throw new Error("A live cloud record must include validated data.");
+      const parsedData = deleted ? null : parseCloudEntity(kind, data);
+      if (parsedData && typeof parsedData.id === "string" && parsedData.id !== id) {
+        throw new Error("Cloud record ID does not match its canonical data.");
+      }
+      return { kind, id, deleted, parsedData };
+    });
+
+    if (localValues !== undefined && (!localValues || typeof localValues !== "object" || Array.isArray(localValues))) {
+      throw new Error("Workspace local values must be a record.");
+    }
+    const preparedLocalValues = Object.entries(localValues ?? {}).map(([key, value]) => {
+      if (!key || key.length > 200) throw new Error("Local mobile value keys must contain 1 to 200 characters.");
+      let serialized: string | undefined;
+      try {
+        serialized = JSON.stringify(value);
+      } catch {
+        throw new Error("Local mobile values must be JSON serializable.");
+      }
+      if (serialized === undefined) throw new Error("Local mobile values must be JSON serializable.");
+      const safeValue: unknown = JSON.parse(serialized);
+      if (new TextEncoder().encode(serialized).byteLength > CLOUD_LIMITS.recordBytes) {
+        throw new Error("Local mobile values are larger than the cloud record limit.");
+      }
+      return { key, safeValue };
+    });
+
+    if (preparedItems.length === 0 && preparedLocalValues.length === 0) return;
     await this.ensureOpen();
-    if (!kind || kind.length > 100 || !id || id.length > 200) {
-      throw new Error("Cloud record kind and ID are outside their allowed lengths.");
-    }
-    if (!CLOUD_ENTITY_KINDS.includes(kind)) throw new Error("Unsupported Centre cloud record kind.");
-    if (kind === "practice.attempt") throw new Error("Practice attempts are created by the authenticated cloud grader.");
-    if (!deleted && !data) throw new Error("A live cloud record must include validated data.");
     const timestamp = dateNow(this.now);
-    const parsedData = deleted ? null : parseCloudEntity(kind, data);
-    if (parsedData && typeof parsedData.id === "string" && parsedData.id !== id) {
-      throw new Error("Cloud record ID does not match its canonical data.");
-    }
 
     await this.transact((state) => {
       const workspaceId = state.activeWorkspaceId;
       if (!workspaceId) throw new Error("Pair Centre before saving mobile study data.");
       updateWorkspace(state, workspaceId, (workspace) => {
-        const key = storageKey(kind, id);
-        const existing = workspace.entities[key];
-        const shadow = workspace.shadow[key];
-        const entity: MobileEntity = {
-          kind,
-          id,
-          schemaVersion: 1,
-          version: existing?.version ?? shadow?.version ?? 0,
-          cursor: existing?.cursor ?? shadow?.cursor ?? "0",
-          ...(existing?.createdCursor ?? shadow?.createdCursor
-            ? { createdCursor: existing?.createdCursor ?? shadow?.createdCursor }
-            : {}),
-          updatedAt: timestamp,
-          deleted,
-          data: parsedData,
-        };
-        setEntity(workspace, entity);
-        if (!Object.hasOwn(workspace.conflicts, entityKey(kind, id))) {
-          enqueueEntity(workspace, entity);
+        for (const { kind, id, deleted, parsedData } of preparedItems) {
+          const key = storageKey(kind, id);
+          const existing = workspace.entities[key];
+          const shadow = workspace.shadow[key];
+          const entity: MobileEntity = {
+            kind,
+            id,
+            schemaVersion: 1,
+            version: existing?.version ?? shadow?.version ?? 0,
+            cursor: existing?.cursor ?? shadow?.cursor ?? "0",
+            ...(existing?.createdCursor ?? shadow?.createdCursor
+              ? { createdCursor: existing?.createdCursor ?? shadow?.createdCursor }
+              : {}),
+            updatedAt: timestamp,
+            deleted,
+            data: parsedData,
+          };
+          setEntity(workspace, entity);
+          if (!Object.hasOwn(workspace.conflicts, entityKey(kind, id))) {
+            enqueueEntity(workspace, entity);
+          }
+        }
+
+        for (const { key, safeValue } of preparedLocalValues) {
+          const localKey = slot("v:", key);
+          if (!Object.hasOwn(workspace.localValues, localKey) && Object.keys(workspace.localValues).length >= CLOUD_LIMITS.records) {
+            throw new Error("This workspace has reached the local mobile value limit.");
+          }
+          workspace.localValues[localKey] = safeValue;
         }
       });
     });

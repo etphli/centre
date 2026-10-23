@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { test, type TestContext } from "node:test";
 import { z } from "zod";
 import { createCloudTestHarness } from "../../cloud/test-support";
+import { syncedChatSchema, syncedMessageSchema } from "../../shared/chat-sync";
 import { cloudChangesSchema, cloudMutationSchema } from "../../shared/cloud";
 import { studySessionSchema } from "../../shared/study-log";
 import {
@@ -29,6 +30,12 @@ function emptyState(): PersistedMobileState {
 class MemoryPersistence implements Persistence {
   private value: PersistedMobileState | null = null;
   private tail: Promise<void> = Promise.resolve();
+  transactionCount = 0;
+  private nextTransactionFailure: Error | null = null;
+
+  failNextTransaction(error = new Error("simulated durable commit failure")): void {
+    this.nextTransactionFailure = error;
+  }
 
   async read(): Promise<PersistedMobileState> {
     return structuredClone(this.value ?? emptyState());
@@ -37,6 +44,7 @@ class MemoryPersistence implements Persistence {
   async transact<T>(
     update: (current: PersistedMobileState) => { state: PersistedMobileState; result: T },
   ): Promise<T> {
+    this.transactionCount++;
     const previous = this.tail;
     let release = () => {};
     const turn = new Promise<void>((resolve) => {
@@ -46,6 +54,11 @@ class MemoryPersistence implements Persistence {
     await previous;
     try {
       const changed = update(structuredClone(this.value ?? emptyState()));
+      if (this.nextTransactionFailure) {
+        const error = this.nextTransactionFailure;
+        this.nextTransactionFailure = null;
+        throw error;
+      }
       this.value = structuredClone(changed.state);
       return structuredClone(changed.result);
     } finally {
@@ -90,6 +103,35 @@ async function pairStore(
 
 function topic(id: string, name: string) {
   return { id, subjectId: "maths", name, description: "" };
+}
+
+function syncedChat(id: string) {
+  return syncedChatSchema.parse({
+    id,
+    title: "Atomic chat",
+    createdAt: new Date(now).toISOString(),
+    updatedAt: new Date(now).toISOString(),
+    deletedAt: null,
+    pinnedAt: null,
+    folderId: null,
+    sortOrder: 0,
+    modelSelection: null,
+    lineage: { schemaVersion: 1, kind: "root" },
+  });
+}
+
+function syncedMessage(id: string, chatId: string) {
+  return syncedMessageSchema.parse({
+    id,
+    chatId,
+    role: "user",
+    content: "Atomic message",
+    createdAt: new Date(now).toISOString(),
+    responseDurationMs: null,
+    resourceIds: [],
+    attachmentIds: [],
+    requestContext: null,
+  });
 }
 
 function studySession(id: string, revision: number, title: string, running = false) {
@@ -201,6 +243,71 @@ test("save atomically persists a validated local projection and immutable mutati
   assert.equal(after.phase, "ready");
 });
 
+test("saveBatch validates before writing and commits chat, message, and local journals atomically", async (t) => {
+  const cloud = await worker(t);
+  const { store, persistence } = await pairStore(cloud);
+  const chatId = randomUUID();
+  const messageId = randomUUID();
+  const batch = [
+    { kind: "chat", id: chatId, data: syncedChat(chatId) },
+    { kind: "message", id: messageId, data: syncedMessage(messageId, chatId) },
+  ];
+  const localValues = {
+    "chat-run:send-1": { chatId, userMessageId: messageId, state: "sending" },
+    "composer:active": null,
+  };
+  const initial = await persistence.read();
+  const initialTransactions = persistence.transactionCount;
+
+  await assert.rejects(
+    store.saveBatch([
+      batch[0]!,
+      { kind: "not-a-cloud-kind", id: randomUUID(), data: { id: randomUUID() } },
+    ], localValues),
+    /Unsupported Centre cloud record kind/,
+  );
+  assert.equal(persistence.transactionCount, initialTransactions);
+  assert.deepEqual(await persistence.read(), initial);
+  await assert.rejects(
+    store.saveBatch(batch, { invalid: () => "not JSON" } as unknown as Record<string, unknown>),
+    /JSON serializable/,
+  );
+  assert.equal(persistence.transactionCount, initialTransactions);
+  assert.deepEqual(await persistence.read(), initial);
+
+  persistence.failNextTransaction();
+  await assert.rejects(store.saveBatch(batch, localValues), /simulated durable commit failure/);
+  assert.deepEqual(await persistence.read(), initial);
+
+  await store.saveBatch(batch, localValues);
+  const committed = await persistence.read();
+  const workspace = Object.values(committed.workspaces)[0];
+  assert.ok(workspace);
+  assert.equal(committed.revision, initial.revision + 1);
+  assert.equal(persistence.transactionCount, initialTransactions + 2);
+  assert.deepEqual(
+    workspace.outbox.map(({ mutation }) => [mutation.kind, mutation.id]),
+    [["chat", chatId], ["message", messageId]],
+  );
+  assert.equal(workspace.entities[`e:${JSON.stringify(["chat", chatId])}`]?.version, 0);
+  assert.equal(workspace.entities[`e:${JSON.stringify(["message", messageId])}`]?.version, 0);
+  assert.deepEqual(workspace.localValues["v:chat-run:send-1"], localValues["chat-run:send-1"]);
+  assert.equal(workspace.localValues["v:composer:active"], null);
+});
+
+test("saveBatch rejects more than 25 items before opening a durable transaction", async (t) => {
+  const cloud = await worker(t);
+  const { store, persistence } = await pairStore(cloud);
+  const transactionCount = persistence.transactionCount;
+  const items = Array.from({ length: 26 }, (_, index) => {
+    const id = randomUUID();
+    return { kind: "topic", id, data: topic(id, `Topic ${index}`) };
+  });
+
+  await assert.rejects(store.saveBatch(items), /at most 25/);
+  assert.equal(persistence.transactionCount, transactionCount);
+});
+
 test("a lost write acknowledgment replays the exact stored mutation body", async (t) => {
   const cloud = await worker(t);
   let dropAcknowledgment = true;
@@ -259,7 +366,7 @@ test("100 edits coalesce behind an immutable uncertain head and replay before th
   };
   const { store } = await pairStore(cloud, persistence, fetcher);
   const id = randomUUID();
-  await store.save("topic", id, topic(id, "Draft 0"));
+  await store.saveBatch([{ kind: "topic", id, data: topic(id, "Draft 0") }]);
   const beforeSync = await persistence.read();
   const workspaceBeforeSync = Object.values(beforeSync.workspaces)[0];
   assert.ok(workspaceBeforeSync);
@@ -272,7 +379,7 @@ test("100 edits coalesce behind an immutable uncertain head and replay before th
   assert.equal(firstWriteDeliveryAtFetch, "uncertain");
 
   for (let revision = 1; revision <= 100; revision++) {
-    await store.save("topic", id, topic(id, `Draft ${revision}`));
+    await store.saveBatch([{ kind: "topic", id, data: topic(id, `Draft ${revision}`) }]);
   }
 
   const whileOffline = await persistence.read();
@@ -368,15 +475,23 @@ test("an older acknowledgment keeps a later local edit and its queued version", 
   await store.open();
   await store.pair(await invitation(cloud));
   const id = randomUUID();
-  await store.save("topic", id, topic(id, "First"));
+  const journalKey = "chat-run:send-1";
+  await store.saveBatch(
+    [{ kind: "topic", id, data: topic(id, "First") }],
+    { [journalKey]: { stage: "sending" } },
+  );
   const syncing = store.sync();
   await firstStarted;
-  await store.save("topic", id, topic(id, "Later edit"));
+  await store.saveBatch(
+    [{ kind: "topic", id, data: topic(id, "Later edit") }],
+    { [journalKey]: { stage: "response-streaming" } },
+  );
   releaseFirst();
   await syncing;
 
   assert.equal(entityAtSecondSend, "Later edit");
   assert.equal(store.getSnapshot().entities.find((entity) => entity.id === id)?.data?.name, "Later edit");
+  assert.deepEqual(await store.getLocal(journalKey), { stage: "response-streaming" });
   assert.equal(store.getSnapshot().pending, 0);
   assert.equal(writeCount, 2);
 });
