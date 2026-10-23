@@ -6,7 +6,7 @@ import { useApp } from './context';
 import { GeneralPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
 import { errorMessage, initials, timeAgo } from './format';
 import { MemorySettings } from './MemorySettings';
-import { MobileSettings } from './MobileSettings';
+import { MobileDownloadSummary, MobileSettings } from './MobileSettings';
 import { CloudSettings } from './CloudSettings';
 import { DesktopSettings } from './DesktopSettings';
 
@@ -328,7 +328,7 @@ export function SettingsPage() {
   return <div className="settings-layout">
     <nav className="settings-layout__nav" aria-label="Settings categories"><h1>Settings</h1>{categories.map(item => <button type="button" key={item.id} aria-current={category === item.id ? 'page' : undefined} onClick={() => setCategory(item.id)}><item.icon size={14} />{item.label}</button>)}</nav>
     <div className="settings-layout__content"><h1>{categories.find(item => item.id === category)?.label}</h1>
-      {category === 'general' ? <GeneralPreferences /> : null}
+      {category === 'general' ? <><MobileDownloadSummary onOpen={() => setCategory('mobile')} /><GeneralPreferences /></> : null}
       {category === 'study' ? <StudyPreferences /> : null}
       {category === 'memory' ? <MemorySettings /> : null}
       {category === 'models' ? <><ModelPreferences /><CodexSection /></> : null}

@@ -7,6 +7,13 @@ import { errorMessage } from './format';
 
 const distribution = mobileDistribution(import.meta.env.VITE_CENTRE_IOS_DISTRIBUTION_URL);
 
+export function MobileDownloadSummary({ onOpen }: { onOpen: () => void }) {
+  return <div className="preference-row">
+    <div><div className="preference-row__title">Centre for iPhone</div><p>{distribution ? 'Download Centre on your iPhone and connect your account.' : 'Not available to download yet. View release availability and setup in Centre’s iPhone section.'}</p></div>
+    <div className="preference-row__control"><button type="button" className="button button--small" onClick={onOpen}><Smartphone size={14} aria-hidden />{distribution ? 'Download & setup' : 'View iPhone setup'}</button></div>
+  </div>;
+}
+
 /** Shared by iPhone installation settings and Centre Cloud's account controls. */
 export function AccountPairing({onSignIn}:{onSignIn:()=>void}) {
   const [pairing, setPairing] = useState<{qr:string;expiresAt:string;link:string} | null>(null);
@@ -79,12 +86,22 @@ export function MobileSettings({onSignIn}:{onSignIn:()=>void}) {
   }, []);
   return <div className="mobile-settings">
     <section className="settings-section" aria-labelledby="mobile-install">
-      <div className="settings-section__intro"><h2 id="mobile-install" className="settings-section__title">Centre for iPhone</h2><p className="settings-section__description">Take your study with you. Read saved resources, practise quizzes and keep your study Log offline.</p></div>
+      <div className="settings-section__intro"><h2 id="mobile-install" className="settings-section__title">Download Centre for iPhone</h2><p className="settings-section__description">Read saved resources, practise quizzes and keep your study Log offline. Requires iOS 17 or later.</p></div>
       <div className="settings-section__body">
         {distribution ? <div className="mobile-install">
           {qr ? <img className="mobile-install__qr" src={qr} width={220} height={220} alt="Scan to open Centre's Apple installation invitation" /> : <Smartphone size={40} aria-hidden />}
-          <div><p>Scan with your iPhone camera to open {distribution.kind === 'testflight' ? 'the TestFlight invitation' : 'Centre in the App Store'}.</p><p className="settings-detail">Apple controls build availability. A configured link does not guarantee that testing is currently open.</p><button className="button button--small" type="button" onClick={() => void openExternal(distribution.url).catch(() => setError('The installation link could not open.'))}>Open installation link <ExternalLink size={12} /></button></div>
-        </div> : <div className="mobile-install"><Smartphone size={40} aria-hidden /><div><p>An iPhone release is not available yet.</p><p className="settings-detail">An approved TestFlight invitation or App Store listing will appear here when distribution is ready.</p></div></div>}
+          <div>
+            <ol className="mobile-install__steps">
+              {distribution.kind === 'testflight' ? <>
+                <li>Install Apple's TestFlight app from the App Store on your iPhone.</li>
+                <li>Scan this QR code with your iPhone camera, open the Centre invitation in TestFlight, then tap Accept and Install.</li>
+              </> : <li>Scan this QR code with your iPhone camera to open Centre in the App Store, then tap Get or the download button.</li>}
+              <li>Open Centre, then connect your account using the steps below.</li>
+            </ol>
+            <p className="settings-detail">{distribution.kind === 'testflight' ? 'TestFlight places may be full or the build may have expired. Follow the invitation for current availability.' : 'Apple controls availability for your device and region.'}</p>
+            <button className="button button--small" type="button" onClick={() => void openExternal(distribution.url).catch(() => setError('The installation link could not open.'))}>{distribution.kind === 'testflight' ? 'Open TestFlight invitation' : 'Open App Store'} <ExternalLink size={12} aria-hidden /></button>
+          </div>
+        </div> : <div className="mobile-install"><Smartphone size={40} aria-hidden /><div><p>An iPhone release is not available yet.</p><p className="settings-detail">Centre is not available to download from TestFlight or the App Store yet. The download link, installation steps and QR code will appear here when a release is ready.</p><p className="settings-detail">The account code below connects an already installed app. It cannot download or install Centre.</p></div></div>}
         {error ? <p className="form__error" role="alert">{error}</p> : null}
       </div>
     </section>
