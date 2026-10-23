@@ -2045,7 +2045,7 @@ private struct TimerPanel: View {
                     Image(systemName: "minus").frame(width: 44, height: 44)
                 }
                 .buttonStyle(CentreQuietButtonStyle())
-                .disabled(targetMinutes <= StudyRules.timerMinimumMinutes)
+                .disabled(acting || targetMinutes <= StudyRules.timerMinimumMinutes)
                 .accessibilityLabel("Decrease timer duration by 5 minutes")
                 .accessibilityIdentifier("timer.duration.decrease")
                 Text("\(targetMinutes) minutes")
@@ -2057,7 +2057,7 @@ private struct TimerPanel: View {
                     Image(systemName: "plus").frame(width: 44, height: 44)
                 }
                 .buttonStyle(CentreQuietButtonStyle())
-                .disabled(targetMinutes >= StudyRules.timerMaximumMinutes)
+                .disabled(acting || targetMinutes >= StudyRules.timerMaximumMinutes)
                 .accessibilityLabel("Increase timer duration by 5 minutes")
                 .accessibilityIdentifier("timer.duration.increase")
             }
@@ -2084,14 +2084,14 @@ private struct TimerPanel: View {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     let remaining = Study.remainingSeconds(data, now: context.date)
                     let elapsed = Study.elapsedSeconds(data, now: context.date) ?? (saved + max(0, context.date.timeIntervalSince(since)))
-                    Text(Study.clock(remaining ?? elapsed))
+                    Text(Study.clock(remaining.map { ceil($0) } ?? elapsed))
                         .font(.system(.largeTitle, design: .rounded).monospacedDigit())
                         .accessibilityLabel(remaining.map(Study.remainingLabel) ?? "Elapsed \(Study.duration(elapsed))")
                         .accessibilityIdentifier("timer.clock")
                 }
             } else {
                 let remaining = Study.remainingSeconds(data, now: Date())
-                Text(Study.clock(remaining ?? saved)).font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                Text(Study.clock(remaining.map { ceil($0) } ?? saved)).font(.system(.largeTitle, design: .rounded).monospacedDigit())
                     .foregroundStyle(palette.text2)
                     .accessibilityLabel(remaining.map(Study.remainingLabel) ?? "Saved \(Study.duration(saved))")
                     .accessibilityIdentifier("timer.clock")
