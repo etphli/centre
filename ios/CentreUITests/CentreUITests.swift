@@ -68,8 +68,14 @@ final class CentreUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Chat"].waitForExistence(timeout: 15))
     }
-    private func choosePickerOption(_ pickerId: String, containing optionText: String) {
+    private func choosePickerOption(_ pickerId: String, containing optionText: String, fromBottom: Bool = false) {
         let picker = app.descendants(matching: .any).matching(identifier: pickerId).firstMatch
+        if fromBottom {
+            for _ in 0..<10 {
+                if picker.exists && picker.isHittable { break }
+                scrollContainer().swipeDown()
+            }
+        }
         reveal(picker)
         XCTAssertTrue(picker.isHittable, "Attempt picker must be reachable: \(pickerId)")
         picker.tap()
@@ -353,8 +359,10 @@ final class CentreUITests: XCTestCase {
         XCTAssertFalse(deletedResource.exists)
         choosePickerOption("practiceHistory.resourceFilter", containing: "All resources")
         tap("practiceHistory.resource.\(quizId)")
+        waitText("original question text and marking model were not saved")
 
         let change = app.staticTexts["practiceHistory.change.q1"]
+        reveal(change)
         XCTAssertTrue(change.waitForExistence(timeout: 10))
         XCTAssertEqual(change.label, "Repeated mistake", "Default comparison should use the oldest and latest saved attempts.")
         XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
@@ -364,19 +372,21 @@ final class CentreUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
         XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.feedback"].label, "Latest saved feedback.")
         XCTAssertTrue(app.staticTexts["Current prompt"].exists)
-        waitText("original question text and marking model were not saved")
 
-        choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 2")
+        choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 2", fromBottom: true)
+        reveal(change)
         waitLabel(change, "Lower mark")
         XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
         XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.answer"].label, "Second saved response")
-        choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 1")
+        choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 1", fromBottom: true)
         choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 2")
+        reveal(change)
         waitLabel(change, "Improved")
         XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Second saved response")
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.repeatedMistake.q1").firstMatch.exists,
                       "A partial improvement can still be below full marks in both attempts.")
-        choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 4")
+        choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 4", fromBottom: true)
+        reveal(change)
         waitLabel(change, "Repeated mistake")
         XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
         capture("23-native-log-practice-attempt-comparison")
@@ -389,6 +399,7 @@ final class CentreUITests: XCTestCase {
         tap("practiceHistory.resource.deleted-resource")
 
         waitText("This resource is deleted or unavailable")
+        reveal(app.staticTexts["Saved deleted-resource answer"])
         XCTAssertTrue(app.staticTexts["Saved deleted-resource answer"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Saved deleted-resource feedback."].exists)
         XCTAssertFalse(app.staticTexts["Current prompt"].exists, "Deleted resources must not supply current prompt text.")

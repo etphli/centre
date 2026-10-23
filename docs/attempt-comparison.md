@@ -20,7 +20,7 @@ Desktop history comes only from the authenticated local service's current snapsh
 
 ## Portable code and verification
 
-`shared/attempt-comparison.ts` has no runtime dependencies. It exports `AttemptRecord`, `attemptQuestions`, `attemptSummary`, `chronologicalAttempts`, `normalizedScore` and `compareAttempts`. Callers supply workspace-scoped attempts and order the comparison pair. Invalid legacy dates follow dated attempts. The native counterpart mirrors these rules in CentreCore.
+`shared/attempt-comparison.ts` has no runtime dependencies. It exports `AttemptRecord`, `attemptQuestions`, `attemptSummary`, `chronologicalAttempts`, `normalizedScore` and `compareAttempts`. Callers supply workspace-scoped attempts and order the comparison pair. Invalid legacy dates follow dated attempts. The native counterpart mirrors these rules in `ios/Sources/CentreCore/PracticeHistory.swift`. Native Log opens Practice history, with subject/resource filters and a per-resource chronological score history and comparison picker. The active resource and subject stay linked when available.
 
 Run:
 

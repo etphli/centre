@@ -19,4 +19,13 @@ The cloud tests run the real Worker and local SQLite-backed D1 adapter with synt
 
 ## Native verification limitation
 
-The local device service returned no iOS devices. `device_open` returned `No ios devices were found on host local`. The selected developer directory is `/Library/Developer/CommandLineTools`; `xcrun simctl` is unavailable and `xcodebuild -version` requires full Xcode. No Xcode application was found locally. Native simulator UI, unsigned iOS build and iOS screenshots therefore require the repository's iOS CI workflow or a machine with full Xcode. Existing screenshots from earlier features are not evidence for this change.
+The local device service returned no iOS devices. `device_open` returned `No ios devices were found on host local`. The selected developer directory is `/Library/Developer/CommandLineTools`; `xcrun simctl` is unavailable and `xcodebuild -version` requires full Xcode. No Xcode application was found locally. The integrated `CentreCoreVerify` executable passed against the real portable code, including countdown, persisted workspace isolation, attempt chronology, marking validity, unanswered/repeated-mistake distinctions and deleted-resource history. See [portable output](ios-portable.txt). Run it with:
+
+```sh
+mkdir -p .runtime/swift-tmp
+TMPDIR="$PWD/.runtime/swift-tmp" swift run --disable-sandbox --scratch-path .runtime/swift-build --package-path ios CentreCoreVerify
+```
+
+Swift frontend parsing passed for the app, UI test, domain and domain-test files. XCTest execution is blocked locally because this toolchain has no XCTest module. The unsigned build/UI command stops at the missing full-Xcode check. Simulator UI and screenshots remain unverified; existing screenshots from earlier features are not evidence for this change.
+
+The repository's iOS CI workflow was also inspected. Recent macOS jobs were prevented from starting with the annotation: "The job was not started because recent account payments have failed or your spending limit needs to be increased." No billing change is authorized or made. The PR records its own check outcome after creation.
