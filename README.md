@@ -61,6 +61,8 @@ For the iPhone Home Screen app, open **Settings > iPhone**, or choose **View iPh
 
 Diagrams embed directly into chat and resource pages, resize to fit their content, and follow the active colour theme. **Open file** opens a standalone HTML copy. **Move** corrects a saved resource’s subject and topic. The diagram frame blocks network access and access to the app.
 
+Test questions can have different amounts of ruled or blank working space, graphs beside or below the working, and individual page breaks. For graphing practice, Centre supplies blank axes and plots the solutions in the separate answer key. The model chooses these layouts from your request and reference images. Cartesian diagrams currently support quadratic curves, straight lines and labelled points. Desktop and iPhone display the saved graph data offline.
+
 For PDF papers, install [Tectonic](https://tectonic-typesetting.github.io/). Its first compilation downloads typesetting support files, so an internet connection is required unless the bundle is cached. You can export `.tex` source without Tectonic.
 
 ## Google sign-in

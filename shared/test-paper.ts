@@ -2,6 +2,14 @@ import { responseTypeValues, type Resource, type ResponseType } from './schema';
 
 export type TestPaperQuestion = Resource['questions'][number];
 
+export function paperFragmentMarkdown(fragment:string) {
+  return fragment.replace(/\\begin\{enumerate\}(?:\[[^\]]*\])?([\s\S]*?)\\end\{enumerate\}/g,(_,body:string) =>
+    '\n\n'+body.split(/\\item\s+/).filter(value=>value.trim()).map((value,index)=>`${index+1}. ${value.trim()}`).join('\n\n')+'\n\n')
+    .replace(/\\par\b/g,'\n\n').replace(/\\(?:newline|linebreak)\b/g,'\n')
+    .replace(/\\hfill\b/g,' ').replace(/\\(?:smallskip|medskip|bigskip)\b/g,'\n\n')
+    .replace(/\\textbf\{([^{}]*)\}/g,'**$1**').replace(/\\(?:textit|emph)\{([^{}]*)\}/g,'*$1*');
+}
+
 export type TestSection = {
   letter: string;
   name: string;

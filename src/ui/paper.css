@@ -20,7 +20,10 @@
 .paper-section__header h3{margin:5px 0 7px;font-size:1.375rem;font-weight:500}
 .paper-section__header p{font-size:0.75rem;margin:0;color:#716c61}
 .paper--section .paper__questions{gap:28px}
-.paper__answer-space{height:80px}.paper__answer-space--long_response{height:150px}
+.paper-working-space{min-width:0;flex:1}.paper-working-line{height:8mm;border-bottom:1px solid #d6d1c7}
+.paper-workspace{margin-top:14px}.paper-workspace--beside{display:flex;align-items:flex-start;gap:20px}.paper-workspace--beside>.paper-graph{flex:1;min-width:0}
+.paper-graph{--graph-bg:#fff}.paper-answer-key>summary{cursor:pointer;padding:16px 0}.paper-question--new-page{break-before:page}.paper .markdown ol{list-style-type:lower-alpha}
+@media(max-width:600px){.paper-workspace--beside{flex-direction:column}.paper-workspace--beside>.paper-working-space{width:100%}}
 .paper__questions>li .paper__choices{margin-top:12px;padding-left:22px;display:grid;gap:7px}
 .paper__questions>li .paper__choices>li{padding-right:0}
 @media(max-width:1050px){.paper--cover,.paper--section{padding:36px 28px}.paper--cover{min-height:580px}.paper-cover__title h2{font-size:1.625rem}}

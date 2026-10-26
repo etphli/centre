@@ -1,4 +1,5 @@
 import { studyLogSchema, emptyStudyLog } from './study-log';
+import { paperLayoutSchema } from './paper-layout';
 import { connectedFileSchema } from './connected-files';
 import { connectorStatusSchema } from './connectors';
 import { interactiveResourceProgressSchema } from './checklist-progress';
@@ -24,8 +25,8 @@ export const testLengthSchema = z.discriminatedUnion('mode', [
 export type TestLength = z.infer<typeof testLengthSchema>;
 export const subjectSchema = z.object({ id: z.string(), name: z.string(), shortName: z.string().nullable(), color: z.string(), icon: z.string().default('book') });
 export const topicSchema = z.object({ id: z.string(), subjectId: z.string(), name: z.string(), description: z.string().default('') });
-export const questionSchema = z.object({ id: z.string(), concept: z.string().trim().max(100).default(''), responseType: responseTypeSchema.default('short_response'), choices: z.array(z.string().min(1)).max(6).default([]), prompt: z.string(), answer: z.string(), explanation: z.string().default(''), marks: z.number().int().positive().default(1) });
-const generatedQuestionBaseSchema = questionSchema.omit({ id: true });
+export const questionSchema = z.object({ id: z.string(), concept: z.string().trim().max(100).default(''), responseType: responseTypeSchema.default('short_response'), choices: z.array(z.string().min(1)).max(6).default([]), prompt: z.string(), answer: z.string(), explanation: z.string().default(''), marks: z.number().int().positive().default(1), paperLayout:paperLayoutSchema.nullable().optional() });
+const generatedQuestionBaseSchema = questionSchema.omit({ id: true }).extend({paperLayout:paperLayoutSchema.nullable().default(null)});
 export const generatedQuestionSchema = z.discriminatedUnion('responseType', [
   generatedQuestionBaseSchema.safeExtend({ responseType: z.literal('multiple_choice'), choices: z.array(z.string().min(1)).min(2).max(6) }).refine(question => question.choices.includes(question.answer), { path: ['answer'], message: 'The answer must exactly match one of the choices.' }),
   generatedQuestionBaseSchema.safeExtend({ responseType: z.literal('short_response'), choices: z.array(z.string()).max(0).default([]) }),

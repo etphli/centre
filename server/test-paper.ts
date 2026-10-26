@@ -1,6 +1,8 @@
 import type { Resource, TestLength } from '../shared/schema';
 import { getTestSections } from '../shared/test-paper';
 import { normalizePaperMath } from './test-math';
+import { questionPaperLayout, type PaperLayout } from '../shared/paper-layout';
+import { graphLatex } from './paper-graph';
 
 const latexEscape = (value: string) => value.replace(/[\\{}$&#%_~^]/g, char => ({
   '\\': '\\textbackslash{}',
@@ -29,6 +31,22 @@ const sectionInstructions: Record<Resource['questions'][number]['responseType'],
 
 const totalMarks = (questions: Resource['questions']) => questions.reduce((total, question) => total + question.marks, 0);
 
+function workingSpace(space:PaperLayout['workingSpace']) {
+  switch (space.kind) {
+    case 'none': return '';
+    case 'blank': return `\\par\\vspace{${space.heightMm}mm}`;
+    case 'lines': return Array.from({length:space.lines},()=>'\\par\\vspace{7mm}\\noindent\\rule{\\linewidth}{0.2pt}').join('\n');
+  }
+}
+function questionWorkspace(layout:PaperLayout) {
+  const working = workingSpace(layout.workingSpace);
+  if (!layout.questionGraph) return working;
+  const graph = graphLatex(layout.questionGraph,latexEscape);
+  return layout.graphPlacement === 'beside' && layout.workingSpace.kind !== 'none'
+    ? `\\par\\medskip\\noindent\\begin{minipage}[t]{0.47\\linewidth}\\vspace{0pt}\n${working}\n\\end{minipage}\\hfill\\begin{minipage}[t]{0.49\\linewidth}\\vspace{0pt}\n${graph}\n\\end{minipage}`
+    : `${working}\n\\par\\medskip\\noindent\\begin{minipage}{0.75\\linewidth}\n${graph}\n\\end{minipage}`;
+}
+
 export function paperTemplate(
   title: string,
   subject: string,
@@ -47,11 +65,15 @@ export function paperTemplate(
   ).join('\n');
   const sectionPages = sections.map((section, sectionIndex) => {
     const renderedQuestions = section.questions.map(question => {
+      const layout = questionPaperLayout(question);
       const choices = question.responseType === 'multiple_choice'
         ? `\n\\begin{enumerate}[label=\\Alph*.,leftmargin=*,itemsep=2mm]\n${question.choices.map(choice => `\\item ${normalizePaperMath(choice)}`).join('\n')}\n\\end{enumerate}`
         : '';
       const markLabel = question.marks === 1 ? 'mark' : 'marks';
-      return `\\item ${normalizePaperMath(question.prompt)} \\hfill \\mbox{[${question.marks} ${markLabel}]}${choices}\n\\par\\vspace{28mm}`;
+      const workHeight = layout.workingSpace.kind === 'lines' ? layout.workingSpace.lines*8 : layout.workingSpace.kind === 'blank' ? layout.workingSpace.heightMm : 0;
+      const workspaceHeight = layout.questionGraph ? layout.graphPlacement === 'beside' ? Math.max(workHeight,70) : workHeight+105 : workHeight;
+      const breakBefore = layout.startOnNewPage ? '\\newpage\n' : `\\Needspace{${Math.min(215,35+workspaceHeight)}mm}\n`;
+      return `${breakBefore}\\item ${normalizePaperMath(question.prompt)} \\hfill \\mbox{[${question.marks} ${markLabel}]}${choices}\n${questionWorkspace(layout)}`;
     }).join('\n');
     const pageBreak = sectionIndex === 0 ? '' : '\\clearpage\n';
     return `${pageBreak}{\\Large\\bfseries Part ${section.letter}: ${section.name}}\\par\\medskip
@@ -61,13 +83,16 @@ ${sectionInstructions[section.responseType]}\\par\\bigskip
 ${renderedQuestions}
 \\end{enumerate}`;
   }).join('\n');
-  const answers = sections.flatMap(section => section.questions).map(question =>
-    `\\item ${normalizePaperMath(question.answer)}\\par ${normalizePaperMath(question.explanation)}`,
-  ).join('\n');
+  const answers = sections.flatMap(section => section.questions).map(question => {
+    const graph = questionPaperLayout(question).answerGraph;
+    return `${graph?'\\Needspace{150mm}\n':''}\\item ${normalizePaperMath(question.answer)}\\par ${normalizePaperMath(question.explanation)}${graph?`\n\\par\\medskip\\noindent\\begin{minipage}{0.65\\linewidth}\n${graphLatex(graph,latexEscape)}\n\\end{minipage}`:''}`;
+  }).join('\n');
+  const hasGraphs = questions.some(question=>question.paperLayout?.questionGraph || question.paperLayout?.answerGraph);
 
   return `\\documentclass[11pt,a4paper]{article}
 \\usepackage[margin=22mm]{geometry}
 \\usepackage{amsmath,amssymb,fancyhdr,enumitem}
+\\usepackage{needspace}${hasGraphs?'\n\\usepackage{tikz}':''}
 \\usepackage[T1]{fontenc}
 \\pagestyle{fancy}
 \\fancyhf{}

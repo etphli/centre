@@ -1339,6 +1339,7 @@ private struct QuizView: View {
 
 @MainActor
 private struct QuestionView: View {
+    @EnvironmentObject private var model: AppModel
     @Environment(\.centre) private var palette
     let question: JSONValue
     @Binding var answer: String
@@ -1348,6 +1349,7 @@ private struct QuestionView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(question["prompt"].string ?? "").modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 0, standardFont: CentreFont.serif(.title3)))
                 .accessibilityIdentifier("quiz.prompt")
+            PaperGraphView(value:question["paperLayout"]["questionGraph"])
             if let marks = question["marks"].int, marks > 1 {
                 Text("\(marks) marks").font(.footnote).foregroundStyle(palette.text3)
             }
@@ -1453,6 +1455,7 @@ private struct AttemptResultView: View {
                     if let explanation = question["explanation"].string.nonEmpty {
                         Text(explanation).modifier(ReadingStyle(preferences: model.preferences, standardSpacing: 0, standardFont: .footnote)).foregroundStyle(palette.text2)
                     }
+                    PaperGraphView(value:question["paperLayout"]["answerGraph"])
                 }
                 .centreRow(palette)
             }

@@ -118,3 +118,19 @@ test('paper supports question-count mode and preserves the legacy default', () =
   assert.ok(paperTemplate('Counted', 'Maths', questions, { mode: 'questions', questionCount: 1 }).includes('Question count: 1'));
   assert.ok(paperTemplate('Legacy', 'Maths', questions).includes('Duration: 45 minutes'));
 });
+
+test('graphing questions get model-selected working space and a plotted answer without revealing it on the paper', () => {
+  const axes = { xMin:-3,xMax:7,yMin:-12,yMax:10,curves:[],points:[] };
+  const question = questionSchema.parse({
+    ...makeQuestion('graph', 'long_response', 6, 'Sketch $y=x^{2}-2x-8$.', 'Vertex $(1,-9)$.'),
+    paperLayout:{workingSpace:{kind:'lines',lines:6},graphPlacement:'beside',startOnNewPage:false,
+      questionGraph:axes,answerGraph:{...axes,curves:[{a:1,b:-2,c:-8,label:'y'}],points:[{x:1,y:-9,label:'V'}]}},
+  });
+  const paper = paperTemplate('Graph practice','Maths',[question]);
+  const [questions,answers] = paper.split('{\\Large\\bfseries Answers and marking guidance}');
+  assert.match(questions!, /\\begin\{tikzpicture\}/);
+  assert.match(questions!, /\\begin\{minipage\}/);
+  assert.ok(!questions!.includes('plot coordinates'));
+  assert.match(answers!, /plot coordinates/);
+  assert.ok(!paper.includes('\\vspace{28mm}'));
+});

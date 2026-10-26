@@ -1,3 +1,4 @@
+import { PaperGraph } from '../../shared/PaperGraph';
 import { ConnectedFileView } from './ConnectedFileView';
 import { connectorCatalog } from '../../shared/connectors';
 import { DeleteResource } from './DeleteResource';
@@ -277,6 +278,7 @@ function Quiz({ resource, questionId }: { resource: Resource; questionId?: strin
           <div id={promptId} className="question__prompt"><Markdown>{mathText(question.prompt)}</Markdown></div>
           <span className="question__marks">{plural(question.marks, 'mark')}</span>
         </div>
+        {question.paperLayout?.questionGraph?<PaperGraph graph={question.paperLayout.questionGraph}/>:null}
         {result ? (
           <>
             <div className="quiz__your-answer" tabIndex={-1} ref={(node) => { focusTarget.current = node; }}>
@@ -292,6 +294,7 @@ function Quiz({ resource, questionId }: { resource: Resource; questionId?: strin
             <details className="quiz__model">
               <summary><ChevronRight className="quiz__disclosure-chevron" size={14} aria-hidden /> Model answer</summary>
               <Markdown>{mathText(question.answer) + (question.explanation ? `\n\n${question.explanation}` : '')}</Markdown>
+              {question.paperLayout?.answerGraph?<PaperGraph graph={question.paperLayout.answerGraph}/>:null}
             </details>
           </>
         ) : question.responseType === 'multiple_choice' ? (
