@@ -165,7 +165,7 @@ final class PracticeHistoryTests: XCTestCase {
     private func snapshot(_ id: String, kind: String = "practice.attempt", resourceId: String = "resource",
                           createdAt: String = "2026-10-22T00:00:00.000Z",
                           answers: [String: String] = [:], score: Double = 1, total: Double = 1,
-                          marks: [JSONValue] = [mark("q", score: 1, max: 1)]) throws -> PracticeAttemptSnapshot {
+                          marks: [JSONValue]? = nil) throws -> PracticeAttemptSnapshot {
         let answerValues = answers.mapValues(JSONValue.string)
         let data: JSONValue = .object([
             "schemaVersion": .number(1),
@@ -176,7 +176,7 @@ final class PracticeHistoryTests: XCTestCase {
             "result": .object([
                 "score": .number(score),
                 "total": .number(total),
-                "feedback": .array(marks)
+                "feedback": .array(marks ?? [mark("q", score: 1, max: 1)])
             ])
         ])
         let record = CloudRecord(kind: kind, id: id, data: data)

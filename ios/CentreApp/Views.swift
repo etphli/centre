@@ -259,6 +259,7 @@ private struct ChatThreadView: View {
 
     var body: some View {
         let messages = thread()
+        let history = QuestionAnswerHistory.project(messages)
         let chatData = model.record(kind: "chat", id: chatId).map { model.data($0) }
         let fromDesktop = chatData.map { !$0["modelSelection"].uiIsNull } ?? false
         ScrollViewReader { proxy in
@@ -268,8 +269,13 @@ private struct ChatThreadView: View {
                          ? "Started in Centre on your Mac with Codex. Replies sent from this iPhone come from Llama 3.1 in Centre Cloud."
                          : "Replies come from Llama 3.1 in Centre Cloud, within a daily allowance.")
                         .font(.footnote).foregroundStyle(palette.text3)
-                    ForEach(messages) { message in
-                        MessageRow(record: message).id(message.id)
+                    ForEach(history) { item in
+                        switch item {
+                        case .message(let message):
+                            MessageRow(record: message).id(item.id)
+                        case .clarification(let details):
+                            ClarificationAnswersRow(details: details).id(item.id)
+                        }
                     }
                     if let status = replyStatus(messages) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -291,9 +297,9 @@ private struct ChatThreadView: View {
             .background(palette.bg)
             .scrollDismissesKeyboard(.interactively)
             .refreshable { waitedOut = false; await model.sync() }
-            .onAppear { if let last = messages.last { proxy.scrollTo(last.id, anchor: .bottom) } }
+            .onAppear { if let last = history.last { proxy.scrollTo(last.id, anchor: .bottom) } }
             .onChange(of: messages.count) { _, _ in
-                if let last = messages.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
+                if let last = history.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
             }
         }
         // While a reply is outstanding, check for it for up to two minutes, then stop and say so.
@@ -324,7 +330,9 @@ private struct ChatThreadView: View {
     /// Match the durable submission to this exact user message; a failed quiz never changes a chat's state.
     private func replyStatus(_ messages: [CloudRecord]) -> (text: String, working: Bool, failed: Bool)? {
         if sending { return ("Saving your message…", true, false) }
-        guard let last = messages.last, model.data(last)["role"].string == "user" else { return nil }
+        guard let last = messages.last,
+              !QuestionAnswerHistory.isClarificationRecord(last),
+              model.data(last)["role"].string == "user" else { return nil }
         if !model.cloudAIAllowed { return ("Cloud AI is paused. Your message is saved. Allow Cloudflare AI in Settings to send it.",false,false) }
         if let run=model.chatRun(chatId:chatId,messageId:last.id),run.status == "unavailable" {
             return ((run.error?["message"].string ?? "Cloud AI is unavailable.")+" Your message is saved. Pull down to check again.",false,false)
@@ -377,6 +385,50 @@ private struct ChatThreadView: View {
             if let workspace,await model.send(workspace:workspace,chatId:chatId,text:text) != nil,draft == text { draft="" }
             sending = false
         }
+    }
+}
+
+@MainActor
+private struct ClarificationAnswersRow: View {
+    @Environment(\.centre) private var palette
+    @State private var isExpanded = false
+    let details: ClarificationDetails
+
+    private var batchCount: String {
+        "\(details.batches.count) clarification \(details.batches.count == 1 ? "batch" : "batches")"
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(details.batches) { batch in
+                    Text(verbatim: batch.content)
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("chat.clarification.content.\(batch.id)")
+                }
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: "sparkles")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Reasoning")
+                        .font(.footnote.weight(.semibold))
+                    Text(details.isPending ? "\(batchCount) · Response pending" : batchCount)
+                        .font(.caption)
+                        .foregroundStyle(palette.text3)
+                }
+            }
+            .foregroundStyle(palette.text2)
+        }
+        .font(.footnote)
+        .tint(palette.text2)
+        .padding(12)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityIdentifier("chat.clarification.toggle.\(details.id)")
     }
 }
 
