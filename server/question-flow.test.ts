@@ -74,6 +74,7 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     assert.equal((await request(`/questions/${question.id}/answer`,'POST',{answers:{format:'Again'}})).status,409);
     const saved = JSON.parse(await readFile(join(directory,'state.json'),'utf8'));
     assert.deepEqual(saved.pendingQuestions,[]); assert.match(saved.chats[0].messages[1].content,/Use five mixed questions/); assert.match(saved.chats[0].messages[1].content,/Explanation 3/);
+    assert.equal(saved.chats[0].messages[1].requestContext.page,'question-answer');
     assert.ok(saved.chats[0].messages.at(-1).responseDurationMs >= 0);
 
     const cancelled = request(`/chats/${chat.id}/messages`,'POST',{content:'Another quiz.',context:{page:'chat'}});

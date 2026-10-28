@@ -1,6 +1,7 @@
 import { BookOpen, Check, ChevronRight, GitBranch, Maximize2, MessageSquare, PanelRight, Pencil, Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Chat, Message, Resource, Snapshot } from '../../shared/schema';
+import { projectConversation } from '../../shared/conversation';
 import { api } from '../data/client';
 import { Composer } from './Composer';
 import { MessageAttachments } from './Attachments';
@@ -60,7 +61,7 @@ function ActivityBody({ steps }: {steps:Chat['activity']}) {
   const follow = useRef(true);
   useEffect(() => { if (body.current && follow.current) body.current.scrollTop = body.current.scrollHeight; },[steps]);
   return <div className="thinking-details__body" ref={body} onScroll={() => { const node = body.current; if (node) follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 40; }}>
-    {steps.some(step => step.kind !== 'skill') ? steps.filter(step => step.kind !== 'skill').map(step => step.kind === 'tool' ? <div className="thinking-details__step" key={step.id}>{step.state === 'done' ? <Check size={12} /> : step.state === 'error' ? <X size={12} className="activity-error" /> : <span className="spinner spinner--small" />}<span>{step.text}</span></div> : <div className="thinking-details__summary" key={step.id}><Markdown>{step.text}</Markdown></div>) : <p>Preparing the response…</p>}
+    {steps.some(step => step.kind !== 'skill') ? steps.filter(step => step.kind !== 'skill').map(step => step.kind === 'tool' ? <div className="thinking-details__step" key={step.id}>{step.state === 'done' ? <Check size={12} /> : step.state === 'error' ? <X size={12} className="activity-error" /> : <span className="spinner spinner--small" />}<span>{step.text}</span></div> : <div className="thinking-details__summary" key={step.id}>{step.id.startsWith('answer:') ? <p style={{whiteSpace:'pre-wrap'}}>{step.text}</p> : <Markdown>{step.text}</Markdown>}</div>) : <p>Preparing the response…</p>}
   </div>;
 }
 
@@ -73,6 +74,10 @@ function ThinkingDetails({ steps,duration }: {steps:Chat['activity'];duration:nu
   const { state: { settings } } = useApp();
   if (!steps.length) return null;
   return <><SkillUsage steps={steps} /><details open={settings.activityVisibility === 'expanded'} className="thinking-details"><summary><ChevronRight size={13} />{duration === null ? 'Thinking' : `Worked for ${Math.max(1,Math.round(duration / 1000))}s`}<span>{steps.some(step => step.kind === 'tool') ? `${steps.filter(step => step.kind === 'tool').length} actions` : ''}</span></summary><ActivityBody steps={steps} /></details></>;
+}
+
+function questionAnswerSteps(messages: Message[]): Chat['activity'] {
+  return messages.map(message => ({ id:`answer:${message.id}`,kind:'summary',state:'done',text:message.content }));
 }
 
 function WorkingActivity({ steps,turn,waiting,onStop,onExpand }: {steps:Chat['activity'];turn:Turn;waiting:boolean;onStop:() => void;onExpand:() => void}) {
@@ -261,9 +266,10 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
   const end = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const messages = chat?.messages ?? [];
-  const last = messages[messages.length - 1];
-  const showPending = turn && !(last?.role === 'user' && last.content === turn.content) && turn.status !== 'error';
-  const liveSteps = chat?.activity ?? [];
+  const conversation = projectConversation(messages);
+  const last = conversation.visible.at(-1)?.message;
+  const showPending = turn && !messages.some(message => message.role === 'user' && (turn.messageId ? message.id === turn.messageId : message.content === turn.content)) && turn.status !== 'error';
+  const liveSteps = [...questionAnswerSteps(conversation.trailingQuestionAnswers),...(chat?.activity ?? [])];
   const waiting = state.pendingQuestions.some(request => request.chatId === chat?.id);
   const responding = state.activeResponses.some(response => response.chatId === chat?.id);
   // Branching, editing and retrying wait for the chat to settle: no reply running or stopping, no question open.
@@ -336,11 +342,12 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
   return (
     <div className={`thread${compact ? ' thread--compact' : ''}`} aria-live="polite" aria-busy={turn?.status === 'working'}>
       {lineage ? <LineageBanner lineage={lineage} parent={parent} compact={compact} /> : null}
-      {messages.map(message => {
+      {conversation.visible.map(({message,questionAnswers}) => {
         const isEditing = editing === message.id;
         const actionable = chat && !isEditing && (message.role === 'assistant' || replied.has(message.id));
         return (
           <div id={`chat-message-${message.id}`} className="thread__item" key={message.id}>
+            {message.role === 'user' && questionAnswers.length ? <ThinkingDetails steps={questionAnswerSteps(questionAnswers)} duration={null} /> : null}
             {message.role === 'user' ? (
               <div className="message message--user">
                 {marks.prompt === message.id ? <BranchLabel label="Edited prompt" /> : null}
@@ -353,7 +360,7 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
             ) : (
               <div className="message message--assistant">
                 {marks.reply === message.id ? <BranchLabel label={lineage?.operation === 'edit' ? 'Reply to edited prompt' : 'Alternate reply'} note /> : null}
-                <ThinkingDetails steps={message.activity} duration={message.responseDurationMs} />
+                <ThinkingDetails steps={[...questionAnswerSteps(questionAnswers),...message.activity]} duration={message.responseDurationMs} />
                 <Markdown>{message.content}</Markdown>
               </div>
             )}
@@ -380,6 +387,7 @@ export function Thread({ chat, turn, compact = false, messageId }: { chat: Chat 
         </div>
       ) : null}
       {turn && turn.status !== 'error' ? <WorkingActivity steps={liveSteps} turn={turn} waiting={waiting} onExpand={() => { follow.current = true; end.current?.scrollIntoView({block:'end'}); }} onStop={() => { if (turn.chatId) void cancel(turn.chatId); }} /> : null}
+      {(!turn || turn.status === 'error') && conversation.trailingQuestionAnswers.length ? <ThinkingDetails steps={questionAnswerSteps(conversation.trailingQuestionAnswers)} duration={null} /> : null}
       {failedRetry ? retryNotice(failed?.error ?? chat?.responseError ?? 'No reply yet.', () => void retry(failedRetry), true) : null}
       {failedResend ? retryNotice(failedResend.error ?? 'The message wasn’t sent.', () => void send(failedResend.content, failedResend.context, failedResend.chatId, undefined, failedResend.attachmentIds, failedResend.resourceRequest), true) : null}
       {stalled ? retryNotice(chat?.responseError ?? 'No reply yet.', () => void retry(stalled), Boolean(chat?.responseError)) : null}

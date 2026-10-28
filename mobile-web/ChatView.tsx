@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { ChevronRight, MessageSquare, Plus, Send } from 'lucide-react';
 import { syncedChatSchema, syncedMessageSchema } from '../shared/chat-sync';
+import { projectConversation } from '../shared/conversation';
 import { library, dateLabel } from './domain';
 import { MobileRequestError, type MobileState } from './data/store';
 import type { MobileModel } from './model';
@@ -20,6 +21,7 @@ export function ChatView({state,model,selected,onSelect}:{state:MobileState;mode
 function Conversation({state,model,chatId,onBack}:{state:MobileState;model:MobileModel;chatId:string;onBack:()=>void}) {
   const data=useMemo(()=>library(state.entities),[state.entities]),chat=data.chats.find(item=>item.id===chatId);
   const messages=data.messages.filter(item=>item.chatId===chatId).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
+  const conversation=projectConversation(messages);
   const [text,setText]=useState(''),[journal,setJournal]=useState<z.infer<typeof journalSchema>|null>(null),[consent,setConsent]=useState(false),[loaded,setLoaded]=useState(false),[draftError,setDraftError]=useState<string|null>(null),[restoreError,setRestoreError]=useState(false),[loadVersion,setLoadVersion]=useState(0);
   const action=useAction();
   useEffect(()=>{let live=true;setLoaded(false);setRestoreError(false);void model.serial(async()=>Promise.all([model.store.getLocal(`compose:${chatId}`),model.store.getLocal(`run:${chatId}`),model.store.getLocal('cloud-ai-consent')])).then(([saved,run,agreed])=>{if(!live)return;setText(typeof saved==='string'?saved:'');const parsed=journalSchema.safeParse(run);setJournal(parsed.success?parsed.data:null);setConsent(agreed===true);setLoaded(true);}).catch(()=>{if(live)setRestoreError(true);});return()=>{live=false;};},[model,chatId,loadVersion]);
@@ -50,10 +52,14 @@ function Conversation({state,model,chatId,onBack}:{state:MobileState;model:Mobil
     setText('');setJournal(input);await runAi(input);
   }
   return <><Back onClick={onBack}>Chats</Back><div className="page-title"><h1>{chat?.title??'Chat'}</h1></div><p className="detail">Replies use Centre Cloud AI. Your laptop can stay closed. Daily limits apply.</p>
-    {!messages.length?<Empty title="What are you working on?">Ask a question, plan a study session or work through a difficult idea.</Empty>:<div className="messages">{messages.map(item=><article className={`message message--${item.role}`} key={item.id}><p className="message-role">{item.role==='user'?'You':'Centre'}</p><Markdown text={item.content}/>{item.attachmentIds.length?<p className="detail">{item.attachmentIds.length} saved {item.attachmentIds.length===1?'attachment':'attachments'}. Open this conversation on your Mac to view them.</p>:null}</article>)}</div>}
+    {!messages.length?<Empty title="What are you working on?">Ask a question, plan a study session or work through a difficult idea.</Empty>:<div className="messages">{conversation.visible.map(({message:item,questionAnswers})=><article className={`message message--${item.role}`} key={item.id}>{questionAnswers.length?<QuestionAnswers messages={questionAnswers}/>:null}<p className="message-role">{item.role==='user'?'You':'Centre'}</p><Markdown text={item.content}/>{item.attachmentIds.length?<p className="detail">{item.attachmentIds.length} saved {item.attachmentIds.length===1?'attachment':'attachments'}. Open this conversation on your Mac to view them.</p>:null}</article>)}{conversation.trailingQuestionAnswers.length?<QuestionAnswers messages={conversation.trailingQuestionAnswers}/>:null}</div>}
     {<label className="choice consent"><input type="checkbox" disabled={!loaded||action.busy} checked={consent} onChange={event=>{const checked=event.target.checked;setConsent(checked);void model.serial(()=>model.store.saveLocal('cloud-ai-consent',checked)).catch(()=>{setConsent(!checked);setDraftError('Your AI preference could not be saved. Please try again.');});}}/><span>Use Centre Cloud AI. My messages will be sent to Cloudflare for a reply.</span></label>}
     {restoreError?<div className="notice" role="alert"><p>Your saved draft could not be opened. Retry before writing a new message.</p><button className="button" onClick={()=>setLoadVersion(value=>value+1)}>Retry opening draft</button></div>:null}
     {journal?<div className="notice"><p>A reply request is saved. Checking it uses the same request.</p><button className="button" disabled={action.busy} onClick={()=>void action.run(()=>runAi(journal))}>{action.busy?'Checking…':'Check reply'}</button></div>:<form className="composer" onSubmit={event=>{event.preventDefault();void action.run(send);}}><label className="sr-only" htmlFor="message-input">Message Centre</label><textarea id="message-input" rows={3} maxLength={8000} value={text} disabled={!loaded||action.busy} onChange={event=>{const value=event.target.value;setText(value);setDraftError(null);void model.serial(()=>model.store.saveLocal(`compose:${chatId}`,value)).catch(()=>setDraftError('This draft could not be saved. Keep this page open.'));}} placeholder={loaded?'Message Centre':'Opening your saved draft…'}/><button className="icon-button primary" aria-label="Send message" disabled={!loaded||action.busy||!text.trim()||!consent}><Send size={19}/></button></form>}
     <ErrorLine error={draftError??action.error}/>
   </>;
+}
+
+function QuestionAnswers({messages}:{messages:{id:string;content:string}[]}) {
+  return <details className="clarification-reasoning"><summary>Reasoning</summary>{messages.map(message=><p key={message.id} style={{whiteSpace:'pre-wrap'}}>{message.content}</p>)}</details>;
 }

@@ -13,7 +13,7 @@ test('five questions open a popup even when the model finishes without calling t
   const binary = join(directory,'codex-fixture');
   await writeFile(binary,`#!/usr/bin/env node
 const readline = require('node:readline');
-let turns = 0;
+let turns = 0, failAfterAnswer = false;
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 readline.createInterface({input:process.stdin}).on('line',line => {
   const message = JSON.parse(line); if(!message.id)return;
@@ -26,7 +26,14 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const threadId = message.params.threadId;turns++;
     const structured = Boolean(message.params.outputSchema?.properties?.response);
     const answered = message.params.input[0].text.includes('The student answered your popup.');
-    const response = answered ? {kind:'message',content:'You chose Yes.'} : {kind:'questions',questions:[{id:'blue',header:'Colour',question:'Do you like blue?',options:[{label:'Yes'},{label:'No'}]},...Array.from({length:4},(_,index) => ({id:'extra'+index,header:'Follow-up',question:'Explain idea '+index,options:[]}))]};
+    const prompt = message.params.input[0].text;
+    if (prompt.includes('Student message:\\nfail after popup')) failAfterAnswer = true;
+    if (answered && failAfterAnswer) {
+      failAfterAnswer = false;
+      send({method:'turn/completed',params:{threadId,turn:{status:'failed',error:{message:'Fixture failed after answer'}}}}); return;
+    }
+    const recovered = prompt.includes('Retained conversation') && prompt.includes('question-answer') && prompt.includes('Saved choice');
+    const response = recovered ? {kind:'message',content:'Recovered Saved choice.'} : answered ? {kind:'message',content:'You chose Yes.'} : {kind:'questions',questions:[{id:'blue',header:'Colour',question:'Do you like blue?',options:[{label:'Yes'},{label:'No'}]},...Array.from({length:4},(_,index) => ({id:'extra'+index,header:'Follow-up',question:'Explain idea '+index,options:[]}))]};
     const text = structured ? JSON.stringify({response}) : 'Do you like blue?';
     send({method:'item/completed',params:{threadId,item:{id:'answer-'+turns,type:'agentMessage',phase:'final_answer',text}}});
     send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});
@@ -58,7 +65,30 @@ readline.createInterface({input:process.stdin}).on('line',line => {
     const result = await completion;
     assert.equal(result.status,200);assert.equal(result.body.messages.at(-1).content,'You chose Yes.');
     assert.equal(result.body.messages.length,3);
+    assert.equal(result.body.messages[1].requestContext.page,'question-answer');
     assert.equal(snapshotSchema.parse((await request('/state')).body).pendingQuestions.length,0);
+    const failedChat = (await request('/chats','POST',{})).body;
+    const failedReply = request(`/chats/${failedChat.id}/messages`,'POST',{content:'fail after popup',context:{page:'chat'}});
+    void failedReply.catch(() => undefined);
+    for(let attempt = 0;attempt < 500;attempt++) {
+      pending = snapshotSchema.parse((await request('/state')).body).pendingQuestions.find(item => item.chatId === failedChat.id);
+      if(pending)break;
+      await setTimeout(20);
+    }
+    assert.ok(pending);
+    await request(`/questions/${pending.id}/answer`,'POST',{answers:Object.fromEntries(pending.questions.map(item => [item.id,'Saved choice']))});
+    assert.ok((await failedReply).status >= 400);
+    const failedHistory = snapshotSchema.parse((await request('/state')).body).chats.find(item => item.id === failedChat.id)!;
+    assert.equal((await request(`/chats/${failedChat.id}/retry`,'POST',{messageId:failedHistory.messages[0]!.id})).status,200,'Retry targets the original prompt, not its hidden clarification.');
+    for(let attempt = 0;attempt < 500;attempt++) {
+      const recovered = snapshotSchema.parse((await request('/state')).body).chats.find(item => item.id === failedChat.id)!;
+      if(recovered.messages.at(-1)?.role === 'assistant') {
+        assert.equal(recovered.messages.at(-1)?.content,'Recovered Saved choice.');
+        break;
+      }
+      if(attempt === 499) assert.fail('Retry did not recover the saved popup answer.');
+      await setTimeout(20);
+    }
     completion = request(`/chats/${chat.id}/messages`,'POST',{content:'Ask another popup question.',context:{page:'chat'}});
     void completion.catch(() => undefined);
     for(let attempt = 0;attempt < 500;attempt++) {

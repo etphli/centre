@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "checks": [
+    "Production desktop renderer is meaningful and isolated",
+    "A one-chat model choice leaves the saved default unchanged",
+    "The AI asks in a modal with explicit choice and custom answer",
+    "Answering keeps one original prompt while the response continues",
+    "Answer resumes the original turn and saves a subject quiz",
+    "Clarification answers stay out of user bubbles",
+    "Question and answer are available in reasoning",
+    "Reasoning can be collapsed with the keyboard",
+    "Reload preserves one prompt and collapsed reasoning",
+    "Clarification reasoning fits a narrow layout",
+    "Chat model is scoped to the conversation",
+    "Applied skills are visible",
+    "A fresh chat returns to the saved default",
+    "Structured final questions open the popup without a question-tool call",
+    "Structured popup answers resume the original request",
+    "Structured questions also show one user bubble"
+  ],
+  "errors": []
+}

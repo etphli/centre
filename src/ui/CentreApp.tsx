@@ -151,8 +151,8 @@ export default function CentreApp() {
       if (result.some(turn => turn.chatId === response.chatId)) continue;
       const chat = state?.chats.find(chat => chat.id === response.chatId);
       if (!chat) continue;
-      const message = [...chat.messages].reverse().find(message => message.role === 'user');
-      result.push({id:-response.startedAt,chatId:response.chatId,content:message?.content ?? '',attachmentIds:message?.attachmentIds ?? [],context:{page:'chat'},status:response.status,startedAt:response.startedAt});
+      const message = [...chat.messages].reverse().find(message => message.role === 'user' && message.requestContext?.page !== 'question-answer');
+      result.push({id:-response.startedAt,messageId:message?.id,chatId:response.chatId,content:message?.content ?? '',attachmentIds:message?.attachmentIds ?? [],context:{page:'chat'},status:response.status,startedAt:response.startedAt});
     }
     return result;
   },[localTurns,state]);

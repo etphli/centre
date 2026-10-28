@@ -12,6 +12,7 @@ import { rememberInputSchema,modelSelectionSchema, askQuestionSchema, resourceKi
 import { Store } from './store';
 import { CloudSync } from './cloud-sync';
 import { Questions } from './questions';
+import { markLegacyQuestionAnswers } from './question-history';
 import { chatResponseSchema,chatResponseInstructions,questionRoutingInstructions } from './chat-response';
 import { route as chatOrganizationRoute } from './chat-organization';
 import { acquireServiceLock } from './lock';
@@ -91,6 +92,7 @@ export async function createService(options: { port?:number; token?:string; data
   const studyLog = new StudyLogService(store);
   await studyLog.recover(true);
   let recovered = false;
+  for (const chat of store.state.chats) if (markLegacyQuestionAnswers(chat)) recovered = true;
   for (const chat of store.state.chats) if (chat.messages.at(-1)?.role === 'user') {
     chat.codexThreadId = null; chat.activity = [];
     chat.responseError ??= 'The previous response did not finish. Your prompt is saved.';
@@ -222,7 +224,8 @@ export async function createService(options: { port?:number; token?:string; data
     }
   }));
   function toolRequest(threadId:string|undefined) {
-    return store.state.chats.find(chat => chat.codexThreadId === threadId)?.messages.at(-1);
+    const chat = store.state.chats.find(chat => chat.codexThreadId === threadId);
+    return chat ? [...chat.messages].reverse().find(message => message.role === 'user' && message.requestContext?.page !== 'question-answer') : undefined;
   }
   async function attachConnectedResource<T extends object>(result:T,message:Chat['messages'][number]|undefined) {
     if ('resource' in result) {
@@ -292,7 +295,8 @@ export async function createService(options: { port?:number; token?:string; data
       if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.');
       const attachmentContext = attachedFiles.map((file,index) => `Attachment ${index + 1}: ${JSON.stringify(file.attachment.name)} (${file.attachment.mimeType})\n${file.text ?? '[Image supplied as a visual input.]'}`).join('\n\n');
       const historyImages:string[] = [];
-      const history = needsHistory ? await Promise.all(chat.messages.slice(0,requestIndex).map(async message => ({
+      const retainedMessages = [...chat.messages.slice(0,requestIndex),...chat.messages.slice(requestIndex + 1).filter(message => message.role === 'user' && message.requestContext?.page === 'question-answer')];
+      const history = needsHistory ? await Promise.all(retainedMessages.map(async message => ({
         role:message.role,content:message.content,requestContext:message.requestContext,resourceIds:message.resourceIds,
         resources:[...new Set([...message.resourceIds,...(message.requestContext?.resourceId ? [message.requestContext.resourceId] : [])])].flatMap(id => {
           const resource = store.state.resources.find(resource => resource.id === id && !resource.deletedAt);
@@ -306,7 +310,7 @@ export async function createService(options: { port?:number; token?:string; data
       unsubscribeActivity = codex.onActivity(chat.codexThreadId,activity => appendActivity(chat,activity));
       const codexTurns:z.infer<typeof messageSchema>['codexTurns'] = [];
       unsubscribeTurns = codex.onTurnStarted(chat.codexThreadId,turnId => {
-        const message = [...chat.messages].reverse().find(message => message.role === 'user');
+        const message = chat.messages[requestIndex];
         if (message) codexTurns.push({turnId,promptMessageId:message.id});
       });
       const responseStartedAt = Date.now();
@@ -321,7 +325,7 @@ export async function createService(options: { port?:number; token?:string; data
           threadId:chat.codexThreadId,selection:{model,effort},context:prompt,imagePaths,resourceId:chat.messages[requestIndex]?.guidedGeneration?.resourceId,
           checkActive:() => { if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.'); },
         });
-        const request = chat.messages.at(-1);
+        const request = chat.messages[requestIndex];
         if (request?.role === 'user' && !request.resourceIds.includes(resource.id)) request.resourceIds.push(resource.id);
         response = `Saved **${resource.title}**. Open it below or find it again in Resources.`;
       } else while (true) {
@@ -335,7 +339,7 @@ export async function createService(options: { port?:number; token?:string; data
             const generated = reply.generated;
             const resourceRequest = createResourceSchema.parse({...reply.request,title:reply.request.title ?? undefined});
             if (cancelled.has(id)) throw new HttpError(409,'The response was cancelled. Your message is saved.');
-            const request = chat.messages.at(-1);
+            const request = chat.messages[requestIndex];
             const linkedIds = new Set(chat.messages.slice(requestIndex).flatMap(message => message.resourceIds));
             const existing = store.state.resources.find(resource => linkedIds.has(resource.id) && !resource.deletedAt && resource.kind === resourceRequest.kind);
             const resource = existing ?? await resources.saveGenerated(resourceRequest,generated);
@@ -415,7 +419,8 @@ export async function createService(options: { port?:number; token?:string; data
       await questions.answer(decodeURIComponent(questionAnswer[1] ?? ''),value,async (request,answers) => {
         const chat = requireFound(store.state.chats.find(chat => chat.id === request.chatId),'Chat');
         const content = request.questions.map(question => `${question.question}\n${answers[question.id]}`).join('\n\n');
-        const requestContext = [...chat.messages].reverse().find(message => message.requestContext)?.requestContext ?? null;
+        const previousContext = [...chat.messages].reverse().find(message => message.requestContext)?.requestContext;
+        const requestContext = { ...previousContext, page:'question-answer' };
         const message = messageSchema.parse({ id:randomUUID(),role:'user',content,createdAt:new Date().toISOString(),requestContext });
         const previousUpdatedAt = chat.updatedAt;
         chat.messages.push(message); chat.updatedAt = message.createdAt;
@@ -503,7 +508,7 @@ export async function createService(options: { port?:number; token?:string; data
       const chat = requireFound(store.state.chats.find(chat => chat.id === decodeURIComponent(retry[1] ?? '') && !chat.deletedAt),'Chat');
       if (busy.has(chat.id) || questions.list().some(question => question.chatId === chat.id)) throw new HttpError(409,'This conversation already has a response in progress.');
       const input = z.object({messageId:z.string().min(1)}).strict().parse(value);
-      const prompt = chat.messages.at(-1);
+      const prompt = [...chat.messages].reverse().find(message => message.requestContext?.page !== 'question-answer');
       if (!prompt || prompt.id !== input.messageId || prompt.role !== 'user') throw new HttpError(409,'Only the latest unanswered prompt can be retried.');
       // A failed or interrupted provider thread may contain uncommitted later work.
       chat.codexThreadId = null;

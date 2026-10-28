@@ -83,7 +83,7 @@ function fixtureCodex() {
         const questions = [{id:'format',header:'Quiz format',question:'Use five short-response questions for this five-minute electricity quiz?',options:[{label:'Five short responses',description:'Practise explaining each idea in your own words.'},{label:'Choose another format',description:'Tell me your preferred format.'}]}];
         if (/two questions/i.test(text)) questions.push({id:'level',header:'Difficulty',question:'How challenging should it be?',options:[]});
         if (/five questions/i.test(text)) questions.push(...Array.from({length:4},(_,index) => ({id:'followup'+index,header:'Study preferences',question:['Which electricity topic needs the most practice?','What do you already understand?','Which examples help you learn?','What should we focus on next?'][index],options:[]})));
-        call(threadId,'centre_ask_question',{questions},result => {if (result.success) save(threadId,'quiz');});
+        call(threadId,'centre_ask_question',{questions},result => {if (result.success) setTimeout(() => save(threadId,'quiz'),1800);});
       }
     }
     if (message.method === 'turn/interrupt') {stopped.add(message.params.threadId); send({method:'turn/completed',params:{threadId:message.params.threadId,turn:{status:'interrupted'}}});}
@@ -136,17 +136,34 @@ async function electronRunner(config) {
         check('The AI asks in a modal with explicit choice and custom answer',await evaluate("document.querySelectorAll('.question-dialog input[type=radio]').length === 3 && document.querySelectorAll('.question-dialog input:checked').length === 0 && document.querySelector('.question-dialog button[type=submit]').disabled"));
         await screenshot('question-popup');
         await click('.question-dialog input[type=radio]');await click('.question-dialog button[type=submit]');
+        await waitFor("!document.querySelector('.question-dialog') && Boolean(document.querySelector('.thinking-details--live'))");
+        check('Answering keeps one original prompt while the response continues',await evaluate("document.querySelectorAll('.message--user').length === 1 && !document.querySelector('.message--pending')"));
         await waitFor("!document.querySelector('.question-dialog') && Boolean(document.querySelector('.thread-resources'))");
         let snapshot = await state();
         check('Answer resumes the original turn and saves a subject quiz',snapshot.chats[0].messages.length === 3 && snapshot.resources[0].kind === 'quiz' && snapshot.resources[0].subjectId === 'science');
+        check('Clarification answers stay out of user bubbles',await evaluate("document.querySelectorAll('.message--user').length === 1"));
+        await click('.thinking-details>summary');
+        check('Question and answer are available in reasoning',await evaluate("document.querySelector('.thinking-details__body').textContent.includes('Use five short-response questions') && document.querySelector('.thinking-details__body').textContent.includes('Five short responses')"));
+        await screenshot('question-answer-reasoning-dark');
+        await evaluate("document.querySelector('.thinking-details>summary').focus()");
+        window.webContents.sendInputEvent({type:'keyDown',keyCode:'Space'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'Space'});
+        await waitFor("!document.querySelector('.thinking-details').open");
+        check('Reasoning can be collapsed with the keyboard',await evaluate("document.activeElement === document.querySelector('.thinking-details>summary')"));
+        await evaluate("window.centre.request('PATCH','/settings',{theme:'light'})");
+        await evaluate("location.reload()");
+        await waitFor("Boolean(document.querySelector('.chat-nav__item'))");
+        await clickText('.chat-nav__item','Make a 5 minute quiz');
+        await waitFor("Boolean(document.querySelector('.thinking-details'))");
+        check('Reload preserves one prompt and collapsed reasoning',await evaluate("document.querySelectorAll('.message--user').length === 1 && !document.querySelector('.thinking-details').open"));
+        await click('.thinking-details>summary');
+        await screenshot('question-answer-reasoning-light');
+        window.setSize(680,850);await pause(250);
+        check('Clarification reasoning fits a narrow layout',await evaluate("document.documentElement.scrollWidth <= innerWidth && document.querySelector('.thinking-details').getBoundingClientRect().right <= innerWidth"));
+        await screenshot('question-answer-reasoning-narrow');window.setSize(1280,800);
+        await evaluate("window.centre.request('PATCH','/settings',{theme:'dark'})");
+
         check('Chat model is scoped to the conversation',snapshot.chats[0].modelSelection.model === 'gpt-6-luna' && snapshot.settings.chatModel === 'gpt-6.1-sol');
         check('Applied skills are visible',await evaluate("document.querySelector('.skill-usage').textContent.includes('Ask questions')"));
-        await send('Explain series circuits, take your time');await waitFor("Boolean(document.querySelector('.activity-row'))");
-        await click('.thinking-details--live>summary');await pause(5000);
-        check('Thinking has one expandable row, elapsed time and rotating words',await evaluate("document.querySelectorAll('.activity-row').length === 1 && document.querySelector('.thinking-details--live[open]') && document.querySelector('.working__time').textContent.includes('s') && document.querySelector('.thinking-label').textContent !== 'Thinking it through'"));
-        check('Expanded thinking stays above the composer',await evaluate("document.querySelector('.thinking-details--live').getBoundingClientRect().bottom <= document.querySelector('.chat-page__composer').getBoundingClientRect().top"));
-        await screenshot('thinking-activity');
-        await waitFor("!document.querySelector('.activity-row')");
         await newChat();
         check('A fresh chat returns to the saved default',await evaluate("document.querySelector('button[aria-label=\"Choose model\"]').textContent.includes('Sol')"));
         await send('Ask me a question as a test, like do you like blue');
@@ -156,6 +173,15 @@ async function electronRunner(config) {
         await click('.question-dialog input[type=radio]');await click('.question-dialog button[type=submit]');
         await waitFor("!document.querySelector('.question-dialog') && document.querySelector('.thread')?.textContent.includes('You chose Yes.')");
         check('Structured popup answers resume the original request',(await state()).chats[0].messages.at(-1).content === 'You chose Yes.');
+        check('Structured questions also show one user bubble',await evaluate("document.querySelectorAll('.message--user').length === 1"));
+        if(config.questionsOnly){await finish();return;}
+
+        await send('Explain series circuits, take your time');await waitFor("Boolean(document.querySelector('.activity-row'))");
+        await click('.thinking-details--live>summary');await pause(5000);
+        check('Thinking has one expandable row, elapsed time and rotating words',await evaluate("document.querySelectorAll('.activity-row').length === 1 && document.querySelector('.thinking-details--live[open]') && document.querySelector('.working__time').textContent.includes('s') && document.querySelector('.thinking-label').textContent !== 'Thinking it through'"));
+        check('Expanded thinking stays above the composer',await evaluate("document.querySelector('.thinking-details--live').getBoundingClientRect().bottom <= document.querySelector('.chat-page__composer').getBoundingClientRect().top"));
+        await screenshot('thinking-activity');
+        await waitFor("!document.querySelector('.activity-row')");
         await newChat();
         await send('/diagram coffee extraction for personal learning');
         await waitFor("Boolean(document.querySelector('.thread-resources__diagram'))");
@@ -279,7 +305,7 @@ async function electronRunner(config) {
 const binary = join(temporary,'codex-fixture');
 await writeFile(binary,'#!/usr/bin/env node\n('+fixtureCodex.toString()+')();\n',{mode:0o700});
 const entry = join(runtime,'runner.cjs');
-await writeFile(entry,'('+electronRunner.toString()+')('+JSON.stringify({runtime,userData:join(temporary,'user'),main:join(root,'dist-electron/main.cjs')})+');\n');
+await writeFile(entry,'('+electronRunner.toString()+')('+JSON.stringify({runtime,userData:join(temporary,'user'),main:join(root,'dist-electron/main.cjs'),questionsOnly:process.env.CENTRE_VERIFY_QUESTIONS_ONLY === '1'})+');\n');
 const environment = {...process.env,CENTRE_DATA_DIR:join(temporary,'data'),CENTRE_CODEX_BIN:binary,CENTRE_DISABLE_UPDATES:'1',CENTRE_RENDERER_URL:pathToFileURL(join(root,'dist/index.html')).href};
 delete environment.ELECTRON_RUN_AS_NODE;
 try {
