@@ -330,18 +330,22 @@ kbd {
   flex: none;
 }
 
+/* Keep the traffic lights and collapse button on their own row, with search below. */
 :root[data-native-titlebar='true'] .sidebar__header {
-  display: block;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
   height: auto;
 }
 
 :root[data-native-titlebar='true'] .sidebar__titlebar {
+  order: 0;
   height: var(--topbar-h);
-  padding-left: 76px;
 }
 
 :root[data-native-titlebar='true'] .sidebar__search {
-  width: 100%;
+  order: 1;
+  flex: none;
   margin-bottom: 6px;
 }
 
