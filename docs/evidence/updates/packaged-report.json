@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "status": {
+    "state": "current",
+    "currentVersion": "0.1.20-local.20261031.2",
+    "message": "You have the latest published version. Latest release: 0.1.20.",
+    "version": "0.1.20",
+    "releaseUrl": "https://github.com/etphli/centre/releases/tag/v0.1.20",
+    "automatic": false,
+    "downloaded": false
+  },
+  "checks": [
+    "Installed local build checks public releases, avoids downgrading and keeps the sidebar clear when current",
+    "Packaged app contains notification resources category"
+  ],
+  "renderer": "file:///Users/likht.ethan/.t3/projects/centre/release/mac-arm64/Centre.app/Contents/Resources/app.asar/dist/index.html",
+  "unsigned": true,
+  "isolatedData": true
+}

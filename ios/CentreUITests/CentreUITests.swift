@@ -104,6 +104,30 @@ final class CentreUITests: XCTestCase {
         capture("02-note-body-restored-from-disk")
     }
 
+    func testNotificationCategoryAndAssignmentOpenCachedText() {
+        app.terminate()
+        app.launchArguments = ["-ui-testing", "-reset-fixture", "-ui-testing-notification"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Resources"].waitForExistence(timeout: 15))
+        tab("Resources")
+        let categories = app.segmentedControls["resources.category"]
+        XCTAssertTrue(categories.waitForExistence(timeout: 5))
+        categories.buttons["Notifications"].tap()
+        let notificationRow = app.buttons["resources.row.c0b7e151-aed2-49dd-bef5-93e5358d029a"]
+        XCTAssertTrue(notificationRow.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["resources.row.\(quizId)"].exists)
+        notificationRow.tap()
+        waitText("Complete questions 1 to 4. Show each algebraic step.")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        tab("Calendar")
+        let assignment = app.descendants(matching: .any).matching(identifier: "calendar.assignment.assignment-notification").firstMatch
+        XCTAssertTrue(assignment.waitForExistence(timeout: 10))
+        assignment.tap()
+        waitText("Complete questions 1 to 4. Show each algebraic step.")
+        XCTAssertTrue(app.staticTexts["Assignment notification · algebra-brief.pdf"].exists)
+        capture("notification-resource-opened-offline-from-assignment")
+    }
+
     func testOfflineQuizAnswerSurvivesRestartWithoutInventedGrade() {
         openQuiz(); tap("quiz.choice.0")
         let draft = app.staticTexts["quiz.draftStatus"]

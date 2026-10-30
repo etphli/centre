@@ -1,7 +1,7 @@
 import { Markdown } from './Markdown';
 import { useMemo, useState } from 'react';
-import { CalendarDays, Check, ClipboardCheck, RefreshCw } from 'lucide-react';
-import { library, dateLabel, type Subject, type OrganatoSnapshot } from './domain';
+import { CalendarDays, Check, ChevronRight, ClipboardCheck, RefreshCw } from 'lucide-react';
+import { library, dateLabel, notificationResourceForAssignment, type Subject, type OrganatoSnapshot } from './domain';
 import type { MobileState } from './data/store';
 import type { MobileModel } from './model';
 import { Empty, ErrorLine, useAction } from './ui';
@@ -13,7 +13,7 @@ export function ReviewView({state,model}:{state:MobileState;model:MobileModel}) 
     <p className="detail">Reviews work offline. Your progress updates Centre's learning memory when it syncs.</p>
   </>;
 }
-export function CalendarView({state,subjects,snapshot,onRefresh}:{state:MobileState;subjects:Subject[];snapshot:OrganatoSnapshot|null;onRefresh:()=>Promise<void>}) {
+export function CalendarView({state,subjects,snapshot,onRefresh,onOpenResource}:{state:MobileState;subjects:Subject[];snapshot:OrganatoSnapshot|null;onRefresh:()=>Promise<void>;onOpenResource:(resourceId:string)=>void}) {
   const data=useMemo(()=>library(state.entities),[state.entities]),action=useAction();
   const savedIds=new Set(state.entities.filter(item=>item.kind==='calendarEvent').map(item=>item.id));
   const linkedIds=new Set(data.events.map(item=>item.organatoId).filter(Boolean));
@@ -21,6 +21,6 @@ export function CalendarView({state,subjects,snapshot,onRefresh}:{state:MobileSt
   return <><div className="page-title"><div><p className="muted">See the week ahead</p><h1>Calendar</h1></div><button className="icon-button" aria-label="Refresh calendar and subjects" disabled={action.busy} onClick={()=>void action.run(onRefresh)}><RefreshCw size={20}/></button></div><p className="detail">Saved study plans and connected Organato dates. Refresh to fetch cloud calendar changes while your Mac is closed. Planned time is separate from actual study in Log.</p><ErrorLine error={action.error}/>
     {snapshot?<p className="detail">Connected calendar saved {dateLabel(snapshot.fetchedAt)}.</p>:<p className="detail">Connect Organato in Centre Cloud on your Mac, then refresh to include its dates here.</p>}
     {!events.length?<Empty title="Room for a plan">Create study sessions in Centre on your Mac and sync them. Saved plans are available here offline.</Empty>:<div className="list">{events.map(item=><div className="list-row" key={item.id}><CalendarDays size={19}/><div><h2>{item.title}</h2><p>{dateLabel(item.startAt??item.date+'T12:00:00Z',item.startAt?item.timeZone:'UTC')} · {item.startAt?new Intl.DateTimeFormat('en',{hour:'numeric',minute:'2-digit',timeZone:item.timeZone}).format(new Date(item.startAt)):'All day'}</p><p>{item.plannedDurationMinutes?`${item.plannedDurationMinutes} min`:"Deadline"}{item.subjectId?` · ${subjects.find(subject=>subject.id===item.subjectId)?.name??'Saved subject'}`:''}{item.completedAt?' · Completed':''}</p>{item.notes?<p>{item.notes}</p>:null}</div></div>)}</div>}
-    {snapshot?.assignments.length?<section className="section"><h2>Assignments</h2><div className="list">{snapshot.assignments.map(item=><div className="list-row" key={item.id}><div><h3>{item.title}</h3><p>{item.dueDate?`Due ${dateLabel(item.dueDate+'T12:00:00Z','UTC')}`:'No due date'}{['done','completed','submitted'].includes(item.status)?' · Completed':''}</p></div></div>)}</div></section>:null}
+    {snapshot?.assignments.length?<section className="section"><h2>Assignments</h2><div className="list">{snapshot.assignments.map(item=>{const linked=notificationResourceForAssignment(data.resources,item.id)[0];const content=<><div><h3>{item.title}</h3><p>{item.dueDate?`Due ${dateLabel(item.dueDate+'T12:00:00Z','UTC')}`:'No due date'}{['done','completed','submitted'].includes(item.status)?' · Completed':''}</p>{linked?<p className="detail">Notification · {linked.title}</p>:null}</div>{linked?<ChevronRight size={18}/>:null}</>;return linked?<button className="list-row" key={item.id} onClick={()=>onOpenResource(linked.id)}>{content}</button>:<div className="list-row" key={item.id}>{content}</div>;})}</div></section>:null}
   </>;
 }

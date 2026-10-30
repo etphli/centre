@@ -27,8 +27,8 @@ export function projectStudyData(state: Snapshot, shadow: Record<string, CloudRe
   };
   for (const topic of state.topics) add('topic', topic);
   for (const resource of state.resources) {
-    const { id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,practiceFocus,questionTypes,testLength,durationMinutes,completedAt,deletedAt } = resource;
-    add('resource', { id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,practiceFocus,questionTypes,testLength,durationMinutes,completedAt,deletedAt:deletedAt ?? null });
+    const { notification,id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,practiceFocus,questionTypes,testLength,durationMinutes,completedAt,deletedAt } = resource;
+    add('resource', { ...(notification ? {notification} : {}),id,subjectId,topicId,title,kind,createdAt,updatedAt,content,questions,practiceFocus,questionTypes,testLength,durationMinutes,completedAt,deletedAt:deletedAt ?? null });
   }
   for (const chat of state.chats) {
     // Archive keeps ancestry and retained associations available to active descendants.

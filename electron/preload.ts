@@ -42,6 +42,5 @@ contextBridge.exposeInMainWorld('centre', {
     check: () => ipcRenderer.invoke('centre:updates:check'),
     install: () => ipcRenderer.invoke('centre:updates:install'),
     status: () => ipcRenderer.invoke('centre:updates:status'),
-    configure: (settings: { token: string }) => ipcRenderer.invoke('centre:updates:configure', settings),
   },
 });

@@ -124,6 +124,7 @@ async function start() {
   process.env.GOOGLE_CLIENT_SECRET = googleOAuth.clientSecret;
   service = await createService({ dataDir: process.env.CENTRE_DATA_DIR ?? join(app.getPath('userData'), 'data') });
   const updates = createUpdater();
+  if(app.isPackaged && process.env.CENTRE_DISABLE_UPDATES !== '1') setTimeout(()=>{void updates.check();},5000).unref();
   const isolatedDesktop = Boolean(process.env.CENTRE_DESKTOP_DIR && process.env.CENTRE_USER_DATA_DIR);
   const launchersSupported = process.platform === 'darwin' && (app.isPackaged || isolatedDesktop);
   let launcherManager: Promise<DesktopLauncherManager> | undefined;
@@ -230,7 +231,6 @@ async function start() {
   ipcMain.handle('centre:updates:status', (event) => { authorize(event); return updates.status(); });
   ipcMain.handle('centre:updates:check', (event) => { authorize(event); return updates.check(); });
   ipcMain.handle('centre:updates:install', (event) => { authorize(event); return updates.install(); });
-  ipcMain.handle('centre:updates:configure', (event, value: unknown) => { authorize(event); return updates.configure(value); });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Centre', submenu: [{ role: 'about' }, { type: 'separator' }, { label: 'Check for updates...', click: () => { void updates.check().then((status) => dialog.showMessageBox({ type: status.state === 'error' ? 'error' : 'info', message: status.message })).catch(() => dialog.showErrorBox('Update failed', 'Centre could not check for updates.')); } }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
     { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },

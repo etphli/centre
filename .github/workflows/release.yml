@@ -3,6 +3,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_release:
+        description: Publish now without waiting for four merged PRs
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: write
   pull-requests: read
@@ -29,7 +35,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   release:
     needs: cadence
-    if: needs.cadence.outputs.publish == 'true'
+    if: needs.cadence.outputs.publish == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_release)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -106,13 +112,13 @@ jobs:
           cat > release/notes.md <<'NOTES'
           Download the **arm64.dmg** for Apple Silicon Macs or **x64.dmg** for Intel Macs. Open it and drag Centre into Applications.
 
-          You can send the DMG directly to friends. This repository is private, so its download links require repository access.
+          You can send the DMG directly to friends. Centre is open source. These public download links require no GitHub account or token.
 
           Study data and credentials stay on each person's Mac. AI features require the Codex CLI and their own login.
           NOTES
           if [ "$SIGNED" = true ]; then
             assets+=(release/*.zip release/latest-mac*.yml release/*.blockmap)
-            echo 'This release is Developer ID signed and notarized. Automatic updates require repository access.' >> release/notes.md
+            echo 'This release is Developer ID signed and notarized. Signed Centre installations can download automatic updates without a GitHub token.' >> release/notes.md
           else
             echo 'This release is not Developer ID signed or notarized. After copying Centre into Applications, macOS may require approval in System Settings > Privacy & Security > Open Anyway. Updates are installed by downloading a newer DMG.' >> release/notes.md
           fi

@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    "Sidebar updater hidden while idle",
+    "Real public release check works from an unsigned fixture",
+    "Download action opens the architecture-specific public DMG",
+    "Updates settings requires no token",
+    "Simulated downloaded state enables explicit installation",
+    "Download progress is visible and prevents duplicate actions",
+    "Sidebar hidden on errors and when current; Settings check remains retryable",
+    "Keyboard focus reaches controls"
+  ],
+  "livePublicCheck": true,
+  "simulatedStates": [
+    "ready",
+    "downloading",
+    "error"
+  ],
+  "unsigned": true
+}

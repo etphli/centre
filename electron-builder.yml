@@ -33,5 +33,5 @@ publish:
   provider: github
   owner: etphli
   repo: centre
-  private: true
+  private: false
   releaseType: draft

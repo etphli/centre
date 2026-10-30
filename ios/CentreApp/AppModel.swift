@@ -208,7 +208,13 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             let existing=record(kind:"chat",id:chatId)?.data
             let chat=existing?.merging(.object(["updatedAt":.string(now)])) ?? .object([
                 "id":.string(chatId),"title":.string(String(messageText.prefix(60))),"createdAt":.string(now),"updatedAt":.string(now),"deletedAt":.null,"pinnedAt":.null,"folderId":.null,"sortOrder":.number(0),"modelSelection":.null,"lineage":.object(["schemaVersion":.number(1),"kind":.string("root")])])
-            let message:JSONValue = .object(["id":.string(messageId),"chatId":.string(chatId),"role":.string("user"),"content":.string(messageText),"createdAt":.string(now),"responseDurationMs":.null,"resourceIds":.array([]),"attachmentIds":.array([]),"requestContext":.object(["page":.string("chat")])])
+            let recentText=items("message").filter { $0.data?["chatId"].string == chatId && $0.data?["role"].string == "user" }.sorted { ($0.data?["createdAt"].string ?? "") > ($1.data?["createdAt"].string ?? "") }.prefix(6).compactMap { $0.data?["content"].string }.joined(separator:"\n")
+            let notificationContext=NotificationResources.assignmentContext(text:messageText,assignments:connector["assignments"].array,resources:items("resource"),subjects:connector["subjects"].array) ?? NotificationResources.assignmentContext(text:recentText,assignments:connector["assignments"].array,resources:items("resource"),subjects:connector["subjects"].array)
+
+            var contextData:[String:JSONValue] = ["page":.string("chat")]
+            if let notificationContext { contextData["resourceId"] = .string(notificationContext.resourceId) }
+            let requestContext:JSONValue = .object(contextData)
+            let message:JSONValue = .object(["id":.string(messageId),"chatId":.string(chatId),"role":.string("user"),"content":.string(messageText),"createdAt":.string(now),"responseDurationMs":.null,"resourceIds":.array(notificationContext.map { [.string($0.resourceId)] } ?? []),"attachmentIds":.array([]),"requestContext":requestContext])
             try await originatingReplica.stage([LocalChange(kind:"chat",id:chatId,data:chat),LocalChange(kind:"message",id:messageId,data:message)],ai:.chat(AIRequest(chatId:chatId,messageId:messageId),nil),clearingComposerDraft:(chatId:chatId,text:composerText))
             committed=true
         }
@@ -578,6 +584,18 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
                 LocalChange(kind:"attachment",id:attachmentId,data:UIAttachmentFixture.metadata),
                 LocalChange(kind:"reviewMemory",id:reviewId,data:review)
             ]
+            let includesNotification = ProcessInfo.processInfo.arguments.contains("-ui-testing-notification")
+            let notificationResourceId="c0b7e151-aed2-49dd-bef5-93e5358d029a", assignmentId="assignment-notification"
+            if includesNotification {
+                let notification:JSONValue = .object([
+                    "id":.string(notificationResourceId),"subjectId":.null,"topicId":.null,
+                    "title":.string("Algebra attachment"),"kind":.string("notes"),"createdAt":.string(now),"updatedAt":.string(now),
+                    "content":.string("Complete questions 1 to 4. Show each algebraic step."),"questions":.array([]),
+                    "notification":.object(["itemId":.string(assignmentId),"attachmentId":.string("attachment-1"),"fileName":.string("algebra-brief.pdf"),"contentType":.string("application/pdf"),"downloadPath":.string("/attachments/attachment-1/file")]),
+                    "completedAt":.null,"deletedAt":.null
+                ])
+                fixtureChanges.append(LocalChange(kind:"resource",id:notificationResourceId,data:notification))
+            }
             if includesPracticeHistory {
                 func attempt(_ id: String, kind: String = "practice.attempt", resourceId: String,
                              questionId: String = "q1", createdAt: String, answer: String,
@@ -612,7 +630,17 @@ struct PairingInvitation: Identifiable { let id=UUID();let baseURL:URL;let code:
             let subjects: [JSONValue] = includesPracticeHistory
                 ? [.object(["id":.string("biology"),"name":.string("Biology"),"shortName":.string("Bio"),"color":.string("blue"),"icon":.string("book")])]
                 : []
-            try await store.cacheConnector(.object(["subjects":.array(subjects),"assignments":.array([]),"events":.array([])]))
+            let localDateFormatter=DateFormatter()
+            localDateFormatter.locale=Locale(identifier:"en_US_POSIX")
+            localDateFormatter.calendar=Calendar(identifier:.gregorian)
+            localDateFormatter.timeZone=TimeZone(identifier:"Australia/Sydney")
+            localDateFormatter.dateFormat="yyyy-MM-dd"
+            let assignments: [JSONValue] = includesNotification ? [.object([
+                "id":.string("assignment-notification"),"title":.string("Algebra worksheet"),"kind":.string("work"),
+                "subjectId":.null,"dueDate":.string(localDateFormatter.string(from:Date())),"dueAt":.null,
+                "status":.string("open"),"version":.number(1)
+            ])] : []
+            try await store.cacheConnector(.object(["subjects":.array(subjects),"assignments":.array(assignments),"events":.array([])]))
         }
         if ProcessInfo.processInfo.arguments.contains("-ui-testing-timer-conflict") {
             let now=Date()

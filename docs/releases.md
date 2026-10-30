@@ -7,7 +7,7 @@ Every push to `main` checks whether four PRs have merged since the latest publis
 - `Centre-<version>-arm64.dmg` for Apple Silicon Macs.
 - `Centre-<version>-x64.dmg` for Intel Macs.
 
-Download installers from [Releases](https://github.com/etphli/centre/releases/latest). Send the DMG directly to friends. The repository is private, so friends need repository access to use its download links. Sharing a DMG does not require sharing repository access or a GitHub token.
+Download installers from [Releases](https://github.com/etphli/centre/releases/latest). Send the DMG directly to friends. The repository is public and open source. Download links need no GitHub account or token.
 
 Open the DMG and drag Centre into Applications. Builds are unsigned until Apple credentials are configured. macOS may require approval in **System Settings > Privacy & Security > Open Anyway** after the first launch attempt. Replace unsigned installations by downloading a newer DMG.
 
@@ -21,7 +21,7 @@ When a release is due, the workflow checks types, runs tests, builds the rendere
 
 Versions use the major and minor from `package.json`, with its patch plus the GitHub workflow run number. For example, base `0.1.0` and run 12 produce `0.1.12`. Skipped batches can leave gaps in version numbers. The workflow changes the version only in its build checkout. Keep the base version stable within a release series; increase its major or minor for a new series.
 
-The workflow also supports **Run workflow** on `main` to retry a pending batch. Manual runs use the same four-PR check. Once a release publishes, its PRs no longer count toward the next batch. Release jobs run serially so an older build cannot replace a newer release as latest.
+The workflow also supports **Run workflow** on `main` to retry a pending batch. Manual runs use the same four-PR check by default. Select **force_release** to publish immediately when an immediate release is explicitly authorized. Once a release publishes, its PRs no longer count toward the next batch. Release jobs run serially so an older build cannot replace a newer release as latest.
 
 Required repository secrets:
 
@@ -39,7 +39,7 @@ Add all five Apple credentials as repository secrets:
 
 The workflow automatically signs and notarizes when all five exist. Partial configuration fails rather than silently publishing an unsigned build. Without Apple credentials it publishes unsigned DMGs. Signed releases also include ZIPs and update metadata. Keep the signing identity consistent between releases.
 
-Automatic updates require a signed app. In Settings, save a GitHub token with read access to the private repository, then click **Check for updates**. Centre stores the token in macOS Keychain. Each user supplies their own token; Centre does not bundle one. After downloading, click **Install and restart**.
+Use **Settings > Updates > Check for updates**. Centre checks the public GitHub release API without credentials, including from unsigned builds. Packaged apps also check shortly after launch. The sidebar update prompt appears only when a new version is available, downloading or ready to install. If the running app is Developer ID signed and the release has a ZIP and update manifest, Centre downloads the update and offers **Install and restart**. Otherwise, **Download update** opens the matching Apple Silicon or Intel DMG. Open it and drag Centre into Applications to replace the app. Existing private-release tokens are no longer read or sent. A failed check remains retryable.
 
 Signing, notarization, and automatic installation need Apple credentials and a signed release before they can be verified.
 

@@ -1,7 +1,8 @@
+import { UpdateControls } from './UpdateControls';
 import { Connections } from './Connections';
 import { ExternalLink, LogOut, RefreshCw, SlidersHorizontal, GraduationCap, Cpu, Plug, Wand2, Download, Brain, Smartphone, Monitor } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { api, openExternal, updates, type UpdateStatus } from '../data/client';
+import { api, openExternal } from '../data/client';
 import { useApp } from './context';
 import { GeneralPreferences, AppearancePreferences, ChatPreferences, StudyPreferences, ModelPreferences, SkillsPreferences } from './preferences';
 import { errorMessage, initials, timeAgo } from './format';
@@ -257,72 +258,9 @@ function CodexSection() {
 }
 
 function UpdatesSection() {
-  const { notify } = useApp();
-  const [status, setStatus] = useState<UpdateStatus | null>(null);
-  const [busy, setBusy] = useState<'check' | 'install' | 'configure' | null>(null);
-  const [token, setToken] = useState('');
-
-  useEffect(() => {
-    let live = true;
-    updates.status().then((next) => { if (live) setStatus(next); }).catch((failure: unknown) => { if (live) setStatus({ state: 'error', message: errorMessage(failure) }); });
-    return () => { live = false; };
-  }, []);
-
-  async function runUpdate(kind: 'check' | 'install') {
-    setBusy(kind);
-    try {
-      setStatus(await (kind === 'check' ? updates.check() : updates.install()));
-    } catch (failure) {
-      setStatus({ state: 'error', message: errorMessage(failure) });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function configure(event: FormEvent) {
-    event.preventDefault();
-    if (!token) return;
-    setBusy('configure');
-    try {
-      setStatus(await updates.configure({ token }));
-      setToken('');
-      notify({ tone: 'success', message: 'Update access saved' });
-    } catch (failure) {
-      setStatus(current => ({ ...current, state: 'error', message: errorMessage(failure) }));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const unavailable = status?.state === 'unavailable';
-  const tone = !status ? 'busy' : status.state === 'error' ? 'error' : status.downloaded || /available|downloaded/i.test(status.state) ? 'ok' : 'off';
-
-  return (
-    <Section id="settings-updates" title="App updates" description="Centre checks GitHub releases. Nothing installs without you pressing Install.">
-      <div className="settings-row">
-        <Status tone={busy ? 'busy' : tone}>{status ? status.message : 'Checking update status'}{status?.version ? ` (${status.version})` : ''}</Status>
-        <div className="settings-row__actions">
-          <button type="button" className="button button--quiet button--small" onClick={() => void runUpdate('check')} disabled={Boolean(busy) || unavailable}>
-            {busy === 'check' ? 'Checking' : 'Check for updates'}
-          </button>
-          <button type="button" className="button button--small" onClick={() => void runUpdate('install')} disabled={Boolean(busy) || unavailable || !status?.downloaded}>
-            {busy === 'install' ? 'Installing' : 'Install and restart'}
-          </button>
-        </div>
-      </div>
-      {status && status.configured === false ? (
-        <form className="form form--settings" onSubmit={(event) => void configure(event)}>
-          <label className="field">
-            <span className="field__label">GitHub access token for releases</span>
-            <input type="password" disabled={Boolean(busy)} value={token} onChange={(event) => setToken(event.target.value)} spellCheck={false} autoComplete="off" placeholder="Read-only token, stored in your Keychain" />
-          </label>
-          <div className="form__actions">
-            <button type="submit" className="button button--small" disabled={!token || Boolean(busy)}>Save token</button>
-          </div>
-        </form>
-      ) : null}
-    </Section>
-  );
+  return <Section id="settings-updates" title="App updates" description="Get Centre from its public GitHub releases. No account or token required. Automatic downloads need a signed app and a release with update assets. DMG downloads open in your browser; drag Centre into Applications to install.">
+    <UpdateControls />
+  </Section>;
 }
 
 const categories = [

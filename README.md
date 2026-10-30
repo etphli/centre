@@ -1,6 +1,6 @@
 # Centre
 
-Centre is a private macOS study app with a chat-first workspace. It connects to your installed Codex CLI and Organato account. Study data stays on your computer unless you explicitly enable optional Centre cloud sync.
+Centre is a macOS study app with a chat-first workspace. It connects to your installed Codex CLI and Organato account. Study data stays on your computer unless you explicitly enable optional Centre cloud sync.
 
 ## Run Centre
 
@@ -27,7 +27,7 @@ In Centre on your Mac, open **Settings > iPhone** and scan the installation QR. 
 2. Create an API key with read and write access.
 3. In Centre, open **Settings**, save the key, and sync.
 
-Centre reads your subjects, assignments, and to-dos from Organato. It saves topics, chats, resources, quiz attempts, review notes, and preferences locally. Centre creates calendar study sessions as calendar-enabled Organato to-dos through the `/items` API. Organato has no separate calendar-event endpoint. Add sessions in Calendar or ask chat to add or edit one. Calendar can mark a session complete. Removing a Centre-created session archives that linked item and preserves unrelated assignments. Organato handles any connected calendar provider sync.
+Centre reads your subjects, assignments, and to-dos from Organato. Sync also saves downloadable assignment briefs in **Resources > Notifications**, with readable PDF, DOCX and text contents available offline. Ask chat to show a notification to open its saved reader. When you discuss an assignment by name or subject, Centre supplies its linked notification text, including during follow-up questions. Failed downloads keep the last readable copy and report a sync warning; images without selectable text need OCR before Centre can read them. It saves topics, chats, resources, quiz attempts, review notes, and preferences locally. Centre creates calendar study sessions as calendar-enabled Organato to-dos through the `/items` API. Organato has no separate calendar-event endpoint. Add sessions in Calendar or ask chat to add or edit one. Calendar can mark a session complete. Removing a Centre-created session archives that linked item and preserves unrelated assignments. Organato handles any connected calendar provider sync.
 
 A missing key makes Organato sync and writes fail. A read-only key can sync but cannot create, update, or complete work. Centre reports failed writes and does not save a local substitute. Inspect Organato before retrying a write whose result is unclear.
 
@@ -99,7 +99,7 @@ Provide the Google Desktop OAuth config described above, then run:
 npm run package:mac
 ```
 
-The app, DMG, and ZIP appear in `release/`. After four PRs merge into `main` since the latest release, the release workflow publishes Apple Silicon and Intel DMGs in [Releases](https://github.com/etphli/centre/releases/latest). Download a DMG to share with friends. See [the release guide](docs/releases.md) for installation, signing, and automatic updates.
+The app, DMG, and ZIP appear in `release/`. After four PRs merge into `main` since the latest release, the release workflow publishes Apple Silicon and Intel DMGs in [Releases](https://github.com/etphli/centre/releases/latest). Download a DMG to share with friends. The repository and downloads are public. Use **Settings > Updates > Check for updates**, without a GitHub token. The sidebar shows an update action only when an update is available or downloading. Unsigned builds offer the matching DMG; signed builds can download and restart to install when the release includes automatic-update assets. See [the release guide](docs/releases.md) for installation, signing, and automatic updates.
 
 ## Verify changes
 

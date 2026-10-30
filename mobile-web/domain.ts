@@ -4,6 +4,7 @@ import { quizDraftSchema, attemptSchema } from '../shared/practice';
 import { syncedChatSchema, syncedMessageSchema } from '../shared/chat-sync';
 import { closeRunning, recoverStudySession, studySessionSchema, weeklyStudyGoalSchema, localStudyInstant, type StudySession, studyTimeZoneSchema } from '../shared/study-log';
 import type { MobileEntity } from './data/store';
+export { resourceSchema as notificationResourceSchema } from '../shared/schema';
 
 export function records<T>(entities: readonly MobileEntity[], kind: string, schema: z.ZodType<T>): T[] {
   return entities.flatMap(record => {
@@ -11,6 +12,12 @@ export function records<T>(entities: readonly MobileEntity[], kind: string, sche
     const parsed = schema.safeParse(record.data);
     return parsed.success ? [parsed.data] : [];
   });
+}
+export type NotificationResource = Resource;
+export function notificationResourceForAssignment(resources: readonly NotificationResource[], itemId: string) {
+  if (!itemId) return [];
+  return resources.filter(resource => resource.notification?.itemId === itemId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 export function library(entities: readonly MobileEntity[]) {
   return {
