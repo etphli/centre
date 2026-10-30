@@ -31,3 +31,5 @@ Final combined verification also passed:
 - `TMPDIR="$PWD/.runtime/swift-tmp" xcodebuild build-for-testing -project ios/Centre.xcodeproj -scheme Centre -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath .runtime/ios-build CODE_SIGNING_ALLOWED=NO`: `TEST BUILD SUCCEEDED`. This compiles the app and UI-test bundle but does not execute the simulator UI tests.
 
 The workspace-local temporary directory avoided an initial package-manifest execution permission failure in the system temporary directory. No app was installed, and neither desktop nor hosted changes were deployed.
+
+Release preparation corrected the previously failing countdown fixture: its manual interval now ends at the injected clock instead of one minute in the future. The complete portable suite then passed all 102 tests. The verification executable's `@main` entry point was also renamed from `main.swift` to `CentreCoreVerification.swift` for the CI Swift toolchain, which otherwise treated the filename as a top-level entry point. This changes no production study rules.
