@@ -31,9 +31,15 @@ struct MessageComposer: UIViewRepresentable {
     }
     func updateUIView(_ view: ComposerTextView, context: Context) {
         context.coordinator.parent = self
-        if view.text != text { view.text = text }
+        // UIKit can hold provisional keyboard text before its delegate publishes it.
+        // Only a change to the bound value should replace that editing buffer.
+        if context.coordinator.synchronizedText != text {
+            context.coordinator.synchronizedText = text
+            if view.text != text { view.text = text }
+        }
         view.textColor = color
-        view.font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: textSize.uiCategory))
+        let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: textSize.uiCategory))
+        if view.font != font { view.font = font }
         view.sendKey = sendKey
         view.sendAction = { if canSend { send() } }
         view.canSend = canSend
@@ -49,8 +55,12 @@ struct MessageComposer: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: MessageComposer
+        var synchronizedText: String?
         init(_ parent: MessageComposer) { self.parent = parent }
-        func textViewDidChange(_ textView: UITextView) { parent.text = textView.text }
+        func textViewDidChange(_ textView: UITextView) {
+            synchronizedText = textView.text
+            parent.text = textView.text
+        }
     }
 }
 

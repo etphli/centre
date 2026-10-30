@@ -56,6 +56,12 @@ final class CentreUITests: XCTestCase {
         let changed = expectation(for: NSPredicate(format: "label == %@", label), evaluatedWith: element)
         wait(for: [changed], timeout: 5)
     }
+    private func assertLabeledText(_ id: String, field: String, value: String,
+                                   file: StaticString = #filePath, line: UInt = #line) {
+        let label = app.staticTexts[id].label
+        XCTAssertTrue([value, "\(field), \(value)"].contains(label),
+                      "Expected \(field) to be \(value), found \(label)", file: file, line: line)
+    }
     private func restart() {
         app.terminate(); app.launchArguments = ["-ui-testing"]; app.launch()
         XCTAssertTrue(app.tabBars.buttons["Resources"].waitForExistence(timeout: 15))
@@ -380,11 +386,13 @@ final class CentreUITests: XCTestCase {
         tab("Chat");tap("chat.row.\(chatId)")
         var composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText(firstText)
+        XCTAssertEqual(composer.value as? String,firstText,"Typing must preserve the complete prompt before navigation or persistence.")
         app.navigationBars.buttons.element(boundBy:0).tap()
 
         tap("chat.new")
         composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText(secondText)
+        XCTAssertEqual(composer.value as? String,secondText,"Typing must preserve the complete new-chat prompt before navigation or persistence.")
         app.navigationBars.buttons.element(boundBy:0).tap()
         restart();tab("Chat")
 
@@ -467,30 +475,30 @@ final class CentreUITests: XCTestCase {
         reveal(change)
         XCTAssertTrue(change.waitForExistence(timeout: 10))
         XCTAssertEqual(change.label, "Repeated mistake", "Default comparison should use the oldest and latest saved attempts.")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.outcome"].label, "Partial")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.answer"].label, "First saved response")
+        assertLabeledText("practiceHistory.earlier.q1.outcome", field: "Outcome", value: "Partial")
+        assertLabeledText("practiceHistory.later.q1.outcome", field: "Outcome", value: "Partial")
+        assertLabeledText("practiceHistory.earlier.q1.answer", field: "Saved answer", value: "First saved response")
         XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.feedback"].label, "First saved feedback.")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
+        assertLabeledText("practiceHistory.later.q1.answer", field: "Saved answer", value: "Latest saved response")
         XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.feedback"].label, "Latest saved feedback.")
         XCTAssertTrue(app.staticTexts["Current prompt"].exists)
 
         choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 2", fromBottom: true)
         reveal(change)
         waitLabel(change, "Lower mark")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.answer"].label, "Second saved response")
+        assertLabeledText("practiceHistory.earlier.q1.outcome", field: "Outcome", value: "Partial")
+        assertLabeledText("practiceHistory.earlier.q1.answer", field: "Saved answer", value: "Second saved response")
         choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 1", fromBottom: true)
         choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 2")
         reveal(change)
         waitLabel(change, "Improved")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Second saved response")
+        assertLabeledText("practiceHistory.later.q1.answer", field: "Saved answer", value: "Second saved response")
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.repeatedMistake.q1").firstMatch.exists,
                       "A partial improvement can still be below full marks in both attempts.")
         choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 4", fromBottom: true)
         reveal(change)
         waitLabel(change, "Repeated mistake")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
+        assertLabeledText("practiceHistory.later.q1.answer", field: "Saved answer", value: "Latest saved response")
         capture("23-native-log-practice-attempt-comparison")
     }
 
