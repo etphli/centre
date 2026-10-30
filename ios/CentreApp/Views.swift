@@ -2624,10 +2624,12 @@ private struct PracticeResourceHistoryView: View {
                 Text(question.outcome.rawValue.capitalized)
                     .accessibilityIdentifier("\(accessibilityPrefix).outcome")
             }
+            .accessibilityElement(children: .contain)
             LabeledContent("Saved answer") {
                 Text(question.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No answer" : question.answer)
                     .accessibilityIdentifier("\(accessibilityPrefix).answer")
             }
+            .accessibilityElement(children: .contain)
             if let marking = question.marking {
                 if let score = marking.score, let maximum = marking.maxScore {
                     LabeledContent("Saved marks", value: "\(Num.text(score)) of \(Num.text(maximum))")

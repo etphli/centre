@@ -20,6 +20,8 @@ final class CentreUITests: XCTestCase {
         evidence.name = name; evidence.lifetime = .keepAlways; add(evidence)
     }
     private func tab(_ name: String) {
+        let dismissKeyboard = app.buttons["chat.dismissKeyboard"]
+        if app.keyboards.firstMatch.exists && dismissKeyboard.exists { dismissKeyboard.tap() }
         let button = app.tabBars.buttons[name]
         XCTAssertTrue(button.waitForExistence(timeout: 15))
         button.tap()
@@ -33,9 +35,11 @@ final class CentreUITests: XCTestCase {
         return app
     }
     private func reveal(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        let container = scrollContainer()
         for _ in 0..<7 {
             if element.exists && element.isHittable { return }
-            scrollContainer().swipeUp()
+            if element.exists && element.frame.height > 0 && element.frame.maxY < container.frame.minY { container.swipeDown() }
+            else { container.swipeUp() }
         }
         XCTAssertTrue(element.exists && element.isHittable, "Element must be reachable by scrolling: \(element)", file: file, line: line)
     }
@@ -121,7 +125,8 @@ final class CentreUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
         tab("Calendar")
         let assignment = app.descendants(matching: .any).matching(identifier: "calendar.assignment.assignment-notification").firstMatch
-        XCTAssertTrue(assignment.waitForExistence(timeout: 10))
+        reveal(assignment)
+        XCTAssertTrue(assignment.exists)
         assignment.tap()
         waitText("Complete questions 1 to 4. Show each algebraic step.")
         XCTAssertTrue(app.staticTexts["Assignment notification · algebra-brief.pdf"].exists)
@@ -456,7 +461,7 @@ final class CentreUITests: XCTestCase {
         XCTAssertFalse(deletedResource.exists)
         choosePickerOption("practiceHistory.resourceFilter", containing: "All resources")
         tap("practiceHistory.resource.\(quizId)")
-        waitText("original question text and marking model were not saved")
+        waitText("Original prompt and grading-model history is unavailable")
 
         let change = app.staticTexts["practiceHistory.change.q1"]
         reveal(change)
@@ -496,9 +501,10 @@ final class CentreUITests: XCTestCase {
         tap("practiceHistory.resource.deleted-resource")
 
         waitText("This resource is deleted or unavailable")
-        reveal(app.staticTexts["Saved deleted-resource answer"])
-        XCTAssertTrue(app.staticTexts["Saved deleted-resource answer"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Saved deleted-resource feedback."].exists)
+        let answer = app.descendants(matching: .any).matching(identifier: "practiceHistory.saved.saved-question-id.answer").firstMatch
+        reveal(answer)
+        XCTAssertTrue(answer.label.contains("Saved deleted-resource answer"))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.saved.saved-question-id.feedback").firstMatch.exists)
         XCTAssertFalse(app.staticTexts["Current prompt"].exists, "Deleted resources must not supply current prompt text.")
         capture("24-deleted-resource-attempt-history")
     }

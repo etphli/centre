@@ -20,6 +20,12 @@ struct MessageComposer: UIViewRepresentable {
         view.accessibilityLabel = "Message Centre"
         view.accessibilityIdentifier = "chat.composer"
         view.adjustsFontForContentSizeCategory = true
+        let accessory = UIToolbar()
+        accessory.sizeToFit()
+        let done = UIBarButtonItem(title: "Done", style: .done, target: view, action: #selector(ComposerTextView.dismissKeyboard))
+        done.accessibilityIdentifier = "chat.dismissKeyboard"
+        accessory.items = [UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil), done]
+        view.inputAccessoryView = accessory
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return view
     }
@@ -61,6 +67,7 @@ final class ComposerTextView: UITextView {
             return command
         }
     }
+    @objc func dismissKeyboard() { resignFirstResponder() }
     @objc private func sendMessage() {
         guard markedTextRange == nil, canSend else { return }
         sendAction?()
