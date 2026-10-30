@@ -628,3 +628,23 @@ test("durable result retries fail closed when the guarded adapter becomes unavai
     assert.equal(fixture.mutations.size, 1);
   } finally { fixture.db.close(); }
 });
+
+test('hosted chat loads scoped notification context without changing the student message', async () => {
+  const calls=[];
+  const fixture=makeContext({ai:{async run(_model,input){calls.push(input);return {response:'Use a ruler.'};}}});
+  const key=`workspace-a:message:${fixture.messageId}`;
+  const message=fixture.records.get(key);
+  message.data.requestContext={page:'chat',resourceId:'notice'};
+  fixture.records.set('workspace-a:resource:notice',record('resource','notice',{title:'Science notice',notification:{itemId:'assignment'},content:'Bring a ruler. '+ 'x'.repeat(25_000)}));
+  try {
+    const result=await handleAiRequest(postRequest({id:randomUUID(),chatId:fixture.chatId,messageId:fixture.messageId}),fixture.context);
+    assert.equal(result.status,200);
+    assert.equal(calls[0].messages.at(-1).content,'Explain cellular respiration.');
+    assert.match(calls[0].messages[1].content,/Bring a ruler/);
+    assert.ok(calls[0].messages[1].content.length<21_000);
+    assert.equal(fixture.records.get(key).data.content,'Explain cellular respiration.');
+    fixture.records.get('workspace-a:resource:notice').deleted=true;
+    await handleAiRequest(postRequest({id:randomUUID(),chatId:fixture.chatId,messageId:fixture.messageId}),fixture.context);
+    assert.equal(calls[1].messages.length,2);
+  } finally {fixture.db.close();}
+});

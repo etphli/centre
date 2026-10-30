@@ -156,6 +156,16 @@ async function extractDocxText(bytes: Buffer): Promise<string> {
   return text;
 }
 
+export async function extractDocumentText(name:string, mimeType:string, bytes:Buffer):Promise<string> {
+  if (bytes.length > MAX_ATTACHMENT_BYTES) return fail(413, 'Each attachment must be 20 MB or smaller.');
+  const extension = extname(name).toLowerCase();
+  assertFileFormat(extension,mimeType,bytes);
+  if (extension === '.pdf') return extractPdfText(bytes);
+  if (extension === '.docx') return extractDocxText(bytes);
+  if (textExtensions.has(extension)) return decodeText(bytes);
+  return fail(422,'This notification is an image. A readable text copy requires OCR.');
+}
+
 export class AttachmentStore {
   readonly directory: string;
   constructor(dataDirectory: string, readonly workspaceId = `desktop:${createHash('sha256').update(resolve(dataDirectory)).digest('hex')}`) { this.directory = join(resolve(dataDirectory), 'attachments'); }

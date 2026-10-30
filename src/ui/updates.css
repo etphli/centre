@@ -1,0 +1,6 @@
+.app-updates { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.app-updates__version { color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
+.app-updates__status { color: var(--text-2); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.app-updates--compact { margin: 8px 0; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); gap: 6px; }
+.app-updates--compact .button { width: 100%; justify-content: center; }
+.app-updates--compact .app-updates__status { font-size: 11px; }

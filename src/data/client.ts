@@ -12,7 +12,8 @@ import { modelSelectionSchema, type ModelSelection, chatSchema, chatFolderSchema
 
 export interface ExportedFile { filename: string; content: string; mimeType: string }
 export interface AttachmentUploadInput { name:string; mimeType:string; data:string }
-export interface UpdateStatus { state: string; message: string; version?: string; downloaded?: boolean; configured?: boolean }
+import type { UpdateStatus } from '../../shared/updates';
+export type { UpdateStatus } from '../../shared/updates';
 type Method = 'GET' | 'POST' | 'PATCH';
 export interface DesktopBridge {
   copyText: (text: string) => Promise<void>;
@@ -31,7 +32,7 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<unknown>;
   saveFile: (file: ExportedFile) => Promise<NativeSaveResult>;
   printPaper: (paper: { title: string; latex: string; html?: string }) => Promise<NativeSaveResult>;
-  updates: { check: () => Promise<UpdateStatus>; install: () => Promise<UpdateStatus>; status: () => Promise<UpdateStatus>; configure: (input: { token: string }) => Promise<UpdateStatus> };
+  updates: { check: () => Promise<UpdateStatus>; install: () => Promise<UpdateStatus>; status: () => Promise<UpdateStatus> };
 }
 declare global { interface Window { centre?: DesktopBridge } }
 
@@ -165,7 +166,6 @@ export const updates = {
   status: () => window.centre ? window.centre.updates.status() : desktopOnly(),
   check: () => window.centre ? window.centre.updates.check() : desktopOnly(),
   install: () => window.centre ? window.centre.updates.install() : desktopOnly(),
-  configure: (input: { token: string }) => window.centre ? window.centre.updates.configure(input) : desktopOnly(),
 };
 
 export async function openDiagramFile(id:string,theme:string):Promise<void> {

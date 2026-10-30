@@ -58,13 +58,13 @@ export function SubjectsPage() {
   const { state, navigate, openGenerate } = useApp();
   const [preview,setPreview] = useState<string|null>(null);
   const [query,setQuery] = useState('');
-  const [kind,setKind] = useState<ResourceKind|'all'>('all');
+  const [kind,setKind] = useState<ResourceKind|'all'|'notifications'>('all');
   const [location,setLocation] = useState('all');
   const subjects = new Map(state.subjects.map(subject => [subject.id,subject.name]));
   const topics = new Map(state.topics.map(topic => [topic.id,topic.name]));
   const search = query.trim().toLocaleLowerCase();
   const shown = state.resources.filter(resource =>
-    (kind === 'all' || resource.kind === kind) &&
+    (kind === 'all' || (kind === 'notifications' ? Boolean(resource.notification) : resource.kind === kind)) &&
     (location === 'all' || (location === 'personal' ? resource.subjectId === null : resource.subjectId === location)) &&
     (!search || [resource.title,subjects.get(resource.subjectId ?? ''),topics.get(resource.topicId ?? ''),kindLabels[resource.kind]].some(value => value?.toLocaleLowerCase().includes(search))),
   ).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
@@ -83,7 +83,7 @@ export function SubjectsPage() {
           <Select label="Filter resources by subject" value={location} onChange={setLocation} options={[{value:'all',label:'All subjects'},{value:'personal',label:'Personal learning'},...state.subjects.map(subject => ({value:subject.id,label:subject.name}))]} />
         </div>
         <div className="filter-row" role="group" aria-label="Filter saved resources by kind">
-          {(['all',...resourceKinds] as const).map(value => <button type="button" key={value} className={`chip${kind === value ? ' is-selected' : ''}`} aria-pressed={kind === value} onClick={() => setKind(value)}>{value === 'all' ? 'All' : value === 'quiz' ? 'Quizzes' : value === 'test' ? 'Tests' : value === 'diagram' ? 'Diagrams' : kindLabels[value]}</button>)}
+          {(['all','notifications',...resourceKinds] as const).map(value => <button type="button" key={value} className={`chip${kind === value ? ' is-selected' : ''}`} aria-pressed={kind === value} onClick={() => setKind(value)}>{value === 'all' ? 'All' : value === 'notifications' ? 'Notifications' : value === 'quiz' ? 'Quizzes' : value === 'test' ? 'Tests' : value === 'diagram' ? 'Diagrams' : kindLabels[value]}</button>)}
         </div>
         <p className="library-count" role="status">{plural(shown.length,'saved resource')}{filtered ? ` of ${state.resources.length}` : ''}{shown.length ? ', newest first' : ''}</p>
         {shown.length ? <ul className="resource-grid">{shown.map(resource => <li key={resource.id}>

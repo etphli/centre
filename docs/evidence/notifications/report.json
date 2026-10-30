@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "checks": [
+    "Notifications category filters imported resources",
+    "Saved notification text opens in reader",
+    "Light and dark reader captured",
+    "Narrow layout captured",
+    "Keyboard focus reaches a control"
+  ],
+  "fixture": true,
+  "unsigned": true
+}

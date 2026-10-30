@@ -1,3 +1,4 @@
+import { UpdateControls } from './UpdateControls';
 import {
   ArrowDown, ArrowUp, Clock3, CalendarDays, Check, ChevronRight, Folder, FolderMinus, FolderPlus, GitBranch, Inbox, Library, MoreHorizontal,
   PanelLeft, Pencil, Pin, PinOff, Plus, Search, Settings, Target, Trash2,
@@ -592,6 +593,7 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
         </section>
         <p className="chat-nav__sr" aria-live="polite">{announcement}</p>
       </div>
+      {window.centre ? <UpdateControls compact /> : null}
       <footer className="sidebar__footer">
         <button type="button" className="account" onClick={() => navigate({ kind: 'settings' })} aria-label="Account and settings">
           {account?.picture ? (

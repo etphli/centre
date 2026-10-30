@@ -4,7 +4,7 @@ import { Markdown } from './Markdown';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { BookOpen, ChevronRight, Search } from 'lucide-react';
-import { library, dateLabel } from './domain';
+import { library, dateLabel, type NotificationResource } from './domain';
 import { type MobileState, MobileRequestError } from './data/store';
 import type { MobileModel } from './model';
 import type { Resource } from '../shared/schema';
@@ -16,17 +16,19 @@ const gradeInput=z.object({id:z.uuid(),resourceId:z.string(),draftId:z.uuid(),ex
 const gradeJournal=gradeInput.extend({terminal:z.boolean().default(false)});
 const gradeReply=z.object({status:z.string(),attempt:attemptSchema.optional()});
 export function LibraryView({state,model,selected,onSelect}:{state:MobileState;model:MobileModel;selected:string|null;onSelect:(id:string|null)=>void}) {
-  const data=useMemo(()=>library(state.entities),[state.entities]),[search,setSearch]=useState('');
+  const data=useMemo(()=>library(state.entities),[state.entities]),[search,setSearch]=useState(''),[notificationsOnly,setNotificationsOnly]=useState(false);
   const resource=data.resources.find(item=>item.id===selected);
   if(resource)return <ResourceView key={resource.id} resource={resource} state={state} model={model} onBack={()=>onSelect(null)}/>;
-  const results=data.resources.filter(item=>`${item.title} ${item.kind} ${item.kind==='diagram'?'':item.content}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+  const results=data.resources.filter(item=>!notificationsOnly||item.notification!==undefined).filter(item=>`${item.title} ${item.kind} ${item.notification?.fileName??''} ${item.kind==='diagram'?'':item.content}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
   return <><div className="page-title"><div><p className="muted">Bring your materials along</p><h1>Resources</h1></div><BookOpen aria-hidden/></div><label className="search"><Search size={18}/><span className="sr-only">Search saved resources</span><input placeholder="Search your resources" value={search} onChange={event=>setSearch(event.target.value)}/></label>
-    {!results.length?<Empty title={search?'No matching resources':'Your library, on your phone'}>{search?'Try another word.':'In Centre on your Mac, enable cloud sync and import your library. Synced resources will be available here and offline.'}</Empty>:<div className="list">{results.map(item=><button className="list-row" key={item.id} onClick={()=>onSelect(item.id)}><div><span className="detail kind">{item.kind}</span><h2>{item.title}</h2><p>{item.questions.length?`${item.questions.length} questions · `:''}{dateLabel(item.updatedAt)}</p></div><ChevronRight size={18}/></button>)}</div>}
+    <div className="button-row" role="group" aria-label="Resource category"><button className={`button ${!notificationsOnly?'selected':''}`} aria-pressed={!notificationsOnly} onClick={()=>setNotificationsOnly(false)}>All resources</button><button className={`button ${notificationsOnly?'selected':''}`} aria-pressed={notificationsOnly} onClick={()=>setNotificationsOnly(true)}>Notifications</button></div>
+    {!results.length?<Empty title={search?'No matching resources':notificationsOnly?'No notifications yet':'Your library, on your phone'}>{search?'Try another word.':notificationsOnly?'Assignment attachments saved as notes appear here and stay readable offline.':'In Centre on your Mac, enable cloud sync and import your library. Synced resources will be available here and offline.'}</Empty>:<div className="list">{results.map(item=><button className="list-row" key={item.id} onClick={()=>onSelect(item.id)}><div><span className="detail kind">{item.notification?'Notification · ':''}{item.kind}</span><h2>{item.title}</h2><p>{item.notification?.fileName?`${item.notification.fileName} · `:''}{item.questions.length?`${item.questions.length} questions · `:''}{dateLabel(item.updatedAt)}</p></div><ChevronRight size={18}/></button>)}</div>}
   </>;
 }
-function ResourceView({resource,state,model,onBack}:{resource:Resource;state:MobileState;model:MobileModel;onBack:()=>void}) {
+function ResourceView({resource,state,model,onBack}:{resource:NotificationResource;state:MobileState;model:MobileModel;onBack:()=>void}) {
   const action=useAction(),data=useMemo(()=>library(state.entities),[state.entities]);
   return <><Back onClick={()=>void action.run(async()=>{await model.serial(async()=>undefined);onBack();})}>Resources</Back><div className="page-title"><div><p className="muted kind">{resource.kind}</p><h1>{resource.title}</h1></div></div>
+    {resource.notification?<p className="detail">Assignment notification · {resource.notification.fileName} · Saved text is available offline.</p>:null}
     {resource.questions.length?<Quiz resource={resource} state={state} model={model}/>:resource.kind==='diagram'?<SafeDocument resource={resource} state={state} model={model}/>:<Markdown text={resource.content}/>}
     {!resource.questions.length&&resource.kind!=='diagram'?<button className="button" disabled={action.busy} onClick={()=>void action.run(()=>model.store.save('resource',resource.id,{...resource,connectedFile:undefined,completedAt:resource.completedAt?null:new Date().toISOString(),updatedAt:new Date().toISOString()}))}>{resource.completedAt?'Mark as unfinished':'Mark done'}</button>:null}
     <AttemptHistory attempts={data.attempts.filter(item=>item.resourceId===resource.id)} resources={data.resources}/>

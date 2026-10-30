@@ -1,14 +1,16 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { assignmentSchema, subjectSchema, eventSchema, calendarEventSchema, type StudyEvent } from '../shared/schema';
+import { assignmentSchema, subjectSchema, eventSchema, calendarEventSchema, resourceSchema, type StudyEvent } from '../shared/schema';
 import { projectCalendarEvent } from '../shared/calendar-time';
 import { archiveCalendarEventSchema, calendarDate, calendarInputSchema, calendarPatchSchema, organatoDeadline } from './calendar';
+import { extractDocumentText, MAX_ATTACHMENT_BYTES } from './attachments';
 import type { Store } from './store';
 import type { Credentials } from './credentials';
 import { HttpError, errorMessage, requireFound } from './errors';
 
 const subject = z.object({ id:z.string(), displayName:z.string(), shortName:z.string().nullable(), colour:z.string(), active:z.boolean() });
-const item = z.object({ id:z.string(), displayName:z.string(), kind:z.enum(['work','todo']), subjectId:z.string().nullable(), dueDateLocal:z.string().nullable(), dueAt:z.string().nullable(), workingStatus:z.string(), version:z.number().int().positive(), notesMarkdown:z.string().default(''), calendarEnabled:z.boolean().default(false), completedAt:z.iso.datetime().nullable().default(null), archivedAt:z.iso.datetime().nullable().default(null), estimatedMinutes:z.number().int().nullable().default(null) });
+const attachmentLink = z.object({id:z.string(),label:z.string(),url:z.string(),linkType:z.string(),createdAt:z.string()});
+const item = z.object({ attachments:z.array(attachmentLink).default([]), id:z.string(), displayName:z.string(), kind:z.enum(['work','todo']), subjectId:z.string().nullable(), dueDateLocal:z.string().nullable(), dueAt:z.string().nullable(), workingStatus:z.string(), version:z.number().int().positive(), notesMarkdown:z.string().default(''), calendarEnabled:z.boolean().default(false), completedAt:z.iso.datetime().nullable().default(null), archivedAt:z.iso.datetime().nullable().default(null), estimatedMinutes:z.number().int().nullable().default(null) });
 export const createItemSchema = z.object({ kind:z.enum(['work','todo']), displayName:z.string().trim().min(1).max(500), classification:z.enum(['unclassified','assignment','checkpoint','both']).optional(), dueAt:z.iso.datetime().nullable().optional(), dueDateLocal:z.iso.date().nullable().optional(), dueHasExplicitTime:z.boolean().optional(), subjectId:z.string().nullable().optional(), priority:z.enum(['low','medium','high','urgent']).nullable().optional(), calendarEnabled:z.boolean().optional(), remindersEnabled:z.boolean().optional(), notesMarkdown:z.string().max(100000).optional(), calendarNote:z.string().max(20000).optional(), estimatedMinutes:z.number().int().min(1).max(10000).nullable().optional(), recurrenceRule:z.unknown().optional() }).strict();
 export const updateItemSchema = createItemSchema.omit({kind:true,classification:true}).partial().extend({version:z.number().int().positive(),workingStatus:z.enum(['not_started','in_progress','completed','submitted']).optional(),pinned:z.boolean().optional()}).strict();
 export function validOrganatoBase(value:string) {
@@ -20,12 +22,16 @@ const mapItem = (value:z.infer<typeof item>,timeZone:string) => assignmentSchema
 
 export class Organato {
   constructor(private readonly store:Store,private readonly credentials:Credentials) {}
-  private async request(path:string,method = 'GET',body?:unknown):Promise<unknown> {
+  private async fetchResponse(path:string,method = 'GET',body?:unknown):Promise<Response> {
     const key = await this.credentials.get('organatoApiKey');
     if (!key) throw new HttpError(400,'Add an Organato API key in Settings first.');
     let response:Response;
     try { response = await fetch(`${validOrganatoBase(this.store.state.settings.organatoBaseUrl)}${path}`,{method,headers:{Authorization:`Bearer ${key}`,...(body === undefined ? {} : {'Content-Type':'application/json'})},...(body === undefined ? {} : {body:JSON.stringify(body)}),signal:AbortSignal.timeout(30000),redirect:'error'}); }
     catch (error) { if (method !== 'GET') throw new HttpError(502,`The Organato write could not be confirmed: ${errorMessage(error)}. Inspect Organato before retrying.`); throw error; }
+    return response;
+  }
+  private async request(path:string,method = 'GET',body?:unknown):Promise<unknown> {
+    const response = await this.fetchResponse(path,method,body);
     let result:unknown;
     try { result = await response.json(); }
     catch { throw new HttpError(502,method === 'GET' ? 'Organato returned an unreadable response.' : 'The Organato write could not be confirmed. Inspect Organato before retrying.'); }
@@ -60,10 +66,60 @@ export class Organato {
         const previous = previousEvents.find(event => event.organatoId === remote.id);
         return this.calendarEvent(remote,{...previous,id:previous?.id ?? remote.id,title:remote.displayName,origin:previous?.origin ?? 'organato',kind:previous?.kind ?? 'deadline',revision:previous ? previous.revision + Number(previous.organatoVersion !== remote.version) : 1},timeZone);
       })];
+      const notificationErrors = await this.syncNotifications(active);
       this.store.state.lastSyncedAt = new Date().toISOString();
       this.store.state.syncError = missingPlans.length ? `Organato did not return ${missingPlans.length} linked Centre plan${missingPlans.length === 1 ? '' : 's'}. The local plan is kept. Inspect Organato before changing it.` : null;
+      if (notificationErrors.length) this.store.state.syncError = [this.store.state.syncError,`Some notifications could not refresh: ${notificationErrors.join('; ')}`].filter(Boolean).join(' ');
       this.store.state.settings.organatoConnected = true; await this.store.save(); return this.store.state;
     } catch (error) { this.store.state.syncError = errorMessage(error); await this.store.save(); throw error; }
+  }
+  private async syncNotifications(records:z.infer<typeof item>[]) {
+    const errors:string[] = [];
+    for (const record of records) {
+      const links = record.attachments;
+      for (const link of links.filter(link => link.linkType === 'brief')) {
+        const id = `organato-notification-${createHash('sha256').update(JSON.stringify([record.id,link.id])).digest('hex')}`;
+        const existing = this.store.state.resources.find(resource => resource.id === id || (resource.notification?.itemId === record.id && resource.notification.attachmentId === link.id));
+        if (existing?.deletedAt) continue;
+        const path = `/attachments/${encodeURIComponent(link.id)}/file`;
+        let fileName = existing?.notification?.fileName ?? link.label;
+        let contentType = existing?.notification?.contentType ?? 'text/plain';
+        let content = existing?.content ?? 'This notification is not available offline yet. Sync Organato to retry.';
+        try {
+          if (!link.url.startsWith('kv://')) throw new Error('The file is only available in Canvas and has no downloadable Organato copy.');
+          const response = await this.fetchResponse(path);
+          if (!response.ok) throw new Error(`Download returned HTTP ${response.status}.`);
+          contentType = response.headers.get('content-type')?.split(';')[0] ?? 'application/octet-stream';
+          const disposition = response.headers.get('content-disposition') ?? '';
+          const suppliedName = /filename="([^"\r\n]+)"/.exec(disposition)?.[1];
+          fileName = suppliedName ?? fileName;
+          if (!/\.[a-z0-9]+$/i.test(fileName)) fileName += contentType === 'application/pdf' ? '.pdf' : contentType.includes('wordprocessingml') ? '.docx' : '.txt';
+          const reader = response.body?.getReader();
+          if (!reader) throw new Error('The download was empty.');
+          const chunks:Uint8Array[] = []; let size = 0;
+          try {
+            while (true) {
+              const chunk = await reader.read(); if (chunk.done) break;
+              size += chunk.value.length;
+              if (size > MAX_ATTACHMENT_BYTES) throw new Error('The notification exceeds the 20 MB limit.');
+              chunks.push(chunk.value);
+            }
+          } finally { await reader.cancel(); }
+          content = await extractDocumentText(fileName,contentType,Buffer.concat(chunks));
+        } catch (error) {
+          errors.push(`${record.displayName} / ${link.label}: ${errorMessage(error)}`);
+          if (existing?.notification) { fileName = existing.notification.fileName; contentType = existing.notification.contentType; }
+          if (!existing) content = `Notification unavailable: ${errorMessage(error)}\n\nSync Organato to retry. Centre has not read this document.`;
+        }
+        const title = `${record.displayName}: ${link.label}`;
+        const notification = {itemId:record.id,attachmentId:link.id,fileName,contentType,downloadPath:path};
+        if (existing && existing.content === content && existing.title === title && existing.subjectId === record.subjectId && JSON.stringify(existing.notification) === JSON.stringify(notification)) continue;
+        const now = new Date().toISOString();
+        const resource = resourceSchema.parse({...existing,id:existing?.id ?? id,kind:'notes',subjectId:record.subjectId,topicId:existing?.topicId ?? null,title,content,createdAt:existing?.createdAt ?? now,updatedAt:now,notification});
+        if (existing) Object.assign(existing,resource); else this.store.state.resources.push(resource);
+      }
+    }
+    return errors;
   }
   async create(input:unknown) { return this.remember(z.object({item}).parse(await this.request('/items','POST',createItemSchema.parse(input))).item); }
   async update(id:string,input:unknown) { return this.remember(z.object({item}).parse(await this.request(`/items/${encodeURIComponent(id)}`,'PATCH',updateItemSchema.parse(input))).item); }

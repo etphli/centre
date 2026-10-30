@@ -442,9 +442,9 @@ private struct MessageRow: View {
         let data = model.data(record)
         let content = data["content"].string ?? ""
         let isUser = data["role"].string == "user"
-        let resources = data["resourceIds"].array.compactMap { $0.string }
+        let linkedResources = data["resourceIds"].array.compactMap { $0.string }
             .compactMap { model.record(kind: "resource", id: $0) }
-            .compactMap { model.data($0)["title"].string }
+        let resources = linkedResources.compactMap { model.data($0)["title"].string }
         let attachmentIds = data["attachmentIds"].array.compactMap(\.string)
         let attachments=attachmentIds.count
         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
@@ -461,7 +461,11 @@ private struct MessageRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if !resources.isEmpty {
-                Text("Uses \(resources.joined(separator: ", "))").font(.footnote).foregroundStyle(palette.text3)
+                ForEach(linkedResources) { resource in
+                    NavigationLink(destination: ResourceDetailView(resourceId: resource.id)) {
+                        Label(model.data(resource)["title"].string ?? "Saved resource", systemImage: "doc.text")
+                    }.font(.footnote)
+                }
             }
             if let chatId=data["chatId"].string {
                 ForEach(attachmentIds,id:\.self) { id in AttachmentButton(id:id,chatId:chatId) }
@@ -532,11 +536,13 @@ private struct ResourcesTab: View {
     @Binding var showSettings: Bool
     @State private var path: [ResourceRoute] = []
     @State private var query = ""
+    @State private var notificationsOnly = false
 
     var body: some View {
         let all = model.items("resource")
         let q = query.trimmingCharacters(in: .whitespaces)
-        let shown = all.filter { q.isEmpty || (model.data($0)["title"].string ?? "").localizedCaseInsensitiveContains(q) }
+        let shown = all.filter { !notificationsOnly || NotificationResources.isNotification($0) }
+            .filter { q.isEmpty || (model.data($0)["title"].string ?? "").localizedCaseInsensitiveContains(q) || (model.data($0)["notification"]["fileName"].string ?? "").localizedCaseInsensitiveContains(q) }
             .sorted { (model.data($0)["updatedAt"].string ?? "") > (model.data($1)["updatedAt"].string ?? "") }
         let groups = Dictionary(grouping: shown) { model.data($0)["subjectId"].string ?? "" }
         let subjects = Subjects.all(model)
@@ -545,6 +551,14 @@ private struct ResourcesTab: View {
             + (groups[""] != nil ? [""] : [])
         NavigationStack(path: $path) {
             List {
+                Section {
+                    Picker("Category", selection: $notificationsOnly) {
+                        Text("All resources").tag(false)
+                        Text("Notifications").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("resources.category")
+                }
                 ForEach(keys, id: \.self) { key in
                     Section(key.isEmpty ? "Personal" : Subjects.name(model, key) ?? "Other subject") {
                         ForEach(groups[key] ?? []) { resource in
@@ -567,7 +581,12 @@ private struct ResourcesTab: View {
                         Button("Write a note") { path.append(.newNote) }.buttonStyle(CentrePrimaryButtonStyle()).frame(maxWidth: 220)
                     }
                 } else if shown.isEmpty {
-                    ContentUnavailableView.search(text: q)
+                    if notificationsOnly && q.isEmpty {
+                        ContentUnavailableView("No notifications yet", systemImage: "bell",
+                            description: Text("Assignment attachments saved as notes will appear here and stay readable offline."))
+                    } else {
+                        ContentUnavailableView.search(text: q)
+                    }
                 }
             }
             .refreshable { await model.sync() }
@@ -619,13 +638,14 @@ private struct ResourceRow: View {
     var body: some View {
         let data = model.data(resource)
         let kind = data["kind"].string
+        let isNotification = NotificationResources.isNotification(resource)
         let topic = data["topicId"].string.flatMap { model.record(kind: "topic", id: $0) }.flatMap { model.data($0)["name"].string }
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: ResourceKind.symbol(kind)).foregroundStyle(palette.text2).frame(width: 22)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(data["title"].string.nonEmpty ?? "Untitled").lineLimit(2)
-                Text([ResourceKind.label(kind), topic].compactMap { $0 }.joined(separator: ", "))
+                Text(([isNotification ? "Notification" : nil, ResourceKind.label(kind), topic].compactMap { $0 }).joined(separator: ", "))
                     .font(.footnote).foregroundStyle(palette.text3)
             }
             Spacer(minLength: 0)
@@ -658,6 +678,10 @@ private struct ResourceDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         Text(data["title"].string.nonEmpty ?? "Untitled").font(CentreFont.serif(.title))
+                        if NotificationResources.isNotification(resource) {
+                            Label("Assignment notification · \(data["notification"]["fileName"].string ?? "Attached file")", systemImage: "bell")
+                                .font(.footnote).foregroundStyle(palette.text3)
+                        }
                         if let updated = When.parse(data["updatedAt"].string) {
                             Text("Edited \(updated.formatted(date: .abbreviated, time: .shortened))")
                                 .font(.footnote).foregroundStyle(palette.text3)
@@ -1852,18 +1876,34 @@ private struct CalendarTab: View {
         }
     }
 
-    private func deadlineRow(_ item: JSONValue) -> some View {
+    @ViewBuilder private func deadlineRow(_ item: JSONValue) -> some View {
         let subject = item["subjectId"].string.flatMap { Subjects.name(model, $0) }
         let due=When.parse(item["dueAt"].string).map { "Due \(When.time($0,When.zone(model.preferences)))" } ?? "Due"
-        return HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Image(systemName: "flag").foregroundStyle(palette.warn).frame(minWidth: 44).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item["title"].string ?? "Untitled")
-                Text([due, subject, item["status"].string.nonEmpty].compactMap { $0 }.joined(separator: ", "))
-                    .font(.footnote).foregroundStyle(palette.text3)
+        let notification = NotificationResources.linked(toAssignment: item["id"].string ?? "", in: model.items("resource")).first
+        if let notification {
+            NavigationLink(destination: ResourceDetailView(resourceId: notification.id)) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Image(systemName: "flag").foregroundStyle(palette.warn).frame(minWidth: 44).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item["title"].string ?? "Untitled")
+                        Text([due, subject, item["status"].string.nonEmpty].compactMap { $0 }.joined(separator: ", "))
+                            .font(.footnote).foregroundStyle(palette.text3)
+                        Label("Notification · \(model.data(notification)["title"].string ?? "Attached note")", systemImage: "bell")
+                            .font(.footnote).foregroundStyle(palette.text2)
+                    }
+                }
+            }
+            .accessibilityIdentifier("calendar.assignment.\(item["id"].string ?? "unknown")")
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: "flag").foregroundStyle(palette.warn).frame(minWidth: 44).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item["title"].string ?? "Untitled")
+                    Text([due, subject, item["status"].string.nonEmpty].compactMap { $0 }.joined(separator: ", "))
+                        .font(.footnote).foregroundStyle(palette.text3)
+                }
             }
         }
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -2584,10 +2624,12 @@ private struct PracticeResourceHistoryView: View {
                 Text(question.outcome.rawValue.capitalized)
                     .accessibilityIdentifier("\(accessibilityPrefix).outcome")
             }
+            .accessibilityElement(children: .contain)
             LabeledContent("Saved answer") {
                 Text(question.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No answer" : question.answer)
                     .accessibilityIdentifier("\(accessibilityPrefix).answer")
             }
+            .accessibilityElement(children: .contain)
             if let marking = question.marking {
                 if let score = marking.score, let maximum = marking.maxScore {
                     LabeledContent("Saved marks", value: "\(Num.text(score)) of \(Num.text(maximum))")

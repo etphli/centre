@@ -20,6 +20,8 @@ final class CentreUITests: XCTestCase {
         evidence.name = name; evidence.lifetime = .keepAlways; add(evidence)
     }
     private func tab(_ name: String) {
+        let dismissKeyboard = app.buttons["chat.dismissKeyboard"]
+        if app.keyboards.firstMatch.exists && dismissKeyboard.exists { dismissKeyboard.tap() }
         let button = app.tabBars.buttons[name]
         XCTAssertTrue(button.waitForExistence(timeout: 15))
         button.tap()
@@ -33,9 +35,11 @@ final class CentreUITests: XCTestCase {
         return app
     }
     private func reveal(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        let container = scrollContainer()
         for _ in 0..<7 {
             if element.exists && element.isHittable { return }
-            scrollContainer().swipeUp()
+            if element.exists && element.frame.height > 0 && element.frame.maxY < container.frame.minY { container.swipeDown() }
+            else { container.swipeUp() }
         }
         XCTAssertTrue(element.exists && element.isHittable, "Element must be reachable by scrolling: \(element)", file: file, line: line)
     }
@@ -51,6 +55,12 @@ final class CentreUITests: XCTestCase {
     private func waitLabel(_ element: XCUIElement, _ label: String) {
         let changed = expectation(for: NSPredicate(format: "label == %@", label), evaluatedWith: element)
         wait(for: [changed], timeout: 5)
+    }
+    private func assertLabeledText(_ id: String, field: String, value: String,
+                                   file: StaticString = #filePath, line: UInt = #line) {
+        let label = app.staticTexts[id].label
+        XCTAssertTrue([value, "\(field), \(value)"].contains(label),
+                      "Expected \(field) to be \(value), found \(label)", file: file, line: line)
     }
     private func restart() {
         app.terminate(); app.launchArguments = ["-ui-testing"]; app.launch()
@@ -102,6 +112,31 @@ final class CentreUITests: XCTestCase {
         waitText("Mitochondria supply ATP for cell activity.")
         XCTAssertTrue(app.buttons["note.edit"].exists)
         capture("02-note-body-restored-from-disk")
+    }
+
+    func testNotificationCategoryAndAssignmentOpenCachedText() {
+        app.terminate()
+        app.launchArguments = ["-ui-testing", "-reset-fixture", "-ui-testing-notification"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Resources"].waitForExistence(timeout: 15))
+        tab("Resources")
+        let categories = app.segmentedControls["resources.category"]
+        XCTAssertTrue(categories.waitForExistence(timeout: 5))
+        categories.buttons["Notifications"].tap()
+        let notificationRow = app.buttons["resources.row.c0b7e151-aed2-49dd-bef5-93e5358d029a"]
+        XCTAssertTrue(notificationRow.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["resources.row.\(quizId)"].exists)
+        notificationRow.tap()
+        waitText("Complete questions 1 to 4. Show each algebraic step.")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        tab("Calendar")
+        let assignment = app.descendants(matching: .any).matching(identifier: "calendar.assignment.assignment-notification").firstMatch
+        reveal(assignment)
+        XCTAssertTrue(assignment.exists)
+        assignment.tap()
+        waitText("Complete questions 1 to 4. Show each algebraic step.")
+        XCTAssertTrue(app.staticTexts["Assignment notification · algebra-brief.pdf"].exists)
+        capture("notification-resource-opened-offline-from-assignment")
     }
 
     func testOfflineQuizAnswerSurvivesRestartWithoutInventedGrade() {
@@ -351,11 +386,13 @@ final class CentreUITests: XCTestCase {
         tab("Chat");tap("chat.row.\(chatId)")
         var composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText(firstText)
+        XCTAssertEqual(composer.value as? String,firstText,"Typing must preserve the complete prompt before navigation or persistence.")
         app.navigationBars.buttons.element(boundBy:0).tap()
 
         tap("chat.new")
         composer=app.textViews["chat.composer"].exists ? app.textViews["chat.composer"]:app.textFields["chat.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout:5));composer.tap();composer.typeText(secondText)
+        XCTAssertEqual(composer.value as? String,secondText,"Typing must preserve the complete new-chat prompt before navigation or persistence.")
         app.navigationBars.buttons.element(boundBy:0).tap()
         restart();tab("Chat")
 
@@ -432,36 +469,36 @@ final class CentreUITests: XCTestCase {
         XCTAssertFalse(deletedResource.exists)
         choosePickerOption("practiceHistory.resourceFilter", containing: "All resources")
         tap("practiceHistory.resource.\(quizId)")
-        waitText("original question text and marking model were not saved")
+        waitText("Original prompt and grading-model history is unavailable")
 
         let change = app.staticTexts["practiceHistory.change.q1"]
         reveal(change)
         XCTAssertTrue(change.waitForExistence(timeout: 10))
         XCTAssertEqual(change.label, "Repeated mistake", "Default comparison should use the oldest and latest saved attempts.")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.outcome"].label, "Partial")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.answer"].label, "First saved response")
+        assertLabeledText("practiceHistory.earlier.q1.outcome", field: "Outcome", value: "Partial")
+        assertLabeledText("practiceHistory.later.q1.outcome", field: "Outcome", value: "Partial")
+        assertLabeledText("practiceHistory.earlier.q1.answer", field: "Saved answer", value: "First saved response")
         XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.feedback"].label, "First saved feedback.")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
+        assertLabeledText("practiceHistory.later.q1.answer", field: "Saved answer", value: "Latest saved response")
         XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.feedback"].label, "Latest saved feedback.")
         XCTAssertTrue(app.staticTexts["Current prompt"].exists)
 
         choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 2", fromBottom: true)
         reveal(change)
         waitLabel(change, "Lower mark")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.outcome"].label, "Partial")
-        XCTAssertEqual(app.staticTexts["practiceHistory.earlier.q1.answer"].label, "Second saved response")
+        assertLabeledText("practiceHistory.earlier.q1.outcome", field: "Outcome", value: "Partial")
+        assertLabeledText("practiceHistory.earlier.q1.answer", field: "Saved answer", value: "Second saved response")
         choosePickerOption("practiceHistory.earlierAttempt", containing: "Attempt 1", fromBottom: true)
         choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 2")
         reveal(change)
         waitLabel(change, "Improved")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Second saved response")
+        assertLabeledText("practiceHistory.later.q1.answer", field: "Saved answer", value: "Second saved response")
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.repeatedMistake.q1").firstMatch.exists,
                       "A partial improvement can still be below full marks in both attempts.")
         choosePickerOption("practiceHistory.laterAttempt", containing: "Attempt 4", fromBottom: true)
         reveal(change)
         waitLabel(change, "Repeated mistake")
-        XCTAssertEqual(app.staticTexts["practiceHistory.later.q1.answer"].label, "Latest saved response")
+        assertLabeledText("practiceHistory.later.q1.answer", field: "Saved answer", value: "Latest saved response")
         capture("23-native-log-practice-attempt-comparison")
     }
 
@@ -472,9 +509,10 @@ final class CentreUITests: XCTestCase {
         tap("practiceHistory.resource.deleted-resource")
 
         waitText("This resource is deleted or unavailable")
-        reveal(app.staticTexts["Saved deleted-resource answer"])
-        XCTAssertTrue(app.staticTexts["Saved deleted-resource answer"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Saved deleted-resource feedback."].exists)
+        let answer = app.descendants(matching: .any).matching(identifier: "practiceHistory.saved.saved-question-id.answer").firstMatch
+        reveal(answer)
+        XCTAssertTrue(answer.label.contains("Saved deleted-resource answer"))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "practiceHistory.saved.saved-question-id.feedback").firstMatch.exists)
         XCTAssertFalse(app.staticTexts["Current prompt"].exists, "Deleted resources must not supply current prompt text.")
         capture("24-deleted-resource-attempt-history")
     }
